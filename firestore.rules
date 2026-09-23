@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'administrador');
+    }
+
+    match /usuarios/{userId} {
+      // Authenticated users can read users list and check suspension state
+      allow read: if isAuthenticated();
+      
+      // A user can create their initial registration document
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Self-update basic fields, or admins can update any field (including rol and estado)
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin()
+      );
+      
+      // Deletions restricted to administrators
+      allow delete: if isAdmin();
+    }
+  }
+}

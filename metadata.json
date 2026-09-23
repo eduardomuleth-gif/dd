@@ -1,0 +1,6 @@
+{
+  "name": "Security Urban",
+  "description": "Plataforma de monitoreo, prevención, rutas seguras y apoyo táctico en tiempo real para la Comuna 8 de Medellín",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

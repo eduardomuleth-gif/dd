@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Tactical Dark Scrollbar for internal columns and lists */
+.tactical-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(249, 115, 22, 0.5) #0c1222;
+}
+
+.tactical-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tactical-scrollbar::-webkit-scrollbar-track {
+  background: #090d16;
+  border-radius: 9999px;
+}
+
+.tactical-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(249, 115, 22, 0.45);
+  border-radius: 9999px;
+  border: 1px solid rgba(251, 146, 60, 0.2);
+  transition: background-color 0.2s ease;
+}
+
+.tactical-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.75);
+}
+
+/* Google Places Autocomplete Dark HUD styling */
+.pac-container {
+  background-color: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 14px 32px -4px rgba(0, 0, 0, 0.85), 0 0 20px rgba(249, 115, 22, 0.15) !important;
+  margin-top: 6px !important;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+  z-index: 99999 !important;
+}
+
+.pac-item {
+  color: #cbd5e1 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding: 8px 12px !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+}
+
+.pac-item:hover, .pac-item-selected {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+.pac-item-query {
+  color: #f8fafc !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.pac-matched {
+  color: #fb923c !important;
+  font-weight: 700 !important;
+}
+
+.pac-icon {
+  filter: invert(1) hue-rotate(180deg) brightness(1.2) !important;
+  margin-top: 4px !important;
+}

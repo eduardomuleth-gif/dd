@@ -1,0 +1,190 @@
+import React, { useState } from 'react';
+import { User } from 'firebase/auth';
+import { Mail, CheckCircle2, RotateCw, RefreshCw, LogOut, AlertCircle, Shield } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import { executeSendEmailVerification, executeSignOut } from '../services/firebaseAuth';
+
+interface EmailVerificationViewProps {
+  user: User;
+  onVerificationSuccess: () => void;
+}
+
+export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
+  user,
+  onVerificationSuccess,
+}) => {
+  const { t } = useLanguage();
+  const { colors } = useTheme();
+  const [isChecking, setIsChecking] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'warn'; message: string } | null>(null);
+
+  const handleCheckStatus = async () => {
+    setIsChecking(true);
+    setNotification(null);
+    console.log('[Firebase Auth] Comprobando estado de emailVerified para:', user.email);
+
+    try {
+      await user.reload();
+      if (user.emailVerified) {
+        console.log('%c[Firebase Auth] ✔ Correo confirmado exitosamente: emailVerified = true', 'color: #10b981; font-weight: bold;');
+        onVerificationSuccess();
+      } else {
+        console.warn('[Firebase Auth] Correo aún pendiente de confirmación en el servidor.');
+        setNotification({
+          type: 'warn',
+          message: t('verificationStillPending'),
+        });
+      }
+    } catch (err) {
+      console.error('[Firebase Auth] Error al recargar estado del usuario:', err);
+      setNotification({
+        type: 'warn',
+        message: 'No se pudo verificar el estado en este momento. Intenta de nuevo.',
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    setIsResending(true);
+    setNotification(null);
+    console.log('[Firebase Auth] Solicitud de reenvío de correo de verificación para:', user.email);
+    try {
+      const res = await executeSendEmailVerification(user);
+      if (res.success) {
+        console.log('[Firebase Auth] ✔ Correo de verificación reenviado exitosamente a:', user.email);
+        setNotification({
+          type: 'success',
+          message: t('verificationResentSuccess'),
+        });
+      } else {
+        console.error('[Firebase Auth] ✖ Error devuelto por Firebase al reenviar:', res.error);
+        setNotification({
+          type: 'warn',
+          message: res.error || 'No se pudo reenviar en este momento.',
+        });
+      }
+    } catch (err) {
+      console.error('[Firebase Auth] ✖ Excepción al reenviar correo:', err);
+      setNotification({
+        type: 'warn',
+        message: 'Error al enviar la solicitud de verificación.',
+      });
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await executeSignOut();
+  };
+
+  return (
+    <div
+      id="email-verification-container"
+      className={`w-full max-w-lg rounded-3xl p-6 sm:p-10 shadow-2xl relative border overflow-hidden mx-auto backdrop-blur-md transition-colors ${colors.cardBg} ${colors.cardBorder} ${colors.canvasText}`}
+    >
+      {/* Red ambient highlight */}
+      <div className={`absolute top-0 right-0 w-44 h-44 rounded-full blur-3xl pointer-events-none ${colors.cardGlow}`} />
+
+      {/* Header icon */}
+      <div className="flex flex-col items-center text-center space-y-4">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-3xl bg-red-100 border border-red-300 dark:bg-red-950/80 dark:border-red-600/50 flex items-center justify-center text-red-600 dark:text-red-400 shadow-lg shadow-red-950/20">
+            <Mail className="w-8 h-8" />
+          </div>
+          <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-slate-900">
+            !
+          </span>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold text-red-600 dark:text-red-400">
+            <Shield className="w-4 h-4" />
+            <span>Confirmación de Identidad</span>
+          </div>
+          <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight ${colors.cardTitle}`}>
+            {t('verificationPendingTitle')}
+          </h2>
+          <div className="inline-block px-3.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-mono font-semibold text-slate-800 dark:text-slate-200 mt-1">
+            {user.email}
+          </div>
+        </div>
+
+        <p className={`text-sm sm:text-base leading-relaxed max-w-md ${colors.cardSubtitle}`}>
+          {t('verificationPendingDesc')}
+        </p>
+      </div>
+
+      {notification && (
+        <div
+          className={`my-5 p-4 rounded-2xl flex items-start gap-3 text-sm leading-relaxed ${
+            notification.type === 'success'
+              ? 'bg-emerald-100 border border-emerald-400 text-emerald-900 dark:bg-emerald-950/60 dark:border-emerald-600/50 dark:text-emerald-200'
+              : 'bg-amber-100 border border-amber-400 text-amber-900 dark:bg-amber-950/60 dark:border-amber-600/50 dark:text-amber-200'
+          }`}
+        >
+          {notification.type === 'success' ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          )}
+          <span className="font-medium">{notification.message}</span>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="space-y-3 mt-6">
+        <button
+          type="button"
+          onClick={handleCheckStatus}
+          disabled={isChecking}
+          className="w-full py-4 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-sm sm:text-base tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-red-950/40 transition cursor-pointer"
+        >
+          {isChecking ? (
+            <>
+              <RotateCw className="w-4 h-4 animate-spin" />
+              <span>Verificando estado...</span>
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4" />
+              <span>{t('verificationCheckStatus')}</span>
+            </>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleResendEmail}
+          disabled={isResending}
+          className="w-full py-3.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 disabled:opacity-50 text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm tracking-wide border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-2 transition cursor-pointer"
+        >
+          {isResending ? (
+            <>
+              <RotateCw className="w-4 h-4 animate-spin" />
+              <span>Reenviando correo...</span>
+            </>
+          ) : (
+            <>
+              <Mail className="w-4 h-4 text-red-600" />
+              <span>{t('verificationResend')}</span>
+            </>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className={`w-full py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${colors.mutedText} hover:text-red-600`}
+        >
+          <LogOut className="w-4 h-4" />
+          <span>{t('signOut')}</span>
+        </button>
+      </div>
+    </div>
+  );
+};

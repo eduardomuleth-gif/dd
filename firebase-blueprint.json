@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "Usuario": {
+      "title": "Usuario",
+      "description": "Perfil de usuario registrado en Security Urban Comuna 8",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Identificador único de Firebase Authentication"
+        },
+        "nombre": {
+          "type": "string",
+          "description": "Nombre completo del usuario",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "correo": {
+          "type": "string",
+          "format": "email",
+          "description": "Correo electrónico registrado"
+        },
+        "fechaRegistro": {
+          "type": "string",
+          "description": "Marca de tiempo de registro en Firestore"
+        },
+        "fechaRegistroISO": {
+          "type": "string",
+          "description": "Fecha de registro en formato ISO 8601"
+        },
+        "rol": {
+          "type": "string",
+          "description": "Rol de acceso en la plataforma",
+          "enum": ["ciudadano", "operador", "administrador"]
+        },
+        "estado": {
+          "type": "string",
+          "description": "Estado administrativo de la cuenta",
+          "enum": ["activo", "suspendido"]
+        },
+        "sector": {
+          "type": "string",
+          "description": "Sector o barrio de residencia en la Comuna 8"
+        },
+        "ultimoAcceso": {
+          "type": "string",
+          "description": "Última fecha y hora de conexión"
+        }
+      },
+      "required": ["uid", "nombre", "correo", "rol", "estado"]
+    }
+  },
+  "firestore": {
+    "/usuarios/{userId}": {
+      "schema": "Usuario",
+      "description": "Colección de usuarios registrados para gestión y control de acceso"
+    }
+  }
+}
