@@ -12,7 +12,9 @@ import {
   Sparkles,
   CheckCircle2,
   Navigation,
-  UserCheck
+  UserCheck,
+  PlusCircle,
+  FileCheck2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -407,6 +409,63 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono text-rose-500 font-bold">
             <span>MOD-04 // RED VECINAL</span>
             <span>CONTACTOS →</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Incident Reporting & My Reports Community Banner */}
+      <div className={`w-full mb-8 p-5 sm:p-6 rounded-3xl border transition-all relative overflow-hidden backdrop-blur-md shadow-lg ${
+        isDark
+          ? 'bg-gradient-to-r from-red-950/30 via-slate-900/90 to-amber-950/20 border-red-900/50'
+          : 'bg-gradient-to-r from-red-50/90 via-white to-amber-50/90 border-red-200 shadow-slate-200/50'
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-600 to-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-red-900/30">
+              <PlusCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-black text-red-600 dark:text-red-400 uppercase tracking-widest">
+                  SEGURIDAD CIUDADANA // REPORTE PARTICIPATIVO
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[9px] font-bold">
+                  EN LÍNEA
+                </span>
+              </div>
+              <h4 className="text-base sm:text-lg font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                {language === 'es' ? '¿Presenciaste un incidente en la Comuna 8?' : 'Witnessed an incident in Comuna 8?'}
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl">
+                {language === 'es'
+                  ? 'Registra novedades de seguridad, fallas de iluminación o emergencias viales. El reporte será verificado por administradores antes de su publicación.'
+                  : 'Report security incidents, lighting failures, or road hazards. Reports are reviewed by administrators prior to public map dispatch.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={() => onNavigate('myReports')}
+              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer whitespace-nowrap"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>{language === 'es' ? 'Reportar Incidente' : 'Report Incident'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigate('myReports')}
+              className={`py-2.5 px-4 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap ${
+                isDark 
+                  ? 'border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-200' 
+                  : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs'
+              }`}
+            >
+              <FileCheck2 className="w-4 h-4 text-amber-500" />
+              <span>{language === 'es' ? 'Mis Reportes' : 'My Reports'}</span>
+            </button>
           </div>
         </div>
       </div>

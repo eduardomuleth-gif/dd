@@ -414,9 +414,9 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const placesInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const placesLibRef = useRef<any>(null);
-  const sessionTokenRef = useRef<any>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const riskCirclesRef = useRef<google.maps.Circle[]>([]);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -434,9 +434,6 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
     coordinates: { lat: number; lng: number };
   } | null>(null);
   const [placesSearchText, setPlacesSearchText] = useState<string>('');
-  const [placesSuggestions, setPlacesSuggestions] = useState<any[]>([]);
-  const [isSearchingPlaces, setIsSearchingPlaces] = useState<boolean>(false);
-  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterLevel, setFilterLevel] = useState<'all' | RiskLevel>('all');
   const [isLocating, setIsLocating] = useState<boolean>(false);
@@ -454,9 +451,10 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
         setOptions({
           key: GOOGLE_MAPS_API_KEY,
           v: 'weekly',
+          libraries: ['places', 'geometry', 'marker', 'geocoding'],
         });
 
-        // Import required libraries using modern Places API (New)
+        // Import required libraries using Google Maps Platform JS SDK
         const { Map, Circle } = (await importLibrary('maps')) as google.maps.MapsLibrary;
         const { AdvancedMarkerElement } = (await importLibrary('marker')) as google.maps.MarkerLibrary;
         const { ColorScheme } = (await importLibrary('core')) as google.maps.CoreLibrary;
@@ -739,157 +737,231 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
     setSelectedSector(COMUNA_8_SECTORS[0]);
     setSearchedLocation(null);
     setPlacesSearchText('');
-    setPlacesSuggestions([]);
-    setShowSuggestions(false);
-    sessionTokenRef.current = null;
+    if (placesInputRef.current) {
+      placesInputRef.current.value = '';
+    }
     if (searchMarkerRef.current) {
       searchMarkerRef.current.map = null;
       searchMarkerRef.current = null;
     }
   };
 
-  // Google Places API (New): debounced Autocomplete suggestions
-  useEffect(() => {
-    const query = placesSearchText.trim();
-    if (!query || query.length < 2 || !placesLibRef.current) {
-      setPlacesSuggestions([]);
-      setIsSearchingPlaces(false);
-      return;
-    }
+  // Fallback Geocoding for manual addresses entered directly
+  const geocodeAddressFallback = useCallback(async (addressText: string) => {
+    const query = addressText.trim();
+    if (!query) return;
 
-    const { AutocompleteSessionToken, AutocompleteSuggestion } = placesLibRef.current;
-    if (!sessionTokenRef.current && AutocompleteSessionToken) {
-      sessionTokenRef.current = new AutocompleteSessionToken();
-    }
+    console.log('[Security Urban :: RiskMap] 🔍 Fallback Geocoder ejecutando para dirección manual:', query);
+    try {
+      const geocodingLib = (await importLibrary('geocoding')) as google.maps.GeocodingLibrary;
+      const geocoder = new geocodingLib.Geocoder();
+      const fullQuery = query.toLowerCase().includes('medell') ? query : `${query}, Medellín, Colombia`;
 
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearchingPlaces(true);
-        const request: any = {
-          input: query,
-          includedRegionCodes: ['co'],
-          locationBias: {
-            west: -75.72,
-            north: 6.38,
-            east: -75.46,
-            south: 6.12,
-          },
-        };
-        if (sessionTokenRef.current) {
-          request.sessionToken = sessionTokenRef.current;
-        }
+      geocoder.geocode(
+        {
+          address: fullQuery,
+          componentRestrictions: { country: 'co' },
+        },
+        (results, status) => {
+          console.log('[Security Urban :: RiskMap] 🚦 Geocoder status:', status, results);
+          if (status === 'OK' && results && results.length > 0 && results[0].geometry?.location) {
+            const first = results[0];
+            const lat = first.geometry.location.lat();
+            const lng = first.geometry.location.lng();
+            const placeName = first.formatted_address.split(',')[0] || query;
+            const formattedAddress = first.formatted_address;
 
-        if (AutocompleteSuggestion) {
-          const res = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
-          if (res && Array.isArray(res.suggestions)) {
-            setPlacesSuggestions(res.suggestions);
-            setShowSuggestions(true);
+            setPlacesSearchText(formattedAddress);
+
+            const map = mapInstanceRef.current;
+            if (map) {
+              if (first.geometry.viewport) {
+                map.fitBounds(first.geometry.viewport);
+              } else {
+                map.panTo({ lat, lng });
+                map.setZoom(16);
+              }
+            }
+
+            if (searchMarkerRef.current) {
+              searchMarkerRef.current.map = null;
+            }
+
+            importLibrary('marker').then((markerLib: any) => {
+              const { AdvancedMarkerElement } = markerLib;
+              const searchPinEl = document.createElement('div');
+              searchPinEl.className = 'relative flex items-center justify-center cursor-pointer select-none';
+              searchPinEl.innerHTML = `
+                <div class="absolute w-12 h-12 rounded-full bg-cyan-400/25 animate-ping pointer-events-none"></div>
+                <div class="relative w-7 h-7 rounded-full bg-cyan-400 border-2 border-white shadow-[0_0_18px_#22d3ee] flex items-center justify-center text-slate-950 font-black text-xs">
+                  📍
+                </div>
+                <div class="absolute -bottom-6 bg-slate-900/95 text-cyan-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-400/60 whitespace-nowrap shadow-xl">
+                  ${placeName}
+                </div>
+              `;
+
+              const marker = new AdvancedMarkerElement({
+                map: mapInstanceRef.current,
+                position: { lat, lng },
+                title: placeName,
+                content: searchPinEl,
+                zIndex: 280,
+              });
+
+              searchMarkerRef.current = marker;
+            });
+
+            const matched = findMatchingSector(lat, lng, placeName, formattedAddress);
+            if (matched) {
+              setSelectedSector(matched);
+              setSearchedLocation(null);
+            } else {
+              setSelectedSector(null);
+              setSearchedLocation({
+                name: placeName,
+                address: formattedAddress,
+                coordinates: { lat, lng },
+              });
+            }
           }
         }
-      } catch (err) {
-        console.warn('Error fetching Places suggestions:', err);
-      } finally {
-        setIsSearchingPlaces(false);
-      }
-    }, 220);
-
-    return () => clearTimeout(timer);
-  }, [placesSearchText]);
-
-  // Close suggestions on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+      );
+    } catch (err) {
+      console.warn('[Security Urban :: RiskMap] Geocoder error:', err);
+    }
   }, []);
 
-  // Handle selection from Places API (New) predictions
-  const handleSelectSuggestion = async (suggestion: any) => {
+  // Google Places Autocomplete binding
+  useEffect(() => {
+    if (!mapLoaded || !placesInputRef.current || !placesLibRef.current) return;
+
     try {
-      setShowSuggestions(false);
-      const placePrediction = suggestion.placePrediction;
-      if (!placePrediction) return;
+      const placesLib = placesLibRef.current;
+      if (!placesLib.Autocomplete) return;
 
-      const displayText =
-        placePrediction.mainText?.text ||
-        placePrediction.text?.toString() ||
-        'Lugar en Medellín';
-      setPlacesSearchText(displayText);
+      console.log('[Security Urban :: RiskMap] 🔌 Vinculando Google Places Autocomplete con country: "co" sin restricciones de tipo...');
 
-      const place = placePrediction.toPlace();
-      await place.fetchFields({
-        fields: ['displayName', 'formattedAddress', 'location'],
+      const autocomplete = new placesLib.Autocomplete(placesInputRef.current, {
+        componentRestrictions: { country: 'co' },
+        fields: ['place_id', 'geometry', 'formatted_address', 'name', 'address_components', 'types'],
+        // NOTE: No restrictive types filter is applied so street addresses (calles, carreras),
+        // establishments, neighborhoods, and geocodes are all fully accepted and returned.
+        bounds: new google.maps.LatLngBounds(
+          { lat: 6.12, lng: -75.72 },
+          { lat: 6.38, lng: -75.46 }
+        ),
+        strictBounds: false,
       });
 
-      // Reset session token after fetchFields as required by Places API (New)
-      sessionTokenRef.current = null;
-
-      if (!place.location || !mapInstanceRef.current) return;
-
-      const lat = place.location.lat();
-      const lng = place.location.lng();
-      const placeName = place.displayName || displayText;
-      const formattedAddress = place.formattedAddress || 'Medellín, Antioquia, Colombia';
-
-      mapInstanceRef.current.panTo({ lat, lng });
-      mapInstanceRef.current.setZoom(16);
-
-      // Clean previous search marker
-      if (searchMarkerRef.current) {
-        searchMarkerRef.current.map = null;
-      }
-
-      // Tactical glowing cyan search beacon marker
-      const searchPinEl = document.createElement('div');
-      searchPinEl.className = 'relative flex items-center justify-center cursor-pointer select-none';
-      searchPinEl.innerHTML = `
-        <div class="absolute w-12 h-12 rounded-full bg-cyan-400/25 animate-ping pointer-events-none"></div>
-        <div class="relative w-7 h-7 rounded-full bg-cyan-400 border-2 border-white shadow-[0_0_18px_#22d3ee] flex items-center justify-center text-slate-950 font-black text-xs">
-          📍
-        </div>
-        <div class="absolute -bottom-6 bg-slate-900/95 text-cyan-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-400/60 whitespace-nowrap shadow-xl">
-          ${placeName}
-        </div>
-      `;
-
-      // @ts-ignore
-      const { AdvancedMarkerElement } = (await google.maps.importLibrary('marker')) as google.maps.MarkerLibrary;
-      const marker = new AdvancedMarkerElement({
-        map: mapInstanceRef.current,
-        position: { lat, lng },
-        title: placeName,
-        content: searchPinEl,
-      });
-
-      searchMarkerRef.current = marker;
-
-      // Check if matches one of the 18 monitored sectors
-      const matched = findMatchingSector(lat, lng, placeName, formattedAddress);
-
-      if (matched) {
-        setSelectedSector(matched);
-        setSearchedLocation(null);
-      } else {
-        setSelectedSector(null);
-        setSearchedLocation({
-          name: placeName,
-          address: formattedAddress,
-          coordinates: { lat, lng },
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        console.log('[Security Urban :: RiskMap] 📍 Evento place_changed recibido de Google Places:', {
+          name: place.name,
+          formatted_address: place.formatted_address,
+          geometry: place.geometry
+            ? {
+                location: place.geometry.location
+                  ? {
+                      lat: place.geometry.location.lat(),
+                      lng: place.geometry.location.lng(),
+                    }
+                  : null,
+                viewport: !!place.geometry.viewport,
+              }
+            : null,
+          address_components: place.address_components,
+          place_id: place.place_id,
+          types: place.types,
+          fullPlace: place,
         });
-      }
-    } catch (err) {
-      console.error('Error selecting place from Places API (New):', err);
+
+        if (!place.geometry || !place.geometry.location) {
+          console.warn('[Security Urban :: RiskMap] ⚠️ place_changed: El lugar devuelto no incluye coordenadas exactas, activando geocodificador:', place);
+          if (place.name || place.formatted_address) {
+            geocodeAddressFallback(place.formatted_address || place.name || '');
+          }
+          return;
+        }
+
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        const placeName = place.name || place.formatted_address?.split(',')[0] || 'Lugar en Medellín';
+        const formattedAddress = place.formatted_address || placeName;
+
+        setPlacesSearchText(formattedAddress);
+
+        const map = mapInstanceRef.current;
+        if (map) {
+          if (place.geometry.viewport) {
+            map.fitBounds(place.geometry.viewport);
+          } else {
+            map.panTo({ lat, lng });
+            map.setZoom(16);
+          }
+        }
+
+        if (searchMarkerRef.current) {
+          searchMarkerRef.current.map = null;
+        }
+
+        importLibrary('marker').then((markerLib: any) => {
+          const { AdvancedMarkerElement } = markerLib;
+          const searchPinEl = document.createElement('div');
+          searchPinEl.className = 'relative flex items-center justify-center cursor-pointer select-none';
+          searchPinEl.innerHTML = `
+            <div class="absolute w-12 h-12 rounded-full bg-cyan-400/25 animate-ping pointer-events-none"></div>
+            <div class="relative w-7 h-7 rounded-full bg-cyan-400 border-2 border-white shadow-[0_0_18px_#22d3ee] flex items-center justify-center text-slate-950 font-black text-xs">
+              📍
+            </div>
+            <div class="absolute -bottom-6 bg-slate-900/95 text-cyan-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-400/60 whitespace-nowrap shadow-xl">
+              ${placeName}
+            </div>
+          `;
+
+          const marker = new AdvancedMarkerElement({
+            map: mapInstanceRef.current,
+            position: { lat, lng },
+            title: placeName,
+            content: searchPinEl,
+            zIndex: 280,
+          });
+
+          searchMarkerRef.current = marker;
+        });
+
+        const matched = findMatchingSector(lat, lng, placeName, formattedAddress);
+        if (matched) {
+          setSelectedSector(matched);
+          setSearchedLocation(null);
+        } else {
+          setSelectedSector(null);
+          setSearchedLocation({
+            name: placeName,
+            address: formattedAddress,
+            coordinates: { lat, lng },
+          });
+        }
+      });
+
+      autocompleteRef.current = autocomplete;
+    } catch (e) {
+      console.error('[Security Urban :: RiskMap] Error vinculando Autocomplete:', e);
     }
-  };
+
+    return () => {
+      if (autocompleteRef.current && (window as any).google?.maps?.event) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [mapLoaded, geocodeAddressFallback]);
 
   // User Geolocation with navigator.geolocation
-  const handleGetCurrentLocation = useCallback(async () => {
+  const handleGetCurrentLocation = useCallback(() => {
+    console.log('[Security Urban :: RiskMap] 🛰️ Botón "Mi ubicación en vivo" presionado. Evaluando soporte y solicitando posición...');
+
     if (!navigator.geolocation) {
-      alert('Tu navegador no soporta geolocalización.');
+      console.error('[Security Urban :: RiskMap] ❌ navigator.geolocation no está disponible en este entorno o navegador.');
       return;
     }
 
@@ -902,13 +974,41 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         };
+        const accuracy = pos.coords.accuracy;
+
+        console.log('[Security Urban :: RiskMap] 📍 Coordenadas de "Mi ubicación en vivo" obtenidas exitosamente:', {
+          latitude: userCoords.lat,
+          longitude: userCoords.lng,
+          accuracyMeters: accuracy,
+          accuracyText: `±${Math.round(accuracy)}m`,
+          altitude: pos.coords.altitude,
+          timestamp: new Date(pos.timestamp).toLocaleTimeString(),
+        });
+
         setUserLocation(userCoords);
 
-        const map = mapInstanceRef.current;
-        if (!map) return;
+        // Store coords for session continuity
+        try {
+          localStorage.setItem(
+            'security_urban_user_coords',
+            JSON.stringify({
+              lat: userCoords.lat,
+              lng: userCoords.lng,
+              accuracy,
+              label: `GPS en vivo (${userCoords.lat.toFixed(5)}, ${userCoords.lng.toFixed(5)})`,
+            })
+          );
+        } catch (e) {}
 
+        const map = mapInstanceRef.current;
+        if (!map) {
+          console.warn('[Security Urban :: RiskMap] ⚠️ mapInstanceRef no está montado aún para centrar.');
+          return;
+        }
+
+        console.log('[Security Urban :: RiskMap] 🗺️ Centrando mapa en ubicación del usuario:', userCoords);
         map.panTo(userCoords);
-        map.setZoom(15);
+        map.setZoom(16);
 
         try {
           const { AdvancedMarkerElement } = (await importLibrary('marker')) as google.maps.MarkerLibrary;
@@ -920,43 +1020,58 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
 
           // Create custom pulsing HUD user marker
           const userDot = document.createElement('div');
-          userDot.className = 'relative flex items-center justify-center';
+          userDot.className = 'relative flex items-center justify-center pointer-events-auto cursor-pointer';
           userDot.innerHTML = `
-            <div class="absolute w-8 h-8 rounded-full bg-cyan-500/25 animate-ping"></div>
-            <div class="relative w-5 h-5 rounded-full bg-cyan-400 border-2 border-white shadow-[0_0_15px_#22d3ee] flex items-center justify-center">
-              <div class="w-1.5 h-1.5 rounded-full bg-slate-900"></div>
+            <div class="absolute w-12 h-12 rounded-full bg-cyan-400/35 animate-ping pointer-events-none"></div>
+            <div class="absolute w-8 h-8 rounded-full bg-cyan-500/30 animate-pulse pointer-events-none"></div>
+            <div class="relative w-6 h-6 rounded-full bg-cyan-400 border-2 border-white shadow-[0_0_20px_#22d3ee] flex items-center justify-center">
+              <div class="w-2 h-2 rounded-full bg-slate-950"></div>
             </div>
-            <div class="absolute -bottom-6 bg-slate-900/90 text-cyan-300 text-[10px] font-mono px-1.5 py-0.5 rounded border border-cyan-500/50 whitespace-nowrap shadow-md">
-              Mi Ubicación
+            <div class="absolute -bottom-7 bg-slate-950/95 text-cyan-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-400/60 whitespace-nowrap shadow-xl">
+              Mi Ubicación en Vivo (±${Math.round(accuracy)}m)
             </div>
           `;
 
           const marker = new AdvancedMarkerElement({
             map: map,
             position: userCoords,
-            title: 'Mi Ubicación en tiempo real',
+            title: `Mi Ubicación en vivo: ${userCoords.lat.toFixed(5)}, ${userCoords.lng.toFixed(5)}`,
             content: userDot,
+            zIndex: 350,
           });
 
           userMarkerRef.current = marker;
         } catch (e) {
-          console.error('Error adding user marker:', e);
+          console.error('[Security Urban :: RiskMap] Error creando marcador de usuario:', e);
         }
       },
       (error) => {
         setIsLocating(false);
-        console.warn('Geolocation error:', error);
-        // Fallback friendly alert
-        if (error.code === error.PERMISSION_DENIED) {
-          alert('Permiso de geolocalización denegado en el navegador.');
-        } else {
-          alert('No fue posible obtener la ubicación GPS en este momento.');
-        }
+        console.error('[Security Urban :: RiskMap] ❌ Error en navigator.geolocation.getCurrentPosition:', {
+          code: error.code,
+          message: error.message,
+          isPermissionDenied: error.code === error.PERMISSION_DENIED,
+          isPositionUnavailable: error.code === error.POSITION_UNAVAILABLE,
+          isTimeout: error.code === error.TIMEOUT,
+        });
+
+        // Fallback: Check if cached coordinates are available from previous user session
+        try {
+          const cached = localStorage.getItem('security_urban_user_coords');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed.lat && parsed.lng && mapInstanceRef.current) {
+              console.log('[Security Urban :: RiskMap] ℹ️ Utilizando coordenadas en caché como respaldo:', parsed);
+              mapInstanceRef.current.panTo({ lat: parsed.lat, lng: parsed.lng });
+              mapInstanceRef.current.setZoom(16);
+            }
+          }
+        } catch (e) {}
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 30000,
+        maximumAge: 10000,
       }
     );
   }, []);
@@ -1058,80 +1173,34 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
         <div className="lg:col-span-2 xl:col-span-6 flex flex-col gap-3.5 h-auto xl:h-[76vh] xl:min-h-[640px] xl:max-h-[860px]">
           {/* Top Map Toolbar: Google Places Autocomplete Search & View Controls */}
           <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 backdrop-blur-md shadow-lg shrink-0">
-            {/* Real Places Search Input (Google Places API New Autocomplete for all of Medellín) */}
-            <div ref={searchContainerRef} className="relative flex-1 min-w-[260px] max-w-full lg:max-w-[360px]">
+            {/* Google Places Autocomplete Search Input for Medellín */}
+            <div ref={searchContainerRef} className="relative flex-1 min-w-[260px] max-w-full lg:max-w-[420px]">
               <Search className="w-4 h-4 text-cyan-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={placesInputRef}
                 id="input-places-autocomplete"
                 type="text"
                 autoComplete="off"
-                placeholder="Buscar dirección o lugar en Medellín (ej. El Poblado, Laureles)..."
+                placeholder="Buscar calle, carrera, barrio o lugar en Medellín..."
                 value={placesSearchText}
-                onFocus={() => {
-                  if (placesSuggestions.length > 0) setShowSuggestions(true);
-                }}
                 onChange={(e) => setPlacesSearchText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && placesSuggestions.length > 0) {
+                  if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleSelectSuggestion(placesSuggestions[0]);
-                  } else if (e.key === 'Escape') {
-                    setShowSuggestions(false);
+                    geocodeAddressFallback(placesSearchText);
                   }
                 }}
                 className="w-full bg-slate-950/90 border border-white/15 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/80 transition-colors shadow-inner"
               />
-              {isSearchingPlaces && (
-                <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                </div>
-              )}
               {placesSearchText && (
                 <button
                   type="button"
                   onClick={handleResetCenter}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 transition-colors cursor-pointer"
                   title="Limpiar búsqueda de lugar"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
-              )}
-
-              {/* Tactical Dropdown Suggestions for Places API (New) */}
-              {showSuggestions && placesSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-slate-900/98 border border-cyan-500/50 rounded-xl shadow-2xl backdrop-blur-xl z-50 overflow-hidden divide-y divide-white/10 tactical-scrollbar max-h-64 overflow-y-auto">
-                  <div className="px-3 py-1.5 bg-slate-950/90 text-[10px] font-mono font-bold text-cyan-300 uppercase tracking-wider flex items-center justify-between border-b border-white/10">
-                    <span>Lugares sugeridos // Medellín</span>
-                    <span className="text-slate-400">{placesSuggestions.length}</span>
-                  </div>
-                  {placesSuggestions.map((suggestion, idx) => {
-                    const pred = suggestion.placePrediction;
-                    const mainText = pred?.mainText?.text || pred?.text?.toString() || 'Ubicación';
-                    const secondaryText = pred?.secondaryText?.text;
-
-                    return (
-                      <button
-                        key={pred?.placeId || idx}
-                        type="button"
-                        onClick={() => handleSelectSuggestion(suggestion)}
-                        className="w-full text-left px-3.5 py-2.5 hover:bg-cyan-950/50 flex items-start gap-2.5 transition-colors group cursor-pointer"
-                      >
-                        <MapPin className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-cyan-200">
-                            {mainText}
-                          </div>
-                          {secondaryText && (
-                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                              {secondaryText}
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
               )}
             </div>
 
@@ -1141,8 +1210,9 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
               <div className="flex items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-xl border border-white/10">
                 <button
                   id="btn-mode-heat"
+                  type="button"
                   onClick={() => setViewMode('heat')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'heat'
                       ? 'bg-rose-900/90 text-rose-100 border border-rose-500/60 shadow-[0_0_12px_rgba(244,63,94,0.35)]'
                       : 'text-slate-400 hover:text-white'
@@ -1154,8 +1224,9 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
 
                 <button
                   id="btn-mode-markers"
+                  type="button"
                   onClick={() => setViewMode('markers')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'markers'
                       ? 'bg-amber-900/90 text-amber-100 border border-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
                       : 'text-slate-400 hover:text-white'
@@ -1167,8 +1238,9 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
 
                 <button
                   id="btn-mode-both"
+                  type="button"
                   onClick={() => setViewMode('both')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'both'
                       ? 'bg-indigo-900/90 text-indigo-100 border border-indigo-500/60'
                       : 'text-slate-400 hover:text-white'
@@ -1184,17 +1256,20 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   id="btn-geolocation"
+                  type="button"
                   onClick={handleGetCurrentLocation}
                   disabled={isLocating}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-500/50 bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 text-xs sm:text-sm font-bold transition-all disabled:opacity-50 shadow-md"
-                  title="Centrar en mi ubicación actual"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-500/50 bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 text-xs sm:text-sm font-bold transition-all disabled:opacity-50 shadow-md cursor-pointer active:scale-95"
+                  title="Centrar en mi ubicación en vivo (GPS)"
                 >
                   {isLocating ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
                   ) : (
                     <LocateFixed className="w-3.5 h-3.5 text-cyan-400" />
                   )}
-                  <span className="hidden md:inline">{isLocating ? 'Detectando...' : 'Mi ubicación'}</span>
+                  <span className="inline font-bold">
+                    {isLocating ? 'Detectando GPS...' : 'Mi ubicación en vivo'}
+                  </span>
                 </button>
 
                 <button

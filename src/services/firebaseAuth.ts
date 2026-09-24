@@ -13,6 +13,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore,
+  initializeFirestore,
   Firestore,
   doc,
   getDoc,
@@ -38,7 +39,17 @@ export const firebaseApp: FirebaseApp = getApps().length > 0
   : initializeApp(firebaseConfig);
 
 export const auth: Auth = getAuth(firebaseApp);
-export const db: Firestore = getFirestore(firebaseApp);
+
+// Initialize Firestore with long-polling fallback to prevent WebSocket drops in sandboxed iframe previews
+export const db: Firestore = (() => {
+  try {
+    return initializeFirestore(firebaseApp, {
+      experimentalForceLongPolling: true,
+    });
+  } catch {
+    return getFirestore(firebaseApp);
+  }
+})();
 
 console.log('[Security Urban :: Firebase] SDK inicializado con proyecto:', firebaseConfig.projectId);
 

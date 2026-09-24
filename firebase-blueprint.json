@@ -42,18 +42,106 @@
           "type": "string",
           "description": "Sector o barrio de residencia en la Comuna 8"
         },
+        "telefono": {
+          "type": "string",
+          "description": "Número de teléfono de contacto"
+        },
+        "preferencias": {
+          "type": "object",
+          "description": "Preferencias de notificaciones, privacidad y geolocalización del usuario"
+        },
         "ultimoAcceso": {
           "type": "string",
           "description": "Última fecha y hora de conexión"
         }
       },
       "required": ["uid", "nombre", "correo", "rol", "estado"]
+    },
+    "Reporte": {
+      "title": "Reporte",
+      "description": "Incidente o novedad comunitaria reportada en Comuna 8",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "UID de Firebase Auth del usuario que creó el reporte"
+        },
+        "autorNombre": {
+          "type": "string",
+          "description": "Nombre del autor del reporte"
+        },
+        "autorEmail": {
+          "type": "string",
+          "description": "Correo electrónico del autor"
+        },
+        "titulo": {
+          "type": "string",
+          "description": "Título o asunto breve del reporte",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "categoria": {
+          "type": "string",
+          "description": "Categoría de incidente seleccionada por el usuario"
+        },
+        "descripcion": {
+          "type": "string",
+          "description": "Descripción detallada del incidente"
+        },
+        "sector": {
+          "type": "string",
+          "description": "Sector de la Comuna 8 donde ocurrió"
+        },
+        "direccion": {
+          "type": "string",
+          "description": "Dirección o punto de referencia"
+        },
+        "ubicacion": {
+          "type": "object",
+          "description": "Coordenadas geográficas lat/lng",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "estado": {
+          "type": "string",
+          "description": "Estado de verificación del reporte",
+          "enum": ["pendiente", "aceptado", "rechazado"]
+        },
+        "nivelPrioridad": {
+          "type": "string",
+          "description": "Nivel de urgencia o prioridad",
+          "enum": ["baja", "media", "alta", "critica"]
+        },
+        "fechaCreacionISO": {
+          "type": "string",
+          "description": "Fecha y hora de creación en formato ISO"
+        },
+        "fechaRevisionISO": {
+          "type": "string",
+          "description": "Fecha y hora de revisión por el administrador"
+        },
+        "revisadoPor": {
+          "type": "string",
+          "description": "Identificador o correo del administrador que revisó"
+        },
+        "motivoRechazo": {
+          "type": "string",
+          "description": "Motivo opcional en caso de rechazo"
+        }
+      },
+      "required": ["uid", "titulo", "categoria", "descripcion", "sector", "estado", "fechaCreacionISO"]
     }
   },
   "firestore": {
     "/usuarios/{userId}": {
       "schema": "Usuario",
       "description": "Colección de usuarios registrados para gestión y control de acceso"
+    },
+    "/reportes/{reporteId}": {
+      "schema": "Reporte",
+      "description": "Colección de incidentes comunitarios con verificación administrativa"
     }
   }
 }

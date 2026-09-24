@@ -1,6 +1,16 @@
 export type UserRole = 'ciudadano' | 'operador' | 'administrador';
 export type UserStatus = 'activo' | 'suspendido';
 
+export interface UserPreferences {
+  notificaciones?: {
+    alertasPush?: boolean;
+    actualizacionesReportes?: boolean;
+    apoyoTactico?: boolean;
+  };
+  compartirUbicacion?: boolean;
+  perfilVisibleComunidad?: boolean;
+}
+
 export interface FirestoreUser {
   uid: string;
   nombre: string;
@@ -12,6 +22,7 @@ export interface FirestoreUser {
   sector: string;
   ultimoAcceso?: string;
   telefono?: string;
+  preferencias?: UserPreferences;
 }
 
 export interface UserStats {

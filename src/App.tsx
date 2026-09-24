@@ -13,7 +13,8 @@ import {
   Home as HomeIcon,
   Menu, 
   X,
-  Loader2
+  Loader2,
+  Settings
 } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -29,6 +30,9 @@ import { RiskMapScreen } from './components/RiskMapScreen';
 import { SafeRoutesScreen } from './components/SafeRoutesScreen';
 import { TacticalSupportScreen } from './components/TacticalSupportScreen';
 import { UserManagementScreen } from './components/UserManagementScreen';
+import { SettingsScreen } from './components/SettingsScreen';
+import { MyReportsScreen } from './components/MyReportsScreen';
+import { AlertsScreen } from './components/AlertsScreen';
 import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderView';
 import { TacticalMapModal } from './components/TacticalMapModal';
 import { UserProfileMenu } from './components/UserProfileMenu';
@@ -123,6 +127,11 @@ const MainScreen: React.FC = () => {
     },
     { id: 'myReports', label: t('navMyReports'), icon: <FileText className="w-4 h-4" /> },
     { id: 'alerts', label: t('navAlerts'), icon: <Bell className="w-4 h-4" /> },
+    {
+      id: 'settings',
+      label: language === 'es' ? 'Ajustes' : 'Settings',
+      icon: <Settings className="w-4 h-4" />,
+    },
   ];
 
   // 1. Initial Loading State (while Firebase onAuthStateChanged resolves)
@@ -634,6 +643,7 @@ const MainScreen: React.FC = () => {
           <DashboardScreen
             onNavigate={(targetTab) => setCurrentView(targetTab)}
             onOpenTacticalMap={() => setIsTacticalMapOpen(true)}
+            currentUserId={currentUser?.uid}
           />
         ) : currentView === 'riskMap' ? (
           // Dedicated "Mapa de Riesgo" with real Google Maps and HeatmapLayer
@@ -660,6 +670,32 @@ const MainScreen: React.FC = () => {
             currentUserId={currentUser?.uid}
             onElevateRoleDev={(newRole) => setCurrentUserRole(newRole)}
             onNavigateHome={() => setCurrentView('home')}
+          />
+        ) : currentView === 'myReports' ? (
+          // Dedicated "Mis Reportes" with real-time onSnapshot and Admin verification
+          <MyReportsScreen
+            currentUserId={currentUser?.uid}
+            currentUserEmail={currentUser?.email || undefined}
+            currentUserRole={currentUserRole}
+            onNavigateHome={() => setCurrentView('home')}
+            onNavigateAlerts={() => setCurrentView('alerts')}
+            onNavigateRiskMap={() => setCurrentView('riskMap')}
+          />
+        ) : currentView === 'alerts' ? (
+          // Dedicated "Centro de Alertas" showing verified accepted reports
+          <AlertsScreen
+            onNavigateHome={() => setCurrentView('home')}
+            onNavigateMyReports={() => setCurrentView('myReports')}
+            onNavigateRiskMap={() => setCurrentView('riskMap')}
+          />
+        ) : currentView === 'settings' || currentView === 'profile' ? (
+          // Dedicated "Ajustes del Sistema" (User Profile, App Preferences, Security, Privacy, About, Danger Zone)
+          <SettingsScreen
+            currentUser={currentUser}
+            currentUserRole={currentUserRole}
+            initialSection={currentView === 'profile' ? 'profile' : 'profile'}
+            onNavigateHome={() => setCurrentView('home')}
+            onSignOut={handleSignOut}
           />
         ) : (
           // Authenticated Modules: Mapa de riesgo, Rutas seguras, Apoyo Táctico, Mis Reportes, Alertas, Perfil, Configuración

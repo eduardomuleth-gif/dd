@@ -727,7 +727,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
     [serviceType, userLocationLabel]
   );
 
-  // 3. Calculate Real ETA & Polyline from Selected Unit to User Location via Google Maps Routes API (Requirement 2)
+  // 3. Calculate Real ETA & Polyline from Selected Unit to User Location via Google Maps DirectionsService
   const computeRealRouteToUser = useCallback(
     async (unit: TacticalUnit, userPoint: { lat: number; lng: number }): Promise<google.maps.LatLngLiteral[]> => {
       if (!mapInstanceRef.current) return [];
@@ -740,68 +740,119 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
         let durSec = 360;
         let summary = 'Por corredor vial prioritario';
 
-        // Try Routes API
-        try {
-          const routesLib = (await importLibrary('routes')) as any;
-          if (routesLib?.Route?.computeRoutes) {
-            const request = {
-              origin: {
-                location: {
-                  latLng: {
-                    latitude: unit.location.lat,
-                    longitude: unit.location.lng,
-                  },
-                },
-              },
-              destination: {
-                location: {
-                  latLng: {
-                    latitude: userPoint.lat,
-                    longitude: userPoint.lng,
-                  },
-                },
-              },
-              travelMode: 'DRIVE',
-              routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
-              fields: ['path', 'legs', 'durationMillis', 'distanceMeters', 'description', 'polyline'],
-            };
+        // Load Routes library and instantiate DirectionsService
+        const routesLib = (await importLibrary('routes')) as google.maps.RoutesLibrary;
+        const directionsService = new routesLib.DirectionsService();
 
-            const response = await routesLib.Route.computeRoutes(request);
-            const rawRoute = response?.routes?.[0];
-            if (rawRoute) {
-              if (Array.isArray(rawRoute.path) && rawRoute.path.length > 0) {
-                pathPts = rawRoute.path.map((pt: any) => ({
-                  lat: typeof pt.lat === 'function' ? pt.lat() : Number(pt.lat ?? pt.latitude),
-                  lng: typeof pt.lng === 'function' ? pt.lng() : Number(pt.lng ?? pt.longitude),
-                }));
-              } else if (rawRoute.polyline?.encodedPolyline) {
-                const geometryLib = (await importLibrary('geometry')) as any;
-                if (geometryLib?.encoding?.decodePath) {
-                  const decoded = geometryLib.encoding.decodePath(rawRoute.polyline.encodedPolyline);
-                  pathPts = decoded.map((pt: any) => ({ lat: pt.lat(), lng: pt.lng() }));
+        // DIAGNOSTIC LOG 1: Complete call details before DirectionsService.route()
+        console.log('[Security Urban :: TacticalSupport] 📡 Solicitando ruta táctica a DirectionsService:', {
+          origin: {
+            name: unit.name,
+            address: unit.address,
+            coords: unit.location,
+          },
+          destination: {
+            label: userLocationLabel,
+            coords: userPoint,
+          },
+          travelMode: 'DRIVING',
+        });
+
+        // Request driving route using Google Maps DirectionsService with travelMode: DRIVING
+        const { result, status } = await new Promise<{
+          result: google.maps.DirectionsResult | null;
+          status: google.maps.DirectionsStatus | string;
+        }>((resolve) => {
+          directionsService.route(
+            {
+              origin: new google.maps.LatLng(unit.location.lat, unit.location.lng),
+              destination: new google.maps.LatLng(userPoint.lat, userPoint.lng),
+              travelMode: google.maps.TravelMode.DRIVING,
+            },
+            (res, stat) => {
+              resolve({ result: res, status: stat as any });
+            }
+          );
+        });
+
+        if ((status === 'OK' || status === google.maps.DirectionsStatus.OK) && result && result.routes && result.routes.length > 0) {
+          const primaryRoute = result.routes[0];
+
+          // 1. Extract detailed points from step paths for maximum street curvature precision
+          const stepPoints: google.maps.LatLngLiteral[] = [];
+          if (primaryRoute.legs && primaryRoute.legs.length > 0) {
+            primaryRoute.legs.forEach((leg) => {
+              if (leg.steps && leg.steps.length > 0) {
+                leg.steps.forEach((step) => {
+                  if (step.path && step.path.length > 0) {
+                    step.path.forEach((pt) => {
+                      stepPoints.push({ lat: pt.lat(), lng: pt.lng() });
+                    });
+                  }
+                });
+              }
+            });
+          }
+
+          // Deduplicate consecutive identical vertices along road steps
+          if (stepPoints.length > 0) {
+            const deduped: google.maps.LatLngLiteral[] = [];
+            for (const pt of stepPoints) {
+              if (deduped.length === 0) {
+                deduped.push(pt);
+              } else {
+                const last = deduped[deduped.length - 1];
+                if (Math.abs(last.lat - pt.lat) > 0.000005 || Math.abs(last.lng - pt.lng) > 0.000005) {
+                  deduped.push(pt);
                 }
               }
-              distM = Number(rawRoute.distanceMeters || distM);
-              if (rawRoute.durationMillis) {
-                durSec = Math.max(45, Math.round(Number(rawRoute.durationMillis) / 1000));
+            }
+            pathPts = deduped;
+          }
+
+          // Fallback to overview_path if step paths were empty
+          if (pathPts.length === 0 && primaryRoute.overview_path && primaryRoute.overview_path.length > 0) {
+            pathPts = primaryRoute.overview_path.map((pt) => ({
+              lat: pt.lat(),
+              lng: pt.lng(),
+            }));
+          }
+
+          // Additional fallback: if overview_polyline string exists and pathPts is still empty, decode it
+          if (pathPts.length === 0 && (primaryRoute as any).overview_polyline) {
+            try {
+              const geometryLib = (await importLibrary('geometry')) as any;
+              if (geometryLib?.encoding?.decodePath) {
+                const decoded = geometryLib.encoding.decodePath((primaryRoute as any).overview_polyline);
+                pathPts = decoded.map((pt: any) => ({ lat: pt.lat(), lng: pt.lng() }));
               }
-              if (rawRoute.description) {
-                summary = `Por ${rawRoute.description}`;
-              }
+            } catch (geoErr) {
+              console.warn('[Security Urban :: TacticalSupport] Error decodificando overview_polyline:', geoErr);
             }
           }
-        } catch (routesErr) {
-          console.warn('[Security Urban :: TacticalSupport] Routes API notice:', routesErr);
+
+          const leg = primaryRoute.legs?.[0];
+          if (leg) {
+            if (leg.distance?.value) distM = leg.distance.value;
+            if (leg.duration?.value) durSec = leg.duration.value;
+          }
+
+          if (primaryRoute.summary) {
+            summary = `Por ${primaryRoute.summary}`;
+          } else if (leg?.start_address) {
+            summary = `Desde ${leg.start_address.split(',')[0]}`;
+          }
         }
 
-        // Road-approximating path fallback if Routes API returned no points
-        if (pathPts.length < 2) {
-          pathPts = [
-            unit.location,
-            { lat: unit.location.lat * 0.7 + userPoint.lat * 0.3, lng: unit.location.lng * 0.8 + userPoint.lng * 0.2 },
-            { lat: unit.location.lat * 0.3 + userPoint.lat * 0.7, lng: unit.location.lng * 0.2 + userPoint.lng * 0.8 },
-            userPoint,
-          ];
+        // DIAGNOSTIC LOG 2: Complete status and received polyline points count as requested
+        console.log(
+          `[Security Urban :: TacticalSupport] 🚦 DirectionsService response - status: "${status}" | Puntos del polyline recibido: ${pathPts.length} | Distancia: ${distM} m | ETA: ${Math.round(durSec / 60)} min (${durSec} s) | travelMode: DRIVING`
+        );
+
+        if (status !== google.maps.DirectionsStatus.OK || pathPts.length < 2) {
+          console.warn(`[Security Urban :: TacticalSupport] ⚠️ No se obtuvieron puntos viales de Directions (status: ${status})`);
+          setRouteError(`No se encontró ruta vial (${status}). Verificando conectividad.`);
+          pathPts = [unit.location, userPoint];
         }
 
         // Calculate cumulative distances along path points for smooth physical interpolation
@@ -818,20 +869,20 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
         setRouteSummary(summary);
         setRealRoutePath(pathPts);
 
-        console.log(`[Security Urban :: TacticalSupport] ✔ Ruta calculada: ${pathPts.length} puntos | ${distM} m | ${Math.round(durSec / 60)} min`);
+        console.log(`[Security Urban :: TacticalSupport] ✔ Ruta táctica real trazada: ${pathPts.length} puntos viales | ${distM} m | ${Math.round(durSec / 60)} min`);
 
         // Draw Polyline and render markers on map
         renderRouteAndMarkers(unit, userPoint, pathPts);
         return pathPts;
       } catch (err: any) {
         console.warn('[Security Urban :: TacticalSupport] Fallo general calculando ruta:', err);
-        setRouteError('No se pudo calcular la ruta exacta con Routes API. Mostrando estimación vial.');
+        setRouteError('No se pudo calcular la ruta exacta con DirectionsService. Mostrando estimación vial.');
         return [];
       } finally {
         setIsCalculatingRoute(false);
       }
     },
-    [renderRouteAndMarkers]
+    [renderRouteAndMarkers, userLocationLabel]
   );
 
   // Compute route whenever selectedUnit or userCoord updates
@@ -871,7 +922,16 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
 
     // Compute real route from assigned unit to the exact GPS target
     const computedPath = await computeRealRouteToUser(assignedUnit, targetUserPoint);
-    const pathPoints = computedPath.length > 0 ? computedPath : [assignedUnit.location, targetUserPoint];
+    const pathPoints =
+      computedPath.length >= 2
+        ? computedPath
+        : realRoutePath.length >= 2
+        ? realRoutePath
+        : [assignedUnit.location, targetUserPoint];
+
+    console.log(
+      `[Security Urban :: TacticalSupport] 🚀 Despacho iniciado. Trazando movimiento en vivo sobre ${pathPoints.length} vértices viales reales con travelMode=DRIVING.`
+    );
 
     setIsDispatchActive(true);
     setDispatchStage('dispatched');
