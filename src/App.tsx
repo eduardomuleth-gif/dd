@@ -46,7 +46,7 @@ const MainScreen: React.FC = () => {
 
   // Authentication State with Route Guard
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<UserRole>('administrador');
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>('ciudadano');
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
   // Authenticated view routing
@@ -83,6 +83,7 @@ const MainScreen: React.FC = () => {
         }
       } else {
         console.log('[Security Urban :: RouteGuard] ✖ Sin sesión activa -> Redirigiendo a Login');
+        setCurrentUserRole('ciudadano');
         setCurrentView('home'); // Reset authenticated view pointer
       }
     });
@@ -668,7 +669,7 @@ const MainScreen: React.FC = () => {
           <UserManagementScreen
             currentUserRole={currentUserRole}
             currentUserId={currentUser?.uid}
-            onElevateRoleDev={(newRole) => setCurrentUserRole(newRole)}
+            onCurrentUserRoleChange={(newRole) => setCurrentUserRole(newRole)}
             onNavigateHome={() => setCurrentView('home')}
           />
         ) : currentView === 'myReports' ? (
