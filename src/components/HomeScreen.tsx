@@ -436,7 +436,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <h4 className="text-base sm:text-lg font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
                 {language === 'es' ? '¿Presenciaste un incidente en la Comuna 8?' : 'Witnessed an incident in Comuna 8?'}
               </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xl">
+              <p className="text-xs text-slate-700 dark:text-slate-400 max-w-xl font-medium mt-0.5">
                 {language === 'es'
                   ? 'Registra novedades de seguridad, fallas de iluminación o emergencias viales. El reporte será verificado por administradores antes de su publicación.'
                   : 'Report security incidents, lighting failures, or road hazards. Reports are reviewed by administrators prior to public map dispatch.'}

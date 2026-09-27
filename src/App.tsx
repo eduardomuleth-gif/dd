@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from 'firebase/auth';
 import { 
   Shield, 
@@ -12,9 +12,10 @@ import {
   Activity, 
   Home as HomeIcon,
   Menu, 
-  X,
-  Loader2,
-  Settings
+  X, 
+  Loader2, 
+  Settings,
+  Sparkles
 } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -39,6 +40,8 @@ import { UserProfileMenu } from './components/UserProfileMenu';
 import { subscribeToAuth, executeSignOut } from './services/firebaseAuth';
 import { syncCurrentUserFirestoreProfile } from './services/userService';
 import { UserRole } from './types/user';
+import { startActivitySimulation } from './services/activitySimulationService';
+import { DEMO_MODE } from './config/simulation';
 
 const MainScreen: React.FC = () => {
   const { theme, toggleTheme, colors } = useTheme();
@@ -58,6 +61,58 @@ const MainScreen: React.FC = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
+
+  // Live simulation report toast & bell animation
+  const [hasLiveAlertPulse, setHasLiveAlertPulse] = useState(false);
+  const [liveSimulatedToast, setLiveSimulatedToast] = useState<{
+    id: string;
+    titulo: string;
+    categoria: string;
+    sector: string;
+    fechaCreacionFormateada?: string;
+  } | null>(null);
+
+  // Listener for live simulated report events from activitySimulationService
+  useEffect(() => {
+    const handleNewReport = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      if (!detail) return;
+
+      console.log('[Security Urban :: LiveToast] 🔔 Notificación de nuevo reporte simulado recibido:', detail);
+
+      // Trigger bell pulse animation for 8 seconds
+      setHasLiveAlertPulse(true);
+      const pulseTimer = setTimeout(() => {
+        setHasLiveAlertPulse(false);
+      }, 8000);
+
+      // Trigger floating live toast
+      setLiveSimulatedToast({
+        id: detail.id || `sim-${Date.now()}`,
+        titulo: detail.titulo,
+        categoria: detail.categoria,
+        sector: detail.sector,
+        fechaCreacionFormateada: detail.fechaCreacionFormateada,
+      });
+
+      return () => clearTimeout(pulseTimer);
+    };
+
+    window.addEventListener('security_urban_new_simulated_report', handleNewReport);
+    return () => {
+      window.removeEventListener('security_urban_new_simulated_report', handleNewReport);
+    };
+  }, []);
+
+  // Auto-dismiss live toast after 6 seconds
+  useEffect(() => {
+    if (!liveSimulatedToast) return;
+    const timer = setTimeout(() => {
+      setLiveSimulatedToast(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [liveSimulatedToast]);
 
   // Subscribe to real Firebase auth changes via route guard
   useEffect(() => {
@@ -91,6 +146,13 @@ const MainScreen: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Motor de simulación periódica de actividad comunitaria para fines de demostración académica
+  useEffect(() => {
+    if (!DEMO_MODE) return;
+    const cleanup = startActivitySimulation();
+    return () => cleanup();
+  }, []);
+
   const handleOpenForgotPassword = (email: string) => {
     setForgotPasswordEmail(email);
     setIsForgotPasswordOpen(true);
@@ -113,26 +175,15 @@ const MainScreen: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
-  // Nav menu items for authenticated users
+  // Nav menu items: módulos principales del sistema (Gestión de Usuarios y Ajustes se acceden desde el menú de perfil)
   const navMenuItems: { id: NavTabId; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'home', label: t('navHome'), icon: <HomeIcon className="w-4 h-4" /> },
     { id: 'dashboard', label: t('navDashboard'), icon: <Activity className="w-4 h-4" /> },
     { id: 'riskMap', label: t('navRiskMap'), icon: <Map className="w-4 h-4" /> },
     { id: 'safeRoutes', label: t('navSafeRoutes'), icon: <Route className="w-4 h-4" /> },
     { id: 'tacticalSupport', label: t('navTacticalSupport'), icon: <Users className="w-4 h-4" /> },
-    {
-      id: 'userManagement',
-      label: t('navUserManagement'),
-      icon: <Users className="w-4 h-4" />,
-      badge: currentUserRole === 'administrador' ? 'ADMIN' : undefined,
-    },
-    { id: 'myReports', label: t('navMyReports'), icon: <FileText className="w-4 h-4" /> },
     { id: 'alerts', label: t('navAlerts'), icon: <Bell className="w-4 h-4" /> },
-    {
-      id: 'settings',
-      label: language === 'es' ? 'Ajustes' : 'Settings',
-      icon: <Settings className="w-4 h-4" />,
-    },
+    { id: 'myReports', label: t('navMyReports'), icon: <FileText className="w-4 h-4" /> },
   ];
 
   // 1. Initial Loading State (while Firebase onAuthStateChanged resolves)
@@ -401,8 +452,8 @@ const MainScreen: React.FC = () => {
 
           {/* Right Header Controls: Status Badge, User Profile Menu, Language switcher, Theme toggle, Mobile Menu button */}
           <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Informative Status Badge (distinct from user profile menu) */}
-            <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 shadow-xs">
+            {/* Informative Status Badge (distinct from user profile menu; visible on extra wide screens) */}
+            <div className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 shadow-xs shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>COMUNA 8 • NODO SEGURO</span>
             </div>
@@ -420,8 +471,19 @@ const MainScreen: React.FC = () => {
               onSignOut={handleSignOut}
             />
 
+            {/* Quick Tactical Map modal trigger button */}
+            <button
+              type="button"
+              onClick={() => setIsTacticalMapOpen(true)}
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-bold text-xs tracking-wider uppercase shadow-xs cursor-pointer transition-all shrink-0 active:scale-95"
+              title={t('exploreMap')}
+            >
+              <Map className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">{t('exploreMap')}</span>
+            </button>
+
             {/* Language Selector */}
-            <div className={`relative inline-flex items-center rounded-full p-1 text-xs border shadow-xs ${colors.headerBg} ${colors.headerBorder}`}>
+            <div className={`relative inline-flex items-center rounded-full p-1 text-xs border shadow-xs ${colors.headerBg} ${colors.headerBorder} shrink-0`}>
               <button
                 type="button"
                 onClick={() => setLanguage('es')}
@@ -452,7 +514,7 @@ const MainScreen: React.FC = () => {
             <button
               type="button"
               onClick={toggleTheme}
-              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600`}
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600 shrink-0`}
               aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
               title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
             >
@@ -467,7 +529,7 @@ const MainScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-              className={`xl:hidden w-9 h-9 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600`}
+              className={`lg:hidden w-9 h-9 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600 shrink-0`}
               aria-label="Abrir menú de navegación"
             >
               {isMobileMenuOpen ? (
@@ -479,22 +541,25 @@ const MainScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Full Authenticated Navigation Menu (Desktop: full pill strip with enhanced presence, active glow indicator & circular icon badges; Mobile: collapsible drawer) */}
+        {/* Full Authenticated Navigation Menu (Desktop: pill strip; Mobile: collapsible drawer) */}
         <nav
           aria-label="Navegación principal de Security Urban"
           className="w-full"
         >
-          {/* Desktop full navigation bar */}
-          <div className={`hidden xl:flex items-center justify-between p-2 rounded-2xl border shadow-md shadow-red-950/5 dark:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.6),0_0_15px_rgba(220,38,38,0.15)] border-b-2 border-b-red-600/30 backdrop-blur-md transition-all ${colors.headerBg} ${colors.headerBorder}`}>
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 px-1">
+          {/* Desktop full navigation bar: centered, symmetrical, fixed with no horizontal scroll */}
+          <div className={`hidden lg:flex items-center justify-center p-1.5 sm:p-2 rounded-2xl border shadow-md shadow-red-950/5 dark:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.6),0_0_15px_rgba(220,38,38,0.15)] border-b-2 border-b-red-600/30 backdrop-blur-md transition-all ${colors.headerBg} ${colors.headerBorder}`}>
+            <div className="flex items-center justify-center gap-1 lg:gap-1.5 xl:gap-2.5 2xl:gap-3.5 w-full">
               {navMenuItems.map((item) => {
                 const isActive = currentView === item.id;
+                const isAlertsItem = item.id === 'alerts';
+                const showLivePulse = isAlertsItem && hasLiveAlertPulse;
+
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setCurrentView(item.id)}
-                    className={`px-3.5 py-2 rounded-xl font-bold text-xs tracking-wide flex items-center gap-2.5 transition-all cursor-pointer whitespace-nowrap relative group ${
+                    className={`px-2.5 py-1.5 lg:px-2.5 lg:py-1.5 xl:px-3.5 xl:py-2 2xl:px-4 2xl:py-2 rounded-xl font-bold text-[13px] 2xl:text-sm tracking-normal flex items-center gap-1.5 xl:gap-2 transition-all cursor-pointer whitespace-nowrap relative group shrink-0 ${
                       isActive
                         ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-950/40 ring-1 ring-red-400/40'
                         : `${colors.tabInactiveText} hover:bg-slate-100/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white`
@@ -502,18 +567,30 @@ const MainScreen: React.FC = () => {
                   >
                     {/* Subtle circular container for icon to reinforce visual hierarchy */}
                     <span
-                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform group-hover:scale-110 ${
+                      className={`w-5 h-5 xl:w-5.5 xl:h-5.5 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 relative ${
                         isActive
                           ? 'bg-white/20 text-white'
+                          : showLivePulse
+                          ? 'bg-red-500/25 text-red-500 dark:text-red-400 ring-2 ring-red-500 animate-pulse'
                           : 'bg-slate-200/60 dark:bg-slate-800/80 text-red-600 dark:text-red-400 border border-slate-300/40 dark:border-slate-700/50'
                       }`}
                     >
-                      {item.icon}
+                      <span className={showLivePulse ? 'animate-bounce text-amber-300' : ''}>
+                        {item.icon}
+                      </span>
+                      {showLivePulse && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+                      )}
                     </span>
                     <span>{item.label}</span>
                     {item.badge && (
                       <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 font-mono text-[9px] font-black tracking-wider shadow-2xs">
                         {item.badge}
+                      </span>
+                    )}
+                    {showLivePulse && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white font-mono text-[9px] font-black tracking-wider animate-pulse shadow-xs">
+                        {language === 'es' ? 'NUEVA' : 'NEW'}
                       </span>
                     )}
 
@@ -525,23 +602,11 @@ const MainScreen: React.FC = () => {
                 );
               })}
             </div>
-
-            {/* Quick Map modal trigger button on desktop */}
-            <button
-              type="button"
-              onClick={() => setIsTacticalMapOpen(true)}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-bold text-xs tracking-wider uppercase flex items-center gap-2 shadow-md shadow-red-950/30 hover:shadow-red-600/30 cursor-pointer transition-all shrink-0 mr-1 active:scale-[0.98]"
-            >
-              <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                <Map className="w-3.5 h-3.5" />
-              </span>
-              <span>{t('exploreMap')}</span>
-            </button>
           </div>
 
           {/* Mobile Collapsible Navigation Menu */}
           {isMobileMenuOpen && (
-            <div className={`xl:hidden flex flex-col p-4 rounded-3xl border shadow-2xl shadow-red-950/20 backdrop-blur-md mt-2 space-y-1.5 border-b-2 border-b-red-600/40 ${colors.headerBg} ${colors.headerBorder}`}>
+            <div className={`lg:hidden flex flex-col p-4 rounded-3xl border shadow-2xl shadow-red-950/20 backdrop-blur-md mt-2 space-y-1.5 border-b-2 border-b-red-600/40 ${colors.headerBg} ${colors.headerBorder}`}>
               <div className="text-[11px] font-mono font-bold text-red-600 dark:text-red-400 px-3 py-1 flex items-center justify-between">
                 <span>MENÚ DE SEGURIDAD // COMUNA 8</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -549,6 +614,9 @@ const MainScreen: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {navMenuItems.map((item) => {
                   const isActive = currentView === item.id;
+                  const isAlertsItem = item.id === 'alerts';
+                  const showLivePulse = isAlertsItem && hasLiveAlertPulse;
+
                   return (
                     <button
                       key={item.id}
@@ -567,15 +635,24 @@ const MainScreen: React.FC = () => {
                         className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                           isActive
                             ? 'bg-white/20 text-white'
+                            : showLivePulse
+                            ? 'bg-red-500/25 text-red-500 dark:text-red-400 ring-2 ring-red-500 animate-pulse'
                             : 'bg-slate-200/60 dark:bg-slate-800/80 text-red-600 dark:text-red-400 border border-slate-300/40 dark:border-slate-700/50'
                         }`}
                       >
-                        {item.icon}
+                        <span className={showLivePulse ? 'animate-bounce text-amber-300' : ''}>
+                          {item.icon}
+                        </span>
                       </span>
                       <span>{item.label}</span>
                       {item.badge && (
                         <span className="ml-auto px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 font-mono text-[9px] font-black tracking-wider">
                           {item.badge}
+                        </span>
+                      )}
+                      {showLivePulse && (
+                        <span className="ml-auto px-2 py-0.5 rounded-full bg-red-600 text-white font-mono text-[9px] font-black animate-pulse">
+                          {language === 'es' ? 'NUEVA' : 'NEW'}
                         </span>
                       )}
                     </button>
@@ -602,16 +679,25 @@ const MainScreen: React.FC = () => {
                     onClick={() => {
                       handleViewProfile();
                     }}
-                    className="flex-1 py-2 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 font-bold text-xs text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="flex-1 py-2 px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 font-bold text-xs text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <span>{t('viewMyProfile')}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => {
+                      handleOpenSettings();
+                    }}
+                    className="flex-1 py-2 px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 font-bold text-xs text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
                       handleSignOut();
                     }}
-                    className="py-2 px-3 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/40 font-bold text-xs text-red-600 dark:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="py-2 px-3 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/40 font-bold text-xs text-red-600 dark:text-red-400 flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <span>{t('signOut')}</span>
                   </button>
@@ -714,6 +800,82 @@ const MainScreen: React.FC = () => {
         onClose={() => setIsTacticalMapOpen(false)}
         initialFilter="all"
       />
+
+      {/* Floating Live Activity Toast Notification (Demo Simulation Mode) */}
+      {liveSimulatedToast && (
+        <div 
+          role="alert"
+          aria-live="assertive"
+          className="fixed top-20 right-4 sm:right-6 z-50 max-w-sm sm:max-w-md w-full animate-in slide-in-from-top-4 fade-in duration-300"
+        >
+          <div className="relative overflow-hidden rounded-2xl bg-slate-950/95 dark:bg-slate-900/95 border-2 border-red-500/80 shadow-[0_15px_40px_rgba(220,38,38,0.35)] p-4 backdrop-blur-xl text-white">
+            {/* Top flashing indicator line */}
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-amber-400 via-red-500 to-rose-500 animate-pulse" />
+
+            <div className="flex items-start gap-3">
+              {/* Radar pulsing bell icon */}
+              <div className="relative mt-0.5 shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-red-600/30 border border-red-500 flex items-center justify-center text-red-400">
+                  <Bell className="w-5 h-5 animate-bounce text-amber-300" />
+                </div>
+                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-ping" />
+              </div>
+
+              {/* Content */}
+              <div className="grow min-w-0 pr-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-black tracking-widest bg-red-600/30 text-red-300 border border-red-500/40 uppercase">
+                    {language === 'es' ? 'ALERTA EN VIVO // VERIFICADA' : 'LIVE VERIFIED ALERT'}
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {liveSimulatedToast.fechaCreacionFormateada || (language === 'es' ? 'Reciente' : 'Recent')}
+                  </span>
+                </div>
+
+                <h4 className="text-sm font-extrabold font-['Rajdhani'] tracking-wide text-white truncate">
+                  {liveSimulatedToast.titulo}
+                </h4>
+
+                <p className="text-xs text-slate-300 font-medium truncate mt-0.5">
+                  <span className="text-amber-400 font-bold">{liveSimulatedToast.sector}</span> • {liveSimulatedToast.categoria}
+                </p>
+
+                <div className="flex items-center gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentView('alerts');
+                      setLiveSimulatedToast(null);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-['Rajdhani'] uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center gap-1.5"
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>{language === 'es' ? 'Ver en Centro de Alertas' : 'View in Alerts Center'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLiveSimulatedToast(null)}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-mono text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    {language === 'es' ? 'Descartar' : 'Dismiss'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Close "X" */}
+              <button
+                type="button"
+                onClick={() => setLiveSimulatedToast(null)}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1 rounded-lg hover:bg-white/10 shrink-0"
+                aria-label="Cerrar notificación"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

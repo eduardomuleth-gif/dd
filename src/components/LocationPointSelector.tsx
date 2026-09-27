@@ -448,7 +448,7 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                   <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{place.name}</span>
-                                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{place.address}</span>
+                                  <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium truncate">{place.address}</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">

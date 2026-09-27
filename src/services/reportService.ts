@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from './firebaseAuth';
 import { IncidentReport, CreateReportInput, ReportStatus } from '../types/report';
+import { DEMO_MODE } from '../config/simulation';
 
 export const REPORTS_COLLECTION = 'reportes';
 const LOCAL_REPORTS_CACHE_KEY = 'security_urban_user_reports_';
@@ -61,6 +62,7 @@ function normalizeReport(id: string, data: DocumentData): IncidentReport {
     fechaRevisionISO: data.fechaRevisionISO,
     revisadoPor: data.revisadoPor,
     motivoRechazo: data.motivoRechazo,
+    origen: data.origen || 'usuario',
   };
 }
 
@@ -104,6 +106,7 @@ export async function createIncidentReport(input: CreateReportInput): Promise<In
     ubicacion: input.ubicacion || { lat: 6.2476, lng: -75.5658 },
     nivelPrioridad: input.nivelPrioridad || 'media',
     estado: 'pendiente' as ReportStatus, // Mandatory initial status
+    origen: 'usuario' as const,
     fechaCreacionISO: nowISO,
     fechaCreacionFormateada: formattedDate,
   };
@@ -220,7 +223,13 @@ export function subscribeToPublicAcceptedReports(
         });
 
         reports.sort((a, b) => new Date(b.fechaCreacionISO).getTime() - new Date(a.fechaCreacionISO).getTime());
-        onUpdate(reports);
+        
+        // Si DEMO_MODE está desactivado, excluimos los reportes de simulación para mostrar el sistema 100% limpio
+        const visibleReports = DEMO_MODE 
+          ? reports 
+          : reports.filter((r) => r.origen !== 'simulacion');
+
+        onUpdate(visibleReports);
       },
       (err) => {
         console.warn('[Security Urban :: Reporte] onSnapshot reportes aceptados error:', err);

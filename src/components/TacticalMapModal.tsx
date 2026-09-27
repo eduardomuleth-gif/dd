@@ -325,14 +325,14 @@ export const TacticalMapModal: React.FC<TacticalMapModalProps> = ({
                   <Eye className="w-4 h-4 text-red-500 shrink-0" />
                   <div>
                     <div className="font-bold text-slate-900 dark:text-slate-100">{selectedSector.cameras} Cámaras</div>
-                    <div className="text-[10px] text-slate-500">Conectadas al CAD</div>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">Conectadas al CAD</div>
                   </div>
                 </div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center gap-2">
                   <Radio className="w-4 h-4 text-emerald-500 shrink-0" />
                   <div>
                     <div className="font-bold text-slate-900 dark:text-slate-100">{selectedSector.activePatrols} Patrullas</div>
-                    <div className="text-[10px] text-slate-500">En cuadrante</div>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">En cuadrante</div>
                   </div>
                 </div>
               </div>
@@ -356,7 +356,7 @@ export const TacticalMapModal: React.FC<TacticalMapModalProps> = ({
 
             {/* List of Other Sectors to Select */}
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider block">
                 {language === 'es' ? 'Seleccionar otro sector:' : 'Select sector:'}
               </span>
               <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">

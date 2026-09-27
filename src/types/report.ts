@@ -45,6 +45,7 @@ export interface IncidentReport {
   fechaRevisionISO?: string;
   revisadoPor?: string;
   motivoRechazo?: string;
+  origen?: 'simulacion' | 'usuario' | string;
 }
 
 export interface CreateReportInput {

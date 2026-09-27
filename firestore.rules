@@ -33,10 +33,15 @@ service cloud.firestore {
     }
 
     match /reportes/{reporteId} {
-      // 1. Creation: Must be authenticated, author UID must match, initial status must be 'pendiente'
-      allow create: if isAuthenticated() && 
-        request.resource.data.uid == request.auth.uid &&
-        request.resource.data.estado == 'pendiente';
+      // 1. Creation:
+      // - Standard citizen reports: Must be authenticated, author UID must match, status is 'pendiente'
+      // - Simulation reports (demo activity): Must have origen == 'simulacion' and estado == 'aceptado'
+      // - Administrators: Can create directly
+      allow create: if isAuthenticated() && (
+        (request.resource.data.uid == request.auth.uid && request.resource.data.estado == 'pendiente') ||
+        (request.resource.data.origen == 'simulacion' && request.resource.data.estado == 'aceptado') ||
+        isAdmin()
+      );
 
       // 2. Read:
       // - Admins can read all reports
@@ -56,10 +61,11 @@ service cloud.firestore {
         (request.auth.uid == resource.data.uid && request.resource.data.estado == resource.data.estado)
       );
 
-      // 4. Delete: Admins or the author can delete
+      // 4. Delete: Admins, author, or simulated reports cleanup
       allow delete: if isAuthenticated() && (
         isAdmin() ||
-        request.auth.uid == resource.data.uid
+        request.auth.uid == resource.data.uid ||
+        resource.data.origen == 'simulacion'
       );
     }
   }

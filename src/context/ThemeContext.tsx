@@ -6,6 +6,12 @@ export interface ThemeColors {
   canvasBg: string;
   canvasText: string;
 
+  // General theme text tokens
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  textSubtle: string;
+
   // Header & Navigation
   headerBg: string;
   headerBorder: string;
@@ -129,6 +135,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Page canvas
       canvasBg: isDark ? 'bg-[#07090e]' : 'bg-slate-100',
       canvasText: isDark ? 'text-slate-100' : 'text-slate-900',
+
+      // General theme text tokens
+      textPrimary: isDark ? 'text-slate-100' : 'text-slate-900',
+      textSecondary: isDark ? 'text-slate-300' : 'text-slate-700',
+      textMuted: isDark ? 'text-slate-400' : 'text-slate-600',
+      textSubtle: isDark ? 'text-slate-500' : 'text-slate-500',
 
       // Header & Navigation
       headerBg: isDark ? 'bg-slate-900/80' : 'bg-white/90',

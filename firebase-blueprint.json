@@ -129,6 +129,11 @@
         "motivoRechazo": {
           "type": "string",
           "description": "Motivo opcional en caso de rechazo"
+        },
+        "origen": {
+          "type": "string",
+          "description": "Indicador de origen del reporte ('simulacion' o 'usuario')",
+          "enum": ["usuario", "simulacion"]
         }
       },
       "required": ["uid", "titulo", "categoria", "descripcion", "sector", "estado", "fechaCreacionISO"]

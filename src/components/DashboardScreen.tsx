@@ -26,6 +26,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { NavTabId } from './ModulePlaceholderView';
 import { IncidentReport } from '../types/report';
 import { subscribeToPublicAcceptedReports, subscribeToUserReports } from '../services/reportService';
+import { DEMO_MODE } from '../config/simulation';
 import { CreateReportModal } from './CreateReportModal';
 
 interface DashboardScreenProps {
@@ -392,6 +393,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   <h2 className={`text-base sm:text-lg font-extrabold tracking-tight font-['Rajdhani'] ${colors.cardTitle}`}>
                     {language === 'es' ? 'TENDENCIA DE INCIDENTES // ÚLTIMOS 7 DÍAS' : 'INCIDENT TREND // LAST 7 DAYS'}
                   </h2>
+                  {DEMO_MODE && (
+                    <span 
+                      className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                      title={language === 'es' ? 'Generador de actividad académica activo (cada 45-60 s)' : 'Academic demo activity generator active (every 45-60s)'}
+                    >
+                      {language === 'es' ? 'SIMULACIÓN DEMO' : 'DEMO SIMULATION'}
+                    </span>
+                  )}
                 </div>
                 <p className={`text-xs ${colors.cardSubtitle}`}>
                   {language === 'es'
@@ -619,7 +628,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 font-mono font-medium">
                         <span className="truncate">{report.sector}</span>
                         <span>{report.fechaCreacionFormateada}</span>
                       </div>

@@ -116,9 +116,9 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
       </div>
 
       {/* Info notice on verification */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-600/10 via-slate-800/10 to-transparent border border-blue-500/20 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-3">
-        <Shield className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-        <p className="leading-relaxed">
+      <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-500/30 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-3 shadow-xs">
+        <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+        <p className="leading-relaxed font-medium">
           {language === 'es'
             ? 'Este centro muestra exclusivamente incidentes verificados y aprobados por la mesa de administración de Security Urban en la Comuna 8. Los reportes pendientes de revisión no se publican aquí para prevenir desinformación.'
             : 'This feed only broadcasts incident reports that have been verified and accepted by the administration.'}
@@ -129,25 +129,25 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
       {isLoading ? (
         <div className="py-20 flex flex-col items-center justify-center gap-3">
           <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-          <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-mono text-theme-muted">
             {language === 'es' ? 'Cargando alertas verificadas...' : 'Loading verified alerts...'}
           </p>
         </div>
       ) : filteredReports.length === 0 ? (
         <div
           className={`py-16 px-6 rounded-3xl border text-center flex flex-col items-center justify-center max-w-xl mx-auto transition-all ${
-            isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600 shadow-xs'
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
           }`}
         >
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
             <CheckCircle2 className="w-8 h-8" />
           </div>
 
-          <h3 className="text-lg font-bold font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100 mb-2">
+          <h3 className="text-lg font-bold font-['Rajdhani'] uppercase tracking-wider text-theme-primary mb-2">
             {language === 'es' ? 'No hay alertas comunitarias activas en este momento.' : 'No active community alerts at this time.'}
           </h3>
 
-          <p className="text-xs sm:text-sm max-w-md leading-relaxed mb-6 text-slate-500 dark:text-slate-400">
+          <p className="text-xs sm:text-sm max-w-md leading-relaxed mb-6 text-theme-muted">
             {language === 'es'
               ? 'La Comuna 8 no cuenta con novedades críticas verificadas vigentes. Si presencias una situación que deba ser atendida, genera un nuevo reporte para su validación.'
               : 'There are no active accepted incidents. Feel free to report any event to the administration.'}
@@ -174,8 +174,8 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
               <div className="absolute top-0 inset-x-0 h-1 bg-emerald-500" />
 
               <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30">
-                  <AlertTriangle className="w-3 h-3" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                  <AlertTriangle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                   <span>{report.categoria}</span>
                 </span>
 
@@ -184,7 +184,7 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
                     report.nivelPrioridad === 'critica'
                       ? 'bg-rose-500 text-white'
                       : report.nivelPrioridad === 'alta'
-                      ? 'bg-amber-500 text-black'
+                      ? 'bg-amber-500 text-slate-950 font-black'
                       : 'bg-emerald-600 text-white'
                   }`}
                 >
@@ -193,22 +193,22 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
               </div>
 
               {/* Título verbatim del documento */}
-              <h3 className="text-base font-bold font-['Rajdhani'] uppercase tracking-wide text-slate-900 dark:text-slate-100 mb-2">
+              <h3 className="text-base font-bold font-['Rajdhani'] uppercase tracking-wide text-theme-primary mb-2">
                 {report.titulo}
               </h3>
 
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+              <p className="text-xs sm:text-sm text-theme-secondary leading-relaxed mb-4">
                 {report.descripcion}
               </p>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-red-500" />
-                  <span>{report.sector}</span>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono pt-3 border-t border-slate-200 dark:border-slate-800">
+                <span className="flex items-center gap-1.5 text-theme-secondary">
+                  <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                  <span className="font-semibold">{report.sector}</span>
                 </span>
 
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span className="flex items-center gap-1.5 text-theme-muted">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                   <span>{report.fechaCreacionFormateada}</span>
                 </span>
               </div>

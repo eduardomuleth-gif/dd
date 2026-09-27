@@ -264,6 +264,13 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsAcquired, setGpsAcquired] = useState<boolean>(false);
 
+  // Synchronization refs to avoid re-triggering callbacks and effects on continuous GPS updates
+  const userCoordRef = useRef(userCoord);
+  userCoordRef.current = userCoord;
+  const userLocationLabelRef = useRef(userLocationLabel);
+  userLocationLabelRef.current = userLocationLabel;
+  const isLocatingGpsRef = useRef(false);
+
   // Units State
   const [availableUnits, setAvailableUnits] = useState<TacticalUnit[]>(VERIFIED_MEDELLIN_UNITS);
   const [selectedUnit, setSelectedUnit] = useState<TacticalUnit>(VERIFIED_MEDELLIN_UNITS[0]);
@@ -292,6 +299,10 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
 
   // Function to query real device GPS coordinates & reverse geocode address
   const fetchRealUserGps = useCallback(async (): Promise<{ lat: number; lng: number }> => {
+    if (isLocatingGpsRef.current) {
+      return userCoordRef.current;
+    }
+    isLocatingGpsRef.current = true;
     setIsLocatingGps(true);
 
     // 1. Check if user already activated location earlier in the session
@@ -300,10 +311,19 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
       if (cached) {
         const parsed = JSON.parse(cached);
         if (parsed.lat && parsed.lng) {
-          setUserCoord({ lat: parsed.lat, lng: parsed.lng });
-          if (parsed.label) setUserLocationLabel(parsed.label);
-          if (parsed.accuracy) setGpsAccuracy(parsed.accuracy);
-          setGpsAcquired(true);
+          setUserCoord((prev) => {
+            if (prev && Math.abs(prev.lat - parsed.lat) < 0.000001 && Math.abs(prev.lng - parsed.lng) < 0.000001) {
+              return prev;
+            }
+            return { lat: parsed.lat, lng: parsed.lng };
+          });
+          if (parsed.label) {
+            setUserLocationLabel((prev) => (prev === parsed.label ? prev : parsed.label));
+          }
+          if (parsed.accuracy) {
+            setGpsAccuracy((prev) => (prev === parsed.accuracy ? prev : parsed.accuracy));
+          }
+          setGpsAcquired((prev) => (prev ? prev : true));
         }
       }
     } catch (e) {
@@ -312,22 +332,29 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
 
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
+        isLocatingGpsRef.current = false;
         setIsLocatingGps(false);
-        setUserLocationLabel('GPS no disponible en navegador (Usando Comuna 8)');
-        resolve(userCoord);
+        setUserLocationLabel((prev) => prev || 'GPS no disponible en navegador (Usando Comuna 8)');
+        resolve(userCoordRef.current);
         return;
       }
 
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
+          isLocatingGpsRef.current = false;
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           const accuracy = pos.coords.accuracy;
           const coords = { lat, lng };
 
-          setUserCoord(coords);
-          setGpsAccuracy(accuracy);
-          setGpsAcquired(true);
+          setUserCoord((prev) => {
+            if (prev && Math.abs(prev.lat - lat) < 0.000001 && Math.abs(prev.lng - lng) < 0.000001) {
+              return prev;
+            }
+            return coords;
+          });
+          setGpsAccuracy((prev) => (prev === accuracy ? prev : accuracy));
+          setGpsAcquired((prev) => (prev ? prev : true));
           setIsLocatingGps(false);
 
           // Identify nearest neighborhood or sector from verified Comuna 8 map points
@@ -368,7 +395,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             // Keep clean sector label on timeout or network block
           }
 
-          setUserLocationLabel(label);
+          setUserLocationLabel((prev) => (prev === label ? prev : label));
 
           try {
             localStorage.setItem('security_urban_user_coords', JSON.stringify({ lat, lng, label, accuracy }));
@@ -382,15 +409,16 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
         },
         (err) => {
           console.warn('[Security Urban :: TacticalSupport] Geolocation denied or unavailable:', err);
+          isLocatingGpsRef.current = false;
           setIsLocatingGps(false);
           // If cached data was already set, maintain it; otherwise fallback
           setUserLocationLabel((prev) => prev || 'Comuna 8, Medellín (GPS referencial)');
-          resolve(userCoord);
+          resolve(userCoordRef.current);
         },
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
       );
     });
-  }, [userCoord]);
+  }, []);
 
   // Load History from localStorage on mount
   useEffect(() => {
@@ -478,7 +506,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
         clearInterval(dispatchIntervalRef.current);
       }
     };
-  }, [GOOGLE_MAPS_API_KEY, fetchRealUserGps]);
+  }, [GOOGLE_MAPS_API_KEY]);
 
   // Resolve user coordinates when location selector changes
   useEffect(() => {
@@ -488,13 +516,18 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
     }
     const sector = COMUNA_8_SECTORS.find((s) => s.id === userLocationType);
     if (sector) {
-      setUserCoord(sector.coordinates);
+      setUserCoord((prev) => {
+        if (prev && Math.abs(prev.lat - sector.coordinates.lat) < 0.000001 && Math.abs(prev.lng - sector.coordinates.lng) < 0.000001) {
+          return prev;
+        }
+        return sector.coordinates;
+      });
       setUserLocationLabel(`${sector.name}, Comuna 8 (Medellín)`);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.panTo(sector.coordinates);
       }
     }
-  }, [userLocationType, fetchRealUserGps]);
+  }, [userLocationType]);
 
   // 2. Fetch or filter units from Google Places API New & nearbySearch (Requirement 2)
   const loadUnitsForCategory = useCallback(
@@ -619,7 +652,12 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
       setAvailableUnits(withDistance);
       if (withDistance.length > 0) {
         // Auto-select nearest unit (e.g., CAI La Milagrosa or closest hospital/fire station)
-        setSelectedUnit(withDistance[0]);
+        setSelectedUnit((prev) => {
+          if (prev && prev.id === withDistance[0].id && prev.distanceMeters === withDistance[0].distanceMeters) {
+            return prev;
+          }
+          return withDistance[0];
+        });
       }
       setIsLoadingPlaces(false);
     },
@@ -629,7 +667,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
   // Trigger loading units when serviceType or userCoord changes
   useEffect(() => {
     loadUnitsForCategory(serviceType, userCoord);
-  }, [serviceType, userCoord, loadUnitsForCategory]);
+  }, [serviceType, userCoord.lat, userCoord.lng, loadUnitsForCategory]);
 
   // Render Route and Markers on the map (Requirement 4: Marcador del usuario visible con punto azul pulsante)
   const renderRouteAndMarkers = useCallback(
@@ -681,7 +719,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
       const userMarker = new AdvancedMarkerElement({
         map,
         position: userPoint,
-        title: `Tu Ubicación: ${userLocationLabel}`,
+        title: `Tu Ubicación: ${userLocationLabelRef.current}`,
         content: userDiv,
         zIndex: 250, // Highest priority to remain visible above route
       });
@@ -724,7 +762,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
       }
       map.fitBounds(bounds, { top: 70, bottom: 70, left: 70, right: 70 });
     },
-    [serviceType, userLocationLabel]
+    [serviceType]
   );
 
   // 3. Calculate Real ETA & Polyline from Selected Unit to User Location via Google Maps DirectionsService
@@ -752,7 +790,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             coords: unit.location,
           },
           destination: {
-            label: userLocationLabel,
+            label: userLocationLabelRef.current,
             coords: userPoint,
           },
           travelMode: 'DRIVING',
@@ -882,7 +920,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
         setIsCalculatingRoute(false);
       }
     },
-    [renderRouteAndMarkers, userLocationLabel]
+    [renderRouteAndMarkers]
   );
 
   // Compute route whenever selectedUnit or userCoord updates
@@ -890,7 +928,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
     if (mapLoaded && selectedUnit) {
       computeRealRouteToUser(selectedUnit, userCoord);
     }
-  }, [mapLoaded, selectedUnit, userCoord, computeRealRouteToUser]);
+  }, [mapLoaded, selectedUnit?.id, userCoord.lat, userCoord.lng, computeRealRouteToUser]);
 
   // 4. Start Dispatch Simulation (Requirement 1, 2 & 3: GPS real, ruta sincronizada y movimiento en vivo)
   const handleStartDispatch = async () => {
@@ -1220,10 +1258,10 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
       >
         <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
         <div className="flex-1 text-xs">
-          <p className="font-bold text-amber-800 dark:text-amber-300">
+          <p className="font-bold text-amber-950 dark:text-amber-300">
             Aviso de Transparencia y Simulación Educativa
           </p>
-          <p className="text-amber-700/90 dark:text-amber-400/90 mt-0.5 leading-relaxed">
+          <p className="text-amber-900 dark:text-amber-400/90 mt-0.5 leading-relaxed font-normal">
             Esta función es una <strong className="underline">simulación con fines educativos</strong>. Las ubicaciones de CAIs, estaciones y centros de salud son reales (Google Maps Platform), pero no existe enlace con la central de radio oficial del 123. <strong className="font-bold">En una emergencia real, contacta siempre de inmediato a la línea única de emergencias 123 de Medellín.</strong>
           </p>
         </div>
@@ -1242,8 +1280,8 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <History className="w-5 h-5 text-red-500" />
-              <h2 className="text-base sm:text-lg font-bold">Historial de Apoyo Táctico</h2>
-              <span className="text-xs font-mono text-slate-400">({historyRecords.length} registros)</span>
+              <h2 className="text-base sm:text-lg font-bold text-theme-primary">Historial de Apoyo Táctico</h2>
+              <span className="text-xs font-mono text-theme-muted">({historyRecords.length} registros)</span>
             </div>
 
             {historyRecords.length > 0 && (
@@ -1259,10 +1297,10 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
           </div>
 
           {historyRecords.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400">
-              <History className="w-12 h-12 stroke-[1.5] mb-2 text-slate-500" />
-              <p className="text-sm font-semibold">No hay solicitudes de apoyo táctico registradas</p>
-              <p className="text-xs text-slate-500 max-w-sm mt-1">
+            <div className="py-12 flex flex-col items-center justify-center text-center text-theme-muted">
+              <History className="w-12 h-12 stroke-[1.5] mb-2 text-slate-400 dark:text-slate-500" />
+              <p className="text-sm font-semibold text-theme-primary">No hay solicitudes de apoyo táctico registradas</p>
+              <p className="text-xs text-theme-muted max-w-sm mt-1">
                 Cuando inicies una simulación de despacho de Policía, Ambulancia o Bomberos, el registro quedará almacenado localmente aquí.
               </p>
               <button

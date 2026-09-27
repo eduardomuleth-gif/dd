@@ -330,6 +330,10 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   // User Live Tracking State ("Usuario en ruta")
   const [isTrackingActive, setIsTrackingActive] = useState<boolean>(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const userLocationRef = useRef(userLocation);
+  userLocationRef.current = userLocation;
+  const realPlacesRef = useRef(realPlaces);
+  realPlacesRef.current = realPlaces;
   const [trackingProgressPercent, setTrackingProgressPercent] = useState<number>(0);
   const [currentStepInstruction, setCurrentStepInstruction] = useState<string>('Iniciando viaje...');
   const [remainingDistanceText, setRemainingDistanceText] = useState<string>('');
@@ -516,9 +520,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
     async (type: string, customText: string): Promise<google.maps.LatLngLiteral> => {
       // 1. Current GPS Location
       if (type === 'current') {
-        if (userLocation) {
-          console.log('[Security Urban :: GeoResolution] Origen GPS actual en caché:', userLocation);
-          return userLocation;
+        if (userLocationRef.current) {
+          console.log('[Security Urban :: GeoResolution] Origen GPS actual en caché:', userLocationRef.current);
+          return userLocationRef.current;
         }
         if (navigator.geolocation) {
           try {
@@ -526,7 +530,12 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
               navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4500, enableHighAccuracy: true });
             });
             const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            setUserLocation(coords);
+            setUserLocation((prev) => {
+              if (prev && Math.abs(prev.lat - coords.lat) < 0.000001 && Math.abs(prev.lng - coords.lng) < 0.000001) {
+                return prev;
+              }
+              return coords;
+            });
             console.log('[Security Urban :: GeoResolution] GPS actual obtenido en vivo:', coords);
             return coords;
           } catch (gpsErr) {
@@ -538,7 +547,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
 
       // 2. Real Safe Place selected by ID
       if (type.startsWith('place-')) {
-        const found = realPlaces.find((p) => p.id === type);
+        const found = realPlacesRef.current.find((p) => p.id === type);
         if (found) {
           console.log('[Security Urban :: GeoResolution] Punto seguro encontrado:', found.name, found.location);
           return found.location;
@@ -641,7 +650,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
       console.log('[Security Urban :: GeoResolution] Usando coordenadas estándar Comuna 8 para:', { type, customText });
       return { lat: 6.2458, lng: -75.5562 };
     },
-    [userLocation, realPlaces]
+    []
   );
 
   // Clear any existing polyline and waypoint markers from the map
@@ -1140,14 +1149,14 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg sm:text-xl font-extrabold tracking-wider font-['Rajdhani'] text-slate-900 dark:text-white uppercase">
+              <h1 className="text-lg sm:text-xl font-extrabold tracking-wider font-['Rajdhani'] text-theme-primary uppercase">
                 Rutas Seguras // Trazado Inteligente
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-800/60">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800/60">
                 RED VIAL REAL
               </span>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
+            <p className="text-xs text-theme-secondary font-medium mt-0.5">
               Cálculo de trayectorias por calles reales de Medellín con verificación de CAIs y cuadrantes policiales
             </p>
           </div>
@@ -1235,7 +1244,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     travelMode === 'WALKING'
                       ? 'bg-red-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-white'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
                   }`}
                   title="A pie (Caminata)"
                 >
@@ -1252,7 +1261,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     travelMode === 'DRIVING'
                       ? 'bg-red-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-white'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
                   }`}
                   title="Vehículo"
                 >
@@ -1269,7 +1278,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     travelMode === 'BICYCLING'
                       ? 'bg-red-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-white'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
                   }`}
                   title="Bicicleta"
                 >
@@ -1348,7 +1357,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                   className={`py-1.5 px-1 rounded-lg text-[11px] font-bold transition text-center truncate cursor-pointer ${
                     safePlacesCategory === c.id
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-white border border-slate-200 dark:border-slate-800'
+                      : 'bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-900 border border-slate-300 dark:border-slate-800'
                   }`}
                 >
                   {c.label}
@@ -1359,31 +1368,31 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
             {/* Quick list of retrieved real places */}
             <div className="max-h-32 overflow-y-auto tactical-scrollbar flex flex-col gap-1.5 pr-1">
               {isLoadingPlaces ? (
-                <div className="py-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                <div className="py-4 text-center text-xs text-theme-muted flex items-center justify-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-600 dark:text-cyan-400" />
                   <span>Consultando lugares reales con Google Places...</span>
                 </div>
               ) : realPlaces.length === 0 ? (
-                <div className="py-3 text-center text-xs text-slate-400">
+                <div className="py-3 text-center text-xs text-theme-muted font-medium">
                   No se encontraron puntos para esta categoría.
                 </div>
               ) : (
                 realPlaces.map((place) => (
                   <div
                     key={place.id}
-                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/60 flex items-center justify-between gap-2 hover:border-blue-500/50 transition group"
+                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/60 flex items-center justify-between gap-2 hover:border-blue-500/50 transition group"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-400">
+                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         {place.name}
                       </p>
-                      <p className="text-[10px] text-slate-500 truncate">{place.address}</p>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium truncate mt-0.5">{place.address}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => handleSetPlaceAs(place, 'origin')}
-                        className="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-emerald-600 hover:text-white transition cursor-pointer"
+                        className="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-bold text-slate-800 dark:text-slate-200 hover:bg-emerald-600 hover:text-white transition cursor-pointer"
                         title="Fijar como origen"
                       >
                         Origen
@@ -1391,7 +1400,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSetPlaceAs(place, 'destination')}
-                        className="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-red-600 hover:text-white transition cursor-pointer"
+                        className="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-bold text-slate-800 dark:text-slate-200 hover:bg-red-600 hover:text-white transition cursor-pointer"
                         title="Fijar como destino"
                       >
                         Destino
@@ -1406,11 +1415,11 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
           {/* Rutas Sugeridas: Formato compacto/pequeño (Ruta Más Segura y Ruta Más Directa) */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <Route className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-xs font-mono font-bold text-theme-primary flex items-center gap-1.5">
+                <Route className="w-3.5 h-3.5 text-emerald-500" />
                 RUTAS SUGERIDAS (MÁXIMO 2 OPCIONES)
               </span>
-              <span className="text-[10px] font-mono text-amber-400/90 bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-800/60">
+              <span className="text-[10px] font-mono text-amber-800 dark:text-amber-400/90 bg-amber-100 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-800/60 font-medium">
                 Dato de referencia
               </span>
             </div>
@@ -1427,9 +1436,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                     className={`p-3 rounded-xl border transition-all cursor-pointer relative overflow-hidden backdrop-blur-md shadow-xs flex flex-col justify-between gap-2 ${
                       isSelected
                         ? isSafe
-                          ? 'border-emerald-500 bg-emerald-950/30 ring-2 ring-emerald-500/60 shadow-md shadow-emerald-950/30'
-                          : 'border-cyan-500 bg-cyan-950/30 ring-2 ring-cyan-500/60 shadow-md shadow-cyan-950/30'
-                        : 'border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-700'
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 ring-2 ring-emerald-500/60 shadow-md'
+                          : 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/40 ring-2 ring-cyan-500/60 shadow-md'
+                        : 'border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 hover:border-slate-400 dark:hover:border-slate-700'
                     }`}
                   >
                     {/* Header Row */}
@@ -1442,7 +1451,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                         >
                           {isSafe ? '🛡️' : '⚡'}
                         </span>
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        <h4 className="text-xs font-bold text-theme-primary truncate">
                           {opt.title}
                         </h4>
                       </div>
@@ -1450,8 +1459,8 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                       <span
                         className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold shrink-0 border ${
                           isSafe
-                            ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/70'
-                            : 'bg-cyan-950/60 text-cyan-400 border-cyan-800/70'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/70'
+                            : 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-400 border-cyan-300 dark:border-cyan-800/70'
                         }`}
                       >
                         {opt.badge}
@@ -1459,33 +1468,33 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                     </div>
 
                     {/* Corridor summary */}
-                    <p className="text-[11px] font-mono text-slate-600 dark:text-slate-300 truncate">
-                      🛣️ <strong className="text-slate-900 dark:text-white">{opt.summary}</strong>
+                    <p className="text-[11px] font-mono text-theme-secondary truncate">
+                      🛣️ <strong className="text-theme-primary">{opt.summary}</strong>
                     </p>
 
                     {/* Duration & Distance */}
-                    <div className="grid grid-cols-2 gap-1.5 py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-950/80 border border-slate-200/60 dark:border-slate-800/60 text-[11px] font-mono">
-                      <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                    <div className="grid grid-cols-2 gap-1.5 py-1 px-2 rounded-lg bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-[11px] font-mono">
+                      <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-semibold">
                         <Clock className="w-3 h-3 text-amber-500 shrink-0" />
                         <span>{opt.durationText}</span>
                       </div>
-                      <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                      <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-semibold">
                         <Navigation className="w-3 h-3 text-cyan-500 shrink-0" />
                         <span>{opt.distanceText}</span>
                       </div>
                     </div>
 
                     {/* Security tip */}
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight">
+                    <p className="text-[10px] text-theme-secondary line-clamp-2 leading-tight font-medium">
                       {opt.securityNotice}
                     </p>
 
                     {/* Footer selector tag */}
-                    <div className="flex items-center justify-between text-[10px] font-mono pt-1 border-t border-slate-100 dark:border-slate-800/60">
-                      <span className="text-[9px] text-slate-400">Google Directions</span>
+                    <div className="flex items-center justify-between text-[10px] font-mono pt-1 border-t border-slate-200 dark:border-slate-800/60">
+                      <span className="text-[9px] text-theme-muted font-medium">Google Directions</span>
                       <span
                         className={`font-bold flex items-center gap-1 ${
-                          isSelected ? (isSafe ? 'text-emerald-400' : 'text-cyan-400') : 'text-slate-500'
+                          isSelected ? (isSafe ? 'text-emerald-700 dark:text-emerald-400' : 'text-cyan-700 dark:text-cyan-400') : 'text-theme-muted'
                         }`}
                       >
                         {isSelected ? (

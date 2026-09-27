@@ -487,7 +487,7 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -852,7 +852,7 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedUserForDetail(null)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+                  className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
