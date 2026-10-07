@@ -2,13 +2,34 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --text-2xs: 0.75rem;
+  --text-2xs--line-height: 1.15rem;
+  --text-xs: 0.84375rem; /* ~13.5px minimum for micro-badges, clean legibility */
+  --text-xs--line-height: 1.35rem;
+  --text-sm: 0.96875rem; /* 15.5px standard for labels and auxiliary text */
+  --text-sm--line-height: 1.55rem;
+  --text-base: 1.0625rem; /* 17px minimum base text for paragraphs and descriptions */
+  --text-base--line-height: 1.7rem;
+  --text-lg: 1.25rem; /* 20px for section subheadings */
+  --text-lg--line-height: 1.8rem;
+  --text-xl: 1.4375rem; /* 23px for card headers */
+  --text-xl--line-height: 1.95rem;
+  --text-2xl: 1.75rem; /* 28px for primary section titles */
+  --text-2xl--line-height: 2.25rem;
+  --text-3xl: 2.125rem; /* 34px for main screen page titles */
+  --text-3xl--line-height: 2.6rem;
+  --text-4xl: 2.625rem; /* 42px for hero banners */
+  --text-4xl--line-height: 3.1rem;
+}
+
 :root {
-  --color-theme-primary: #0f172a;
-  --color-theme-secondary: #334155;
-  --color-theme-muted: #475569;
-  --color-theme-subtle: #64748b;
+  --color-theme-primary: #090d16;
+  --color-theme-secondary: #1e293b;
+  --color-theme-muted: #334155;
+  --color-theme-subtle: #475569;
   --color-theme-card-bg: #ffffff;
-  --color-theme-card-border: #e2e8f0;
+  --color-theme-card-border: #cbd5e1;
 }
 
 .dark {
@@ -16,8 +37,8 @@
   --color-theme-secondary: #e2e8f0;
   --color-theme-muted: #94a3b8;
   --color-theme-subtle: #64748b;
-  --color-theme-card-bg: rgba(15, 23, 42, 0.9);
-  --color-theme-card-border: rgba(51, 65, 85, 0.6);
+  --color-theme-card-bg: rgba(15, 23, 42, 0.95);
+  --color-theme-card-border: rgba(51, 65, 85, 0.7);
 }
 
 .text-theme-primary {
@@ -37,46 +58,117 @@
 }
 
 @layer base {
+  html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 1.0625rem; /* 17px minimum base text */
+    line-height: 1.7; /* Proportional relaxed leading */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  p {
+    font-size: 1.0625rem; /* 16-17px minimum */
+    line-height: 1.7;
+  }
+
+  label {
+    font-size: 1rem; /* 16px */
+    font-weight: 600;
+    line-height: 1.55;
+  }
+
+  input, select, textarea {
+    font-size: 1rem; /* 16px */
+    line-height: 1.55;
+  }
+
+  h1 {
+    font-size: 1.875rem; /* 30px */
+    line-height: 1.25;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  @media (min-width: 640px) {
+    h1 {
+      font-size: 2.25rem; /* 36px */
+    }
+  }
+
+  h2 {
+    font-size: 1.5rem; /* 24px */
+    line-height: 1.35;
+    font-weight: 700;
+  }
+
+  @media (min-width: 640px) {
+    h2 {
+      font-size: 1.75rem; /* 28px */
+    }
+  }
+
+  h3 {
+    font-size: 1.25rem; /* 20px */
+    line-height: 1.4;
+    font-weight: 700;
+  }
+
+  @media (min-width: 640px) {
+    h3 {
+      font-size: 1.375rem; /* 22px */
+    }
+  }
+
+  h4 {
+    font-size: 1.125rem; /* 18px */
+    line-height: 1.45;
+    font-weight: 600;
+  }
 }
 
-/* Tactical Dark Scrollbar for internal columns and lists */
+/* Tactical Dark & Light Scrollbars */
 .tactical-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(249, 115, 22, 0.5) #0c1222;
+  scrollbar-color: rgba(239, 68, 68, 0.7) rgba(15, 23, 42, 0.15);
 }
 
 .tactical-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 .tactical-scrollbar::-webkit-scrollbar-track {
-  background: #090d16;
+  background: rgba(15, 23, 42, 0.08);
   border-radius: 9999px;
 }
 
+.dark .tactical-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .tactical-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(249, 115, 22, 0.45);
+  background: rgba(239, 68, 68, 0.7);
   border-radius: 9999px;
-  border: 1px solid rgba(251, 146, 60, 0.2);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
   transition: background-color 0.2s ease;
 }
 
 .tactical-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(239, 68, 68, 0.75);
+  background: rgba(220, 38, 38, 0.95);
 }
 
-/* Google Places Autocomplete Dark HUD styling */
+/* Google Places Autocomplete HUD styling */
 .pac-container {
   background-color: #0f172a !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 0.75rem !important;
-  box-shadow: 0 14px 32px -4px rgba(0, 0, 0, 0.85), 0 0 20px rgba(249, 115, 22, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 0.875rem !important;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.85), 0 0 20px rgba(249, 115, 22, 0.15) !important;
   margin-top: 6px !important;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
   z-index: 99999 !important;
@@ -85,9 +177,9 @@
 .pac-item {
   color: #cbd5e1 !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-  padding: 8px 12px !important;
+  padding: 10px 14px !important;
   cursor: pointer !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
 }
 
 .pac-item:hover, .pac-item-selected {
@@ -97,7 +189,7 @@
 
 .pac-item-query {
   color: #f8fafc !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
 }
 

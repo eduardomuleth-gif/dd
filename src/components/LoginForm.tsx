@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight, Clock, UserPlus } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { executeSignIn } from '../services/firebaseAuth';
@@ -32,6 +32,16 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [captchaError, setCaptchaError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isUserNotFound, setIsUserNotFound] = useState(false);
+
+  const alertContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll to error message when it appears
+  useEffect(() => {
+    if ((errorMessage || isUserNotFound) && alertContainerRef.current) {
+      alertContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [errorMessage, isUserNotFound]);
 
   // Failed attempts and lockout management
   const [failedAttempts, setFailedAttempts] = useState<number>(() => {
@@ -68,6 +78,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           sessionStorage.setItem(FAILED_ATTEMPTS_STORAGE_KEY, '0');
           setFailedAttempts(0);
           setErrorMessage(null);
+          setIsUserNotFound(false);
           console.log('[Security Urban :: UI] Bloqueo temporal de intentos fallidos finalizado.');
           return 0;
         }
@@ -81,6 +92,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setIsUserNotFound(false);
 
     // Lockout check
     if (lockoutRemaining > 0) {
@@ -112,6 +124,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           return;
         }
 
+        // PROMPT 1: Detect specifically if the email is not registered
+        if (result.error === 'USER_NOT_FOUND') {
+          setIsUserNotFound(true);
+          setErrorMessage(
+            language === 'es'
+              ? 'Este correo no está registrado. Debes crear una cuenta primero.'
+              : 'This email is not registered. You must create an account first.'
+          );
+          return;
+        }
+
         const nextAttempts = failedAttempts + 1;
         setFailedAttempts(nextAttempts);
         sessionStorage.setItem(FAILED_ATTEMPTS_STORAGE_KEY, nextAttempts.toString());
@@ -121,10 +144,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           const expiryTime = Date.now() + LOCKOUT_SECONDS * 1000;
           sessionStorage.setItem(LOCKOUT_EXPIRY_STORAGE_KEY, expiryTime.toString());
           setLockoutRemaining(LOCKOUT_SECONDS);
-          console.error(`[Security Urban :: UI] Límite de ${MAX_FAILED_ATTEMPTS} intentos alcanzado. Bloqueando por ${LOCKOUT_SECONDS}s.`);
+          console.warn(`[Security Urban :: UI] Límite de ${MAX_FAILED_ATTEMPTS} intentos alcanzado. Bloqueando por ${LOCKOUT_SECONDS}s.`);
           setErrorMessage(t('tooManyAttempts'));
         } else {
-          // Neutral message to prevent user enumeration
+          // Neutral message to prevent user enumeration for wrong passwords
           setErrorMessage(t('invalidCredentials'));
         }
       } else {
@@ -136,7 +159,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         onSuccess();
       }
     } catch (err: unknown) {
-      console.error('[Security Urban :: UI] Error general en inicio de sesión:', err);
+      console.warn('[Security Urban :: UI] Aviso general en inicio de sesión:', err);
       setErrorMessage(t('invalidCredentials'));
     } finally {
       setIsLoading(false);
@@ -147,34 +170,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-7">
-      {/* Lockout Warning Banner */}
-      {isLocked && (
-        <div className="p-4 rounded-2xl bg-red-100 border border-red-500 text-red-900 dark:bg-red-950/80 dark:border-red-500/80 dark:text-red-200 text-sm flex items-start gap-3 animate-pulse shadow-sm">
-          <Clock className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-bold text-sm">{t('tooManyAttempts')}</p>
-            <p className="text-xs sm:text-sm font-medium">
-              {t('lockoutTimeRemaining')} <span className="font-mono font-bold text-base">{lockoutRemaining}s</span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Neutral Error Banner */}
-      {!isLocked && errorMessage && (
-        <div className="p-4 rounded-2xl bg-red-100 border border-red-400 text-red-900 dark:bg-red-950/60 dark:border-red-600/70 dark:text-red-200 text-sm flex items-start gap-3 shadow-xs">
-          <ShieldAlert className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <span className="leading-snug block font-semibold text-sm">{errorMessage}</span>
-            {failedAttempts > 0 && failedAttempts < MAX_FAILED_ATTEMPTS && (
-              <span className="text-xs font-mono font-medium opacity-90 block">
-                Intento fallido {failedAttempts} de {MAX_FAILED_ATTEMPTS}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Email input */}
       <div>
         <label htmlFor="login-email-input" className={`block text-sm sm:text-base font-semibold mb-2.5 ${colors.label}`}>
@@ -188,7 +183,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             required
             disabled={isLocked}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errorMessage) {
+                setErrorMessage(null);
+                setIsUserNotFound(false);
+              }
+            }}
             placeholder={t('emailPlaceholder')}
             autoComplete="email"
             className={`w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText} ${colors.inputPlaceholder} disabled:opacity-50`}
@@ -218,7 +219,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             required
             disabled={isLocked}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errorMessage) {
+                setErrorMessage(null);
+                setIsUserNotFound(false);
+              }
+            }}
             placeholder={t('passwordPlaceholder')}
             autoComplete="current-password"
             className={`w-full pl-12 pr-12 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText} ${colors.inputPlaceholder} disabled:opacity-50`}
@@ -273,6 +280,65 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           </>
         )}
       </button>
+
+      {/* PROMPT 3: Repositioned Alerts/Errors Directly Below the Submit Action */}
+      {/* Lockout Warning Banner */}
+      {isLocked && (
+        <div
+          ref={alertContainerRef}
+          className="p-4 rounded-2xl bg-red-100 border border-red-500 text-red-900 dark:bg-red-950/80 dark:border-red-500/80 dark:text-red-200 text-sm flex items-start gap-3 animate-pulse shadow-sm"
+        >
+          <Clock className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold text-sm sm:text-base">{t('tooManyAttempts')}</p>
+            <p className="text-xs sm:text-sm font-medium">
+              {t('lockoutTimeRemaining')} <span className="font-mono font-bold text-base">{lockoutRemaining}s</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* PROMPT 1: Specific Error Banner for User Not Found with Direct Register Link / Button */}
+      {!isLocked && errorMessage && (
+        <div
+          ref={alertContainerRef}
+          className={`p-4 rounded-2xl border-2 text-sm flex items-start gap-3.5 shadow-md animate-in fade-in slide-in-from-top-2 duration-200 ${
+            isUserNotFound
+              ? 'bg-amber-50 border-amber-500 text-amber-950 dark:bg-amber-950/60 dark:border-amber-500 dark:text-amber-200'
+              : 'bg-red-100 border-red-400 text-red-900 dark:bg-red-950/70 dark:border-red-600 dark:text-red-200'
+          }`}
+        >
+          <ShieldAlert
+            className={`w-5 h-5 shrink-0 mt-0.5 ${
+              isUserNotFound ? 'text-amber-600 dark:text-amber-400' : 'text-red-600'
+            }`}
+          />
+          <div className="space-y-2.5 flex-1">
+            <span className="leading-snug block font-bold text-sm sm:text-base">{errorMessage}</span>
+
+            {/* Direct action button to Register when email is not registered */}
+            {isUserNotFound && (
+              <div className="pt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onSwitchToRegister}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-md shadow-red-900/30 transition cursor-pointer active:scale-95"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>{language === 'es' ? 'Crear cuenta ahora' : 'Create account now'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {!isUserNotFound && failedAttempts > 0 && failedAttempts < MAX_FAILED_ATTEMPTS && (
+              <span className="text-xs font-mono font-medium opacity-90 block">
+                Intento fallido {failedAttempts} de {MAX_FAILED_ATTEMPTS}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Switch to Register link */}
       <div className="text-center pt-2">

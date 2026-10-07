@@ -1,18 +1,22 @@
+/// <reference types="@types/google.maps" />
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { 
-  ChevronDown, 
-  ChevronUp, 
-  Search, 
-  MapPin, 
-  X, 
-  ShieldCheck, 
-  Building2, 
-  GraduationCap, 
-  Trees, 
-  Check, 
+import {
+  ChevronDown,
+  ChevronUp,
+  Search,
+  MapPin,
+  X,
+  ShieldCheck,
+  Building2,
+  GraduationCap,
+  Trees,
   Navigation,
-  Edit3
+  Edit3,
+  CornerDownLeft,
+  Sparkles,
 } from 'lucide-react';
+import { importLibrary } from '@googlemaps/js-api-loader';
 import { SectorRiskData } from './RiskMapScreen';
 
 export interface RealSafePlaceItem {
@@ -26,6 +30,15 @@ export interface RealSafePlaceItem {
   source: 'Google Maps Platform';
 }
 
+export interface PlaceSuggestion {
+  id: string;
+  title: string;
+  subtitle: string;
+  location?: { lat: number; lng: number };
+  type: 'google' | 'sector' | 'safePlace';
+  refId?: string;
+}
+
 export interface LocationPointSelectorProps {
   id: string;
   label: string;
@@ -36,11 +49,15 @@ export interface LocationPointSelectorProps {
   sectors: SectorRiskData[];
   safePlaces: RealSafePlaceItem[];
   customText: string;
-  onCustomTextChange: (text: string) => void;
+  onCustomTextChange: (text: string, resolvedCoord?: { lat: number; lng: number }) => void;
   onSubmitManual: () => void;
   manualPlaceholder?: string;
   defaultSectorId?: string;
+  onOpenExclusive?: (selectorId: string) => void;
+  activeSelectorId?: string | null;
 }
+
+const EXCLUSIVE_OPEN_EVENT = 'security-urban:location-selector-open';
 
 export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
   id,
@@ -56,61 +73,235 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
   onSubmitManual,
   manualPlaceholder,
   defaultSectorId,
+  onOpenExclusive,
+  activeSelectorId,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sectorsExpanded, setSectorsExpanded] = useState(true);
   const [placesExpanded, setPlacesExpanded] = useState(true);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+
+  const lastPresetRef = useRef<string>(
+    value !== 'otro' ? value : defaultSectorId || 'c8-villa-hermosa'
+  );
+
+  useEffect(() => {
+    if (value !== 'otro') {
+      lastPresetRef.current = value;
+    }
+  }, [value]);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const manualInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Close dropdown on outside click or Escape key
+  // Notify other LocationPointSelector instances to close immediately when this one opens
+  const notifyExclusiveOpen = () => {
+    onOpenExclusive?.(id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(EXCLUSIVE_OPEN_EVENT, { detail: { id } }));
+    }
+  };
+
+  // Close this selector if parent or another selector instance became active
   useEffect(() => {
+    if (activeSelectorId !== undefined && activeSelectorId !== null && activeSelectorId !== id) {
+      setIsOpen(false);
+      setShowSuggestions(false);
+    }
+  }, [activeSelectorId, id]);
+
+  useEffect(() => {
+    const handleOtherSelectorOpen = (e: Event) => {
+      const customEv = e as CustomEvent<{ id?: string }>;
+      if (customEv.detail?.id && customEv.detail.id !== id) {
+        setIsOpen(false);
+        setShowSuggestions(false);
+      }
+    };
+
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setShowSuggestions(false);
       }
     };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsOpen(false);
+        setShowSuggestions(false);
       }
     };
-    if (isOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
-      document.addEventListener('touchstart', handleOutsideClick);
-      document.addEventListener('keydown', handleKeyDown);
-      // Focus search input on open
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    }
+
+    window.addEventListener(EXCLUSIVE_OPEN_EVENT, handleOtherSelectorOpen);
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+
     return () => {
+      window.removeEventListener(EXCLUSIVE_OPEN_EVENT, handleOtherSelectorOpen);
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('touchstart', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [id]);
 
-  // Compute active label to display on closed trigger
-  const activeLabel = useMemo(() => {
+  // Compute human-readable text for current preset selection
+  const selectedPresetDisplay = useMemo(() => {
     if (value === 'otro') {
-      return customText.trim() ? `✏️ "${customText.trim()}" (Manual)` : '✏️ Otro (Escribir manualmente)';
+      return '';
     }
     if (value === 'current') {
-      return '📍 Mi ubicación actual (GPS)';
+      return 'Mi ubicación actual (GPS)';
     }
     if (value.startsWith('place-')) {
       const p = safePlaces.find((item) => item.id === value);
-      if (p) return `${p.categoryLabel}: ${p.name}`;
+      if (p) return `${p.name} — ${p.address}`;
     }
-    const sec = sectors.find((s) => s.id === value);
-    if (sec) return `${sec.name} (${sec.levelLabel})`;
-    return value || 'Seleccionar punto...';
-  }, [value, customText, sectors, safePlaces]);
+    const sec = sectors.find(
+      (s) => s.id === value || s.id === value.replace('sec-', 'c8-')
+    );
+    if (sec) return `${sec.name}, Comuna 8, Medellín`;
+    return '';
+  }, [value, sectors, safePlaces]);
 
-  // Filtered sectors based on search
+  // Displayed input value: if value === 'otro', show customText; otherwise show preset display
+  const inputDisplayValue = value === 'otro' ? customText : selectedPresetDisplay;
+
+  // Fetch Google Maps Places / Geocoder autocomplete suggestions when user types manually
+  useEffect(() => {
+    if (value !== 'otro' || !customText || customText.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const q = customText.trim();
+    const qLower = q.toLowerCase();
+    let isCancelled = false;
+
+    const timer = setTimeout(async () => {
+      setIsSearchingPlaces(true);
+      const localMatches: PlaceSuggestion[] = [];
+
+      // 1. Check matching safe places
+      safePlaces
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(qLower) ||
+            p.address.toLowerCase().includes(qLower) ||
+            p.categoryLabel.toLowerCase().includes(qLower)
+        )
+        .slice(0, 3)
+        .forEach((p) => {
+          localMatches.push({
+            id: `sug-place-${p.id}`,
+            title: p.name,
+            subtitle: `${p.categoryLabel} • ${p.address}`,
+            location: p.location,
+            type: 'safePlace',
+            refId: p.id,
+          });
+        });
+
+      // 2. Check matching Comuna 8 sectors
+      sectors
+        .filter((s) => s.name.toLowerCase().includes(qLower))
+        .slice(0, 2)
+        .forEach((s) => {
+          localMatches.push({
+            id: `sug-sec-${s.id}`,
+            title: `Barrio / Sector ${s.name}`,
+            subtitle: `Comuna 8 (Villa Hermosa), Medellín • Riesgo ${s.levelLabel}`,
+            location: s.coordinates,
+            type: 'sector',
+            refId: s.id,
+          });
+        });
+
+      // 3. Query Google Maps Places API (New) for real street addresses and places in Medellín
+      const googleMatches: PlaceSuggestion[] = [];
+      try {
+        const { Place } = (await importLibrary('places')) as any;
+        if (Place && typeof Place.searchByText === 'function') {
+          const queryWithCity =
+            qLower.includes('medellin') || qLower.includes('medellín')
+              ? q
+              : `${q}, Medellín, Antioquia`;
+          const response = await Place.searchByText({
+            textQuery: queryWithCity,
+            fields: ['displayName', 'formattedAddress', 'location'],
+            locationBias: { lat: 6.2476, lng: -75.5558 },
+            region: 'co',
+            language: 'es',
+            maxResultCount: 5,
+          });
+
+          if (!isCancelled && response?.places?.length) {
+            response.places.forEach((p: any, idx: number) => {
+              const loc = p.location;
+              const lat =
+                typeof loc?.lat === 'function' ? loc.lat() : Number(loc?.lat ?? loc?.latitude);
+              const lng =
+                typeof loc?.lng === 'function' ? loc.lng() : Number(loc?.lng ?? loc?.longitude);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                googleMatches.push({
+                  id: `sug-gmp-${idx}-${lat.toFixed(4)}`,
+                  title: p.displayName || q,
+                  subtitle: p.formattedAddress || 'Medellín, Antioquia',
+                  location: { lat, lng },
+                  type: 'google',
+                });
+              }
+            });
+          }
+        }
+      } catch {
+        // Fallback to Geocoder if Places searchByText fails
+        try {
+          const { Geocoder } = (await importLibrary('geocoding')) as google.maps.GeocodingLibrary;
+          const geocoder = new Geocoder();
+          const queryWithCity =
+            qLower.includes('medellin') || qLower.includes('medellín')
+              ? q
+              : `${q}, Medellín, Colombia`;
+          geocoder.geocode({ address: queryWithCity, region: 'co' }, (results, status) => {
+            if (!isCancelled && status === google.maps.GeocoderStatus.OK && results) {
+              results.slice(0, 4).forEach((r, idx) => {
+                const lat = r.geometry.location.lat();
+                const lng = r.geometry.location.lng();
+                googleMatches.push({
+                  id: `sug-geo-${idx}`,
+                  title: r.formatted_address.split(',')[0] || q,
+                  subtitle: r.formatted_address,
+                  location: { lat, lng },
+                  type: 'google',
+                });
+              });
+              setSuggestions([...googleMatches, ...localMatches].slice(0, 6));
+            }
+          });
+        } catch {
+          // Ignore
+        }
+      }
+
+      if (!isCancelled) {
+        setSuggestions([...googleMatches, ...localMatches].slice(0, 6));
+        setIsSearchingPlaces(false);
+      }
+    }, 260);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [customText, value, safePlaces, sectors]);
+
+  // Filtered sectors based on dropdown search
   const filteredSectors = useMemo(() => {
     if (!searchQuery.trim()) return sectors;
     const q = searchQuery.toLowerCase().trim();
@@ -122,7 +313,7 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
     );
   }, [sectors, searchQuery]);
 
-  // Filtered safe places based on search
+  // Filtered safe places based on dropdown search
   const filteredPlaces = useMemo(() => {
     if (!searchQuery.trim()) return safePlaces;
     const q = searchQuery.toLowerCase().trim();
@@ -134,7 +325,6 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
     );
   }, [safePlaces, searchQuery]);
 
-  // Category Icon helper
   const getPlaceIcon = (category: string) => {
     switch (category) {
       case 'police':
@@ -148,319 +338,433 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
     }
   };
 
+  const handleToggleList = () => {
+    if (isOpen) {
+      setIsOpen(false);
+    } else {
+      notifyExclusiveOpen();
+      setIsOpen(true);
+      setShowSuggestions(false);
+    }
+  };
+
   const handleSelectOption = (optVal: string) => {
     onChange(optVal);
     setIsOpen(false);
+    setShowSuggestions(false);
     setSearchQuery('');
+    if (optVal === 'otro') {
+      setTimeout(() => {
+        manualInputRef.current?.focus();
+      }, 40);
+    }
   };
+
+  const handleSelectSuggestion = (sug: PlaceSuggestion) => {
+    setShowSuggestions(false);
+    setIsOpen(false);
+    if (sug.type === 'safePlace' && sug.refId) {
+      onChange(sug.refId);
+      return;
+    }
+    if (sug.type === 'sector' && sug.refId) {
+      onChange(sug.refId);
+      return;
+    }
+    const fullAddress =
+      sug.subtitle && !sug.title.includes(sug.subtitle)
+        ? `${sug.title}, ${sug.subtitle}`
+        : sug.title;
+    onChange('otro');
+    onCustomTextChange(fullAddress, sug.location);
+    setTimeout(() => {
+      onSubmitManual();
+    }, 50);
+  };
+
+  const isMenuVisible = isOpen || (showSuggestions && value === 'otro' && customText.trim().length >= 2);
 
   return (
     <div
-      className={`flex flex-col gap-1.5 relative ${isOpen ? 'z-[60]' : isOrigin ? 'z-20' : 'z-10'}`}
+      className={`flex flex-col gap-2 relative ${
+        isMenuVisible ? 'z-[100]' : 'z-10'
+      }`}
       ref={containerRef}
       id={`group-${id}`}
     >
-      {/* Header with Label and Quick Mode Switchers */}
-      <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+      {/* Header Row: Label on left + Aligned Action Buttons ("Mi GPS", "Escribir dirección", "Lista") on right */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <label
+          htmlFor={`${id}-address-input`}
+          className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shrink-0"
+        >
           {icon}
           <span>{label}</span>
         </label>
 
-        {/* Quick Shortcut Buttons right on the header */}
-        <div className="flex items-center gap-1">
-          {isOrigin && value !== 'current' && (
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+          {isOrigin && (
             <button
               type="button"
               onClick={() => handleSelectOption('current')}
-              className="text-[10px] font-mono px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition flex items-center gap-1 cursor-pointer"
-              title="Usar ubicación GPS actual"
+              className={`h-7 px-2.5 rounded-lg text-[11px] font-mono border transition inline-flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+                value === 'current'
+                  ? 'border-emerald-500 bg-emerald-600 text-white font-bold shadow-xs'
+                  : 'border-slate-300 dark:border-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold'
+              }`}
+              title="Usar mi ubicación GPS actual"
             >
-              <Navigation className="w-2.5 h-2.5 text-emerald-500" />
-              <span>GPS</span>
+              <Navigation className="w-3 h-3 shrink-0" />
+              <span>Mi GPS</span>
             </button>
           )}
 
-          {value !== 'otro' ? (
-            <button
-              type="button"
-              onClick={() => handleSelectOption('otro')}
-              className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-red-500/40 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition flex items-center gap-1 cursor-pointer"
-              title="Escribir dirección o punto manualmente"
-            >
-              <Edit3 className="w-2.5 h-2.5" />
-              <span>Manual</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleSelectOption(defaultSectorId || (isOrigin ? 'current' : sectors[0]?.id || 'sec-villa-hermosa-centro'))}
-              className="text-[10px] font-mono px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition flex items-center gap-1 cursor-pointer"
-              title="Volver a lista de sectores"
-            >
-              <span>Ver lista</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              notifyExclusiveOpen();
+              onChange('otro');
+              onCustomTextChange('');
+              setIsOpen(false);
+              setShowSuggestions(true);
+              setTimeout(() => manualInputRef.current?.focus(), 30);
+            }}
+            className={`h-7 px-2.5 rounded-lg text-[11px] font-mono font-bold border transition inline-flex items-center justify-center gap-1.5 cursor-pointer shrink-0 ${
+              value === 'otro'
+                ? 'border-red-500 bg-red-600 text-white shadow-xs'
+                : 'border-red-500/40 bg-red-50 hover:bg-red-100 dark:bg-red-950/50 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400'
+            }`}
+            title="Escribir dirección manualmente"
+          >
+            <Edit3 className="w-3 h-3 shrink-0" />
+            <span>Escribir dirección</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleList}
+            className={`h-7 px-2.5 rounded-lg text-[11px] font-mono font-semibold border transition inline-flex items-center justify-center gap-1 cursor-pointer shrink-0 ${
+              isOpen
+                ? 'border-red-500 bg-red-600 text-white shadow-xs'
+                : 'border-slate-300 dark:border-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+            }`}
+            title="Elegir de la lista de sectores o ubicaciones"
+          >
+            <span>Lista</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
       </div>
 
-      {/* Main Trigger Button */}
-      <div className={`relative ${isOpen ? 'z-[60]' : 'z-auto'}`}>
-        <button
-          type="button"
-          id={id}
-          aria-haspopup="listbox"
-          aria-expanded={isOpen}
-          onClick={() => setIsOpen(!isOpen)}
-          className={`w-full px-3 py-2 rounded-xl text-xs font-medium border text-left flex items-center justify-between gap-2 transition-all cursor-pointer shadow-2xs ${
-            isOpen
-              ? 'border-red-500 ring-2 ring-red-500/20 bg-white dark:bg-slate-900'
-              : value === 'otro'
-              ? 'border-red-500/70 bg-red-50/50 dark:bg-red-950/20 text-red-700 dark:text-red-300'
-              : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 hover:border-slate-400 dark:hover:border-slate-600'
+      {/* Google Maps-style Direct Address Input + Dropdown Trigger */}
+      <div className="relative flex items-center gap-2">
+        <div
+          className={`relative flex-1 flex items-center rounded-xl border transition-all bg-white dark:bg-slate-950 ${
+            showSuggestions || isOpen
+              ? 'border-red-500 ring-2 ring-red-500/20'
+              : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600'
           }`}
         >
-          <span className="truncate flex items-center gap-1.5">
-            {value === 'otro' ? (
-              <span className="font-semibold text-red-600 dark:text-red-400">✏️ Otro (Escribir manualmente)</span>
-            ) : value === 'current' ? (
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">📍 Mi ubicación actual (GPS)</span>
-            ) : (
-              <span>{activeLabel}</span>
+          <Search className="w-3.5 h-3.5 text-slate-400 ml-3 shrink-0 pointer-events-none" />
+          <input
+            ref={manualInputRef}
+            id={`${id}-address-input`}
+            type="text"
+            value={inputDisplayValue}
+            onFocus={() => {
+              notifyExclusiveOpen();
+              setIsOpen(false);
+              if (value !== 'otro') {
+                lastPresetRef.current = value;
+                onChange('otro');
+                onCustomTextChange('', undefined);
+              }
+              setShowSuggestions(true);
+            }}
+            onBlur={() => {
+              // Give click events on suggestions time to fire before checking empty state
+              setTimeout(() => {
+                if (
+                  manualInputRef.current &&
+                  document.activeElement !== manualInputRef.current &&
+                  value === 'otro' &&
+                  !customText.trim()
+                ) {
+                  onChange(lastPresetRef.current);
+                }
+              }, 220);
+            }}
+            onChange={(e) => {
+              notifyExclusiveOpen();
+              if (value !== 'otro') {
+                onChange('otro');
+              }
+              onCustomTextChange(e.target.value, undefined);
+              setShowSuggestions(true);
+              setIsOpen(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setShowSuggestions(false);
+                setIsOpen(false);
+                onSubmitManual();
+              }
+            }}
+            placeholder={
+              manualPlaceholder ||
+              (isOrigin
+                ? 'Escribe dirección de origen (ej. Calle 56 #38-12, Boston)...'
+                : 'Escribe dirección de destino (ej. Carrera 40 #65-15, Villa Hermosa)...')
+            }
+            className="w-full px-2.5 py-2.5 text-xs font-medium bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
+          />
+
+          {/* Clear Input Button */}
+          {inputDisplayValue && (
+            <button
+              type="button"
+              onClick={() => {
+                notifyExclusiveOpen();
+                onChange('otro');
+                onCustomTextChange('', undefined);
+                setSuggestions([]);
+                manualInputRef.current?.focus();
+              }}
+              className="p-1.5 text-slate-400 hover:text-red-500 transition cursor-pointer shrink-0"
+              title="Borrar dirección para escribir otra"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Dropdown List Trigger */}
+          <button
+            type="button"
+            id={id}
+            onClick={handleToggleList}
+            className="px-3 py-2.5 border-l border-slate-200 dark:border-slate-800 text-slate-500 hover:text-red-500 transition cursor-pointer shrink-0 flex items-center"
+            title="Abrir lista de sectores y ubicaciones"
+          >
+            <ChevronDown
+              className={`w-4 h-4 transition-transform ${
+                isOpen ? 'rotate-180 text-red-500' : ''
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Direct "Trazar" Action Button when typing manual address */}
+        {value === 'otro' && customText.trim().length > 0 && (
+          <button
+            type="button"
+            id={`btn-trazar-${isOrigin ? 'origen' : 'destino'}-manual`}
+            onClick={() => {
+              setShowSuggestions(false);
+              setIsOpen(false);
+              onSubmitManual();
+            }}
+            className="px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition flex items-center gap-1"
+            title="Trazar ruta con esta dirección"
+          >
+            <CornerDownLeft className="w-3.5 h-3.5" />
+            <span>Trazar</span>
+          </button>
+        )}
+
+        {/* Live Google Maps Autocomplete Suggestions Popup (High Z-Index, Solid Background, Shadow, Max Height) */}
+        {showSuggestions && value === 'otro' && customText.trim().length >= 2 && (
+          <div className="absolute top-full left-0 right-0 mt-2 z-[120] rounded-2xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] shadow-[0_20px_50px_rgba(15,23,42,0.35)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col">
+            {/* Option to use exact typed text */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuggestions(false);
+                onSubmitManual();
+              }}
+              className="w-full px-3.5 py-2.5 text-left text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-slate-900 hover:bg-red-100 dark:hover:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 cursor-pointer"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  Buscar dirección exacta: <strong>"{customText.trim()}"</strong>
+                </span>
+              </div>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-500 shrink-0">
+                Enter ↵
+              </span>
+            </button>
+
+            {isSearchingPlaces && suggestions.length === 0 && (
+              <div className="px-3.5 py-3 text-[11px] text-slate-500 dark:text-slate-300 bg-white dark:bg-[#0f172a] flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 animate-pulse text-cyan-500" />
+                <span>Buscando direcciones en Google Maps Medellín...</span>
+              </div>
             )}
-          </span>
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-180 text-red-500' : ''}`} />
-        </button>
 
-        {/* Dropdown Menu with Top Pinned "Otro", Search Input, and Collapsible Groups */}
-        {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 z-[70] rounded-2xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl shadow-black/40 dark:shadow-[0_20px_50px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col max-h-[300px] animate-in fade-in zoom-in-95 duration-100">
-            {/* 1. TOP PINNED SECTION: Always visible at the very top */}
-            <div className="p-2 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-1.5 shrink-0">
-              {/* Option 1: Otro (Escribir manualmente) - ALWAYS TOP OPTION */}
-              <button
-                type="button"
-                onClick={() => handleSelectOption('otro')}
-                className={`w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-bold text-left flex items-center justify-between gap-2.5 transition-all cursor-pointer shadow-xs ${
-                  value === 'otro'
-                    ? 'bg-red-600 text-white shadow-md ring-2 ring-red-400/40'
-                    : 'bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 border border-red-300/80 dark:border-red-900/60'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-1.5 rounded-lg ${value === 'otro' ? 'bg-white/20 text-white' : 'bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-400'}`}>
-                    <Edit3 className="w-3.5 h-3.5 stroke-[2.2]" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="leading-snug font-extrabold text-xs">Otro (Escribir manualmente)</span>
-                    <span className={`text-[10px] font-normal ${value === 'otro' ? 'text-red-100' : 'text-slate-500 dark:text-slate-400'}`}>
-                      Escribe cualquier calle o dirección
-                    </span>
-                  </div>
-                </div>
-                {value === 'otro' && <Check className="w-4 h-4 shrink-0 text-white stroke-[2.5]" />}
-              </button>
-
-              {/* Option 2 (If origin): Mi ubicación actual (GPS) */}
-              {isOrigin && (
-                <button
-                  type="button"
-                  onClick={() => handleSelectOption('current')}
-                  className={`w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-left flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
-                    value === 'current'
-                      ? 'bg-emerald-600 text-white shadow-md font-bold ring-2 ring-emerald-400/40'
-                      : 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 border border-slate-200 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className={`p-1.5 rounded-lg ${value === 'current' ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'}`}>
-                      <Navigation className="w-3.5 h-3.5 stroke-[2.2]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-bold leading-tight text-xs">Mi ubicación actual (GPS en vivo)</span>
-                      <span className={`text-[10px] ${value === 'current' ? 'text-emerald-100' : 'text-slate-400'}`}>
-                        Detectar coordenadas por sensor
+            {suggestions.length > 0 && (
+              <div className="max-h-[240px] overflow-y-auto overscroll-contain divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-[#0f172a]">
+                {suggestions.map((sug) => (
+                  <button
+                    key={sug.id}
+                    type="button"
+                    onClick={() => handleSelectSuggestion(sug)}
+                    className="w-full px-3.5 py-2.5 text-left bg-white dark:bg-[#0f172a] hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <MapPin
+                      className={`w-4 h-4 mt-0.5 shrink-0 ${
+                        sug.type === 'google'
+                          ? 'text-red-500'
+                          : sug.type === 'safePlace'
+                          ? 'text-blue-500'
+                          : 'text-emerald-500'
+                      }`}
+                    />
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                        {sug.title}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {sug.subtitle}
                       </span>
                     </div>
-                  </div>
-                  {value === 'current' && <Check className="w-4 h-4 shrink-0 text-white" />}
-                </button>
-              )}
-            </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-            {/* 2. REAL-TIME SEARCH / FILTER BAR */}
-            <div className="p-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2 shrink-0">
+        {/* Dropdown Menu with Sectors & Safe Locations (High Z-Index, Solid Background, Deep Shadow, Max Height + Internal Scroll) */}
+        {isOpen && (
+          <div className="absolute top-full left-0 right-0 mt-2 z-[120] rounded-2xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] shadow-[0_20px_50px_rgba(15,23,42,0.35)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col max-h-[300px] sm:max-h-[340px]">
+            {/* Sticky Search filter inside dropdown */}
+            <div className="p-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 flex items-center gap-2 shrink-0">
               <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filtrar sector, CAI, hospital, dirección..."
-                className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none py-0.5"
+                placeholder="Filtrar sector o ubicación de la lista..."
+                className="w-full bg-transparent text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none py-0.5"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            {/* Quick action to use typed search query as manual address if not empty */}
-            {searchQuery.trim().length > 1 && (
-              <div className="px-2.5 py-1.5 bg-red-50 dark:bg-red-950/60 border-b border-red-200 dark:border-red-900/60 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const q = searchQuery.trim();
-                    onCustomTextChange(q);
-                    onChange('otro');
-                    setIsOpen(false);
-                    setSearchQuery('');
-                    setTimeout(() => onSubmitManual(), 50);
-                  }}
-                  className="w-full text-left text-xs font-semibold text-red-600 dark:text-red-400 hover:underline flex items-center gap-2 cursor-pointer"
-                >
-                  <Edit3 className="w-3 h-3 shrink-0" />
-                  <span className="truncate">Trazar con: <strong>"{searchQuery.trim()}"</strong></span>
-                </button>
-              </div>
-            )}
-
-            {/* 3. SCROLLABLE COLLAPSIBLE GROUPS */}
-            <div className="overflow-y-auto flex-1 p-2 flex flex-col gap-2.5 divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-              {/* GROUP A: Sectores de la Comuna 8 (18) */}
+            <div className="overflow-y-auto overscroll-contain flex-1 p-2.5 flex flex-col gap-2.5 divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-[#0f172a]">
+              {/* GROUP A: Sectores de la Comuna 8 */}
               <div className="flex flex-col gap-1.5">
                 <button
                   type="button"
                   onClick={() => setSectorsExpanded(!sectorsExpanded)}
-                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-100/90 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-between transition cursor-pointer border border-slate-200/80 dark:border-slate-700/60"
+                  className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-between transition cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-base">🏘️</span>
-                    <span className="font-['Rajdhani'] uppercase tracking-wider font-extrabold text-slate-900 dark:text-slate-100">
-                      Sectores de la Comuna 8 (Medellín)
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full font-bold">
-                      {filteredSectors.length}
+                    <span>🏘️</span>
+                    <span className="font-['Rajdhani'] uppercase tracking-wider font-extrabold">
+                      Sectores Comuna 8 ({filteredSectors.length})
                     </span>
                   </div>
                   {sectorsExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-slate-500" />
+                    <ChevronUp className="w-4 h-4" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                    <ChevronDown className="w-4 h-4" />
                   )}
                 </button>
 
                 {sectorsExpanded && (
-                  <div className="flex flex-col gap-1.5 pt-1">
-                    {filteredSectors.length === 0 ? (
-                      <span className="text-xs text-slate-400 italic px-3 py-2">No hay sectores que coincidan con la búsqueda</span>
-                    ) : (
-                      filteredSectors.map((sec) => {
-                        const isSelected = value === sec.id;
-                        return (
-                          <button
-                            key={sec.id}
-                            type="button"
-                            onClick={() => handleSelectOption(sec.id)}
-                            className={`w-full px-3 py-2.5 rounded-xl text-xs sm:text-sm text-left flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-red-500/10 text-red-600 dark:text-red-400 font-bold border-2 border-red-500/40 shadow-xs'
-                                : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/40 dark:border-slate-800/40'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <MapPin className={`w-4 h-4 shrink-0 ${isSelected ? 'text-red-500' : 'text-slate-400'}`} />
-                              <span className="truncate font-semibold">{sec.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span
-                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
-                                  sec.level === 'high'
-                                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800/60'
-                                    : sec.level === 'moderate'
-                                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800/60'
-                                    : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/60'
-                                }`}
-                              >
-                                {sec.levelLabel}
-                              </span>
-                              {isSelected && <Check className="w-4 h-4 text-red-500 shrink-0 stroke-[2.5]" />}
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
+                  <div className="flex flex-col gap-1 pt-1">
+                    {filteredSectors.map((sec) => {
+                      const isSelected = value === sec.id;
+                      return (
+                        <button
+                          key={sec.id}
+                          type="button"
+                          onClick={() => handleSelectOption(sec.id)}
+                          className={`w-full px-3 py-2 rounded-xl text-xs text-left flex items-center justify-between gap-2 transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 font-bold border border-red-500/50'
+                              : 'bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <MapPin
+                              className={`w-3.5 h-3.5 shrink-0 ${
+                                isSelected ? 'text-red-500' : 'text-slate-400'
+                              }`}
+                            />
+                            <span className="truncate font-semibold">{sec.name}</span>
+                          </div>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                            {sec.levelLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* GROUP B: Puntos Seguros (CAI / Salud / Colegios / Parques) */}
+              {/* GROUP B: Ubicaciones clasificadas */}
               {safePlaces.length > 0 && (
-                <div className="flex flex-col gap-1.5 pt-2">
+                <div className="flex flex-col gap-1.5 pt-2.5">
                   <button
                     type="button"
                     onClick={() => setPlacesExpanded(!placesExpanded)}
-                    className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-100/90 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-between transition cursor-pointer border border-slate-200/80 dark:border-slate-700/60"
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-between transition cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-base">🛡️</span>
-                      <span className="font-['Rajdhani'] uppercase tracking-wider font-extrabold text-slate-900 dark:text-slate-100">
-                        Puntos Seguros Reales (CAI / Salud / Parques / Colegios)
-                      </span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full font-bold">
-                        {filteredPlaces.length}
+                      <span>🛡️</span>
+                      <span className="font-['Rajdhani'] uppercase tracking-wider font-extrabold">
+                        Ubicaciones Seguras ({filteredPlaces.length})
                       </span>
                     </div>
                     {placesExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-slate-500" />
+                      <ChevronUp className="w-4 h-4" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-500" />
+                      <ChevronDown className="w-4 h-4" />
                     )}
                   </button>
 
                   {placesExpanded && (
-                    <div className="flex flex-col gap-1.5 pt-1">
-                      {filteredPlaces.length === 0 ? (
-                        <span className="text-xs text-slate-400 italic px-3 py-2">No hay puntos seguros que coincidan con la búsqueda</span>
-                      ) : (
-                        filteredPlaces.map((place) => {
-                          const isSelected = value === place.id;
-                          return (
-                            <button
-                              key={place.id}
-                              type="button"
-                              onClick={() => handleSelectOption(place.id)}
-                              className={`w-full px-3 py-2.5 rounded-xl text-xs sm:text-sm text-left flex items-center justify-between gap-2.5 transition-all cursor-pointer ${
-                                isSelected
-                                  ? 'bg-red-500/10 text-red-600 dark:text-red-400 font-bold border-2 border-red-500/40 shadow-xs'
-                                  : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/40 dark:border-slate-800/40'
-                              }`}
-                            >
-                              <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                <div className="mt-0.5 p-1 rounded-lg bg-slate-100 dark:bg-slate-800 shrink-0">
-                                  {getPlaceIcon(place.category)}
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                  <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{place.name}</span>
-                                  <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium truncate">{place.address}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                  {place.categoryLabel}
+                    <div className="flex flex-col gap-1 pt-1">
+                      {filteredPlaces.map((place) => {
+                        const isSelected = value === place.id;
+                        return (
+                          <button
+                            key={place.id}
+                            type="button"
+                            onClick={() => handleSelectOption(place.id)}
+                            className={`w-full px-3 py-2 rounded-xl text-xs text-left flex items-center justify-between gap-2 transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 font-bold border border-red-500/50'
+                                : 'bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              {getPlaceIcon(place.category)}
+                              <div className="flex flex-col min-w-0">
+                                <span className="truncate font-semibold">{place.name}</span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                  {place.address}
                                 </span>
-                                {isSelected && <Check className="w-4 h-4 text-red-500 shrink-0 stroke-[2.5]" />}
                               </div>
-                            </button>
-                          );
-                        })
-                      )}
+                            </div>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                              {place.categoryLabel}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -469,86 +773,6 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
           </div>
         )}
       </div>
-
-      {/* Accessible native select as fallback and DOM anchor */}
-      <select
-        id={`${id}-native`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-      >
-        <optgroup label="Personalizado">
-          <option value="otro">✏️ Otro (Escribir manualmente)</option>
-        </optgroup>
-        {isOrigin && (
-          <optgroup label="Ubicación GPS">
-            <option value="current">📍 Mi ubicación actual (GPS)</option>
-          </optgroup>
-        )}
-        <optgroup label="Sectores Comuna 8">
-          {sectors.map((sec) => (
-            <option key={sec.id} value={sec.id}>
-              {sec.name} ({sec.levelLabel})
-            </option>
-          ))}
-        </optgroup>
-        {safePlaces.length > 0 && (
-          <optgroup label="Puntos Seguros">
-            {safePlaces.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.categoryLabel}: {p.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
-
-      {/* 4. REQUIREMENT 3: Immediate Manual Input Field under the Selector with NO SCROLL */}
-      {value === 'otro' && (
-        <div
-          id={`${id === 'destination-select' ? 'destination' : 'origin'}-manual-field`}
-          className="mt-1 p-2.5 rounded-xl border-2 border-red-500/70 bg-red-50/80 dark:bg-red-950/30 flex flex-col gap-1.5 transition-all shadow-xs animate-in fade-in slide-in-from-top-1 duration-150"
-        >
-          <div className="flex items-center justify-between">
-            <label
-              htmlFor={`${id === 'destination-select' ? 'destination' : 'origin'}-custom-input`}
-              className="text-[11px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1"
-            >
-              <span>Especifique el sector o dirección de {isOrigin ? 'origen' : 'destino'}:</span>
-            </label>
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Enter para trazar</span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <input
-              id={`${id === 'destination-select' ? 'destination' : 'origin'}-custom-input`}
-              type="text"
-              autoFocus
-              value={customText}
-              onChange={(e) => onCustomTextChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  onSubmitManual();
-                }
-              }}
-              placeholder={manualPlaceholder || (isOrigin ? 'Ej. Calle 56 #38-12 / Boston' : 'Ej. Carrera 40 #54-20 / CAI')}
-              className="w-full px-3 py-1.5 rounded-lg text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-            />
-            <button
-              type="button"
-              id={`btn-trazar-${isOrigin ? 'origen' : 'destino'}-manual`}
-              onClick={onSubmitManual}
-              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition"
-              title={`Calcular ruta hacia/desde esta dirección`}
-            >
-              Trazar
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -37,6 +37,7 @@ import { AlertsScreen } from './components/AlertsScreen';
 import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderView';
 import { TacticalMapModal } from './components/TacticalMapModal';
 import { UserProfileMenu } from './components/UserProfileMenu';
+import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
 import { subscribeToAuth, executeSignOut } from './services/firebaseAuth';
 import { syncCurrentUserFirestoreProfile } from './services/userService';
 import { UserRole } from './types/user';
@@ -61,6 +62,29 @@ const MainScreen: React.FC = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
+
+  // Measure fixed header height so main content never hides behind the navigation bar
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(0);
+
+  useEffect(() => {
+    const headerEl = headerRef.current;
+    if (!headerEl) return;
+
+    const updateHeight = () => {
+      setHeaderHeight(headerEl.offsetHeight);
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(headerEl);
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [currentUser, language]);
 
   // Live simulation report toast & bell animation
   const [hasLiveAlertPulse, setHasLiveAlertPulse] = useState(false);
@@ -114,6 +138,42 @@ const MainScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, [liveSimulatedToast]);
 
+  // Scroll to top immediately when currentView changes to prevent header overlapping
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [currentView]);
+
+  // PROMPT 4: Automatic emailVerified reload listener across the application
+  useEffect(() => {
+    if (!currentUser || currentUser.emailVerified) return;
+    let isMounted = true;
+
+    const checkVerificationStatus = async () => {
+      try {
+        await currentUser.reload();
+        if (currentUser.emailVerified && isMounted) {
+          console.log('[Security Urban :: RouteGuard] ✔ emailVerified = true detectado en recarga. Desbloqueando acceso completo a la plataforma.');
+          setCurrentUser({ ...currentUser, emailVerified: true } as User);
+        }
+      } catch {
+        // Silently retry
+      }
+    };
+
+    const interval = setInterval(checkVerificationStatus, 3000);
+    const onFocus = () => checkVerificationStatus();
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [currentUser]);
+
   // Subscribe to real Firebase auth changes via route guard
   useEffect(() => {
     console.log('[Security Urban :: RouteGuard] Inicializando listener onAuthStateChanged...');
@@ -131,6 +191,13 @@ const MainScreen: React.FC = () => {
             setCurrentUser(null);
             return;
           }
+
+          // If verified via 6-digit OTP code in Firestore, honor verified status
+          if (profile.correoVerificado === true && !user.emailVerified) {
+            console.log('[Security Urban :: RouteGuard] Correo verificado mediante código OTP en Firestore -> Acceso completo habilitado');
+            setCurrentUser({ ...user, emailVerified: true } as User);
+          }
+
           // Default demo elevation to admin if email contains admin/root, otherwise use profile.rol
           setCurrentUserRole(profile.rol);
         } catch (syncErr) {
@@ -194,7 +261,7 @@ const MainScreen: React.FC = () => {
         <div className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-3xl backdrop-blur-md bg-white/40 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-2xl">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-red-600 border border-red-400 flex items-center justify-center text-white shadow-xl shadow-red-900/40 animate-pulse">
-              <Shield className="w-9 h-9 stroke-[2.5]" />
+              <SecurityUrbanLogo className="w-9 h-9" />
             </div>
             <Loader2 className="w-6 h-6 text-red-500 animate-spin absolute -bottom-2 -right-2" />
           </div>
@@ -203,7 +270,7 @@ const MainScreen: React.FC = () => {
               SECURITY URBAN // COMUNA 8
             </h2>
             <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1">
-              Verificando credenciales de acceso seguro...
+              {t('loading')}
             </p>
           </div>
         </div>
@@ -223,7 +290,7 @@ const MainScreen: React.FC = () => {
           {/* Brand identity */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-red-600 border border-red-400 flex items-center justify-center text-white shadow-lg shadow-red-900/40 shrink-0">
-              <Shield className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+              <SecurityUrbanLogo className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -419,8 +486,12 @@ const MainScreen: React.FC = () => {
       {/* Visual Background: canvas + diagonal split panel + subtle circuit texture */}
       <BackgroundArtwork />
 
-      {/* Top Header Bar for Authenticated Users */}
-      <header className="relative z-20 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col gap-3">
+      {/* Top Header Bar for Authenticated Users - Fixed at top with dedicated height */}
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50 w-full bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-white/10 shadow-md transition-colors"
+      >
+        <div className="w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           {/* Brand identity (clickable to go home) */}
           <button
@@ -433,7 +504,7 @@ const MainScreen: React.FC = () => {
             aria-label="Ir al inicio de Security Urban"
           >
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-red-600 border border-red-400 flex items-center justify-center text-white shadow-lg shadow-red-900/40 shrink-0 group-hover:scale-105 transition-transform">
-              <Shield className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+              <SecurityUrbanLogo className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -455,7 +526,7 @@ const MainScreen: React.FC = () => {
             {/* Informative Status Badge (distinct from user profile menu; visible on extra wide screens) */}
             <div className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 shadow-xs shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>COMUNA 8 • NODO SEGURO</span>
+              <span>{t('nodeBadge')}</span>
             </div>
 
             {/* Clearly Visible User Profile Menu (Avatar/initials + name + dropdown) */}
@@ -546,9 +617,9 @@ const MainScreen: React.FC = () => {
           aria-label="Navegación principal de Security Urban"
           className="w-full"
         >
-          {/* Desktop full navigation bar: centered, symmetrical, fixed with no horizontal scroll */}
+          {/* Desktop full navigation bar: centered, symmetrical, fixed with wrap support */}
           <div className={`hidden lg:flex items-center justify-center p-1.5 sm:p-2 rounded-2xl border shadow-md shadow-red-950/5 dark:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.6),0_0_15px_rgba(220,38,38,0.15)] border-b-2 border-b-red-600/30 backdrop-blur-md transition-all ${colors.headerBg} ${colors.headerBorder}`}>
-            <div className="flex items-center justify-center gap-1 lg:gap-1.5 xl:gap-2.5 2xl:gap-3.5 w-full">
+            <div className="flex flex-wrap items-center justify-center gap-1 lg:gap-1.5 xl:gap-2.5 2xl:gap-3.5 w-full">
               {navMenuItems.map((item) => {
                 const isActive = currentView === item.id;
                 const isAlertsItem = item.id === 'alerts';
@@ -606,7 +677,7 @@ const MainScreen: React.FC = () => {
 
           {/* Mobile Collapsible Navigation Menu */}
           {isMobileMenuOpen && (
-            <div className={`lg:hidden flex flex-col p-4 rounded-3xl border shadow-2xl shadow-red-950/20 backdrop-blur-md mt-2 space-y-1.5 border-b-2 border-b-red-600/40 ${colors.headerBg} ${colors.headerBorder}`}>
+            <div className={`lg:hidden absolute top-full left-3 right-3 z-50 flex flex-col p-4 rounded-3xl border shadow-2xl shadow-red-950/30 backdrop-blur-xl mt-2 space-y-1.5 border-b-2 border-b-red-600/40 max-h-[calc(100vh-88px)] overflow-y-auto ${colors.headerBg} ${colors.headerBorder}`}>
               <div className="text-[11px] font-mono font-bold text-red-600 dark:text-red-400 px-3 py-1 flex items-center justify-between">
                 <span>MENÚ DE SEGURIDAD // COMUNA 8</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -690,7 +761,7 @@ const MainScreen: React.FC = () => {
                     }}
                     className="flex-1 py-2 px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 font-bold text-xs text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <span>{language === 'es' ? 'Ajustes' : 'Settings'}</span>
+                    <span>{t('navSettings')}</span>
                   </button>
                   <button
                     type="button"
@@ -706,10 +777,14 @@ const MainScreen: React.FC = () => {
             </div>
           )}
         </nav>
+        </div>
       </header>
 
-      {/* Main Content Viewport for Authenticated User */}
-      <main className="relative z-10 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col items-center justify-center grow">
+      {/* Main Content Viewport for Authenticated User - Padded below fixed top bar */}
+      <main
+        style={{ paddingTop: headerHeight ? `${headerHeight + 24}px` : undefined }}
+        className={`relative w-full ${currentView === 'riskMap' ? 'max-w-[1720px]' : 'max-w-[1440px]'} mx-auto px-3 sm:px-6 lg:px-8 pt-24 sm:pt-28 lg:pt-38 pb-16 flex flex-col items-stretch justify-start grow`}
+      >
         {!currentUser.emailVerified ? (
           <EmailVerificationView
             user={currentUser}

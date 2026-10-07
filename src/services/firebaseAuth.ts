@@ -4,6 +4,7 @@ import {
   Auth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  fetchSignInMethodsForEmail,
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
@@ -107,22 +108,46 @@ export async function executeSignIn(
   } catch (err: unknown) {
     const firebaseError = err as { code?: string; message?: string };
     const code = firebaseError.code || 'unknown';
-    console.error('[Firebase Auth] ✖ Error en inicio de sesión (' + code + '):', firebaseError.message);
 
-    // Anti-user-enumeration: always return neutral error for credentials
-    if (
-      code === 'auth/wrong-password' ||
-      code === 'auth/user-not-found' ||
-      code === 'auth/invalid-credential' ||
-      code === 'auth/invalid-email'
-    ) {
+    // 1. Direct user-not-found code from Firebase Auth
+    if (code === 'auth/user-not-found') {
+      console.warn('[Firebase Auth] Aviso: Usuario no registrado (auth/user-not-found) para:', email.trim());
+      return { user: null, error: 'USER_NOT_FOUND' };
+    }
+
+    // 2. Modern Firebase returns auth/invalid-credential for both wrong password AND non-existent user
+    if (code === 'auth/invalid-credential') {
+      console.warn('[Firebase Auth] Aviso: auth/invalid-credential recibido. Verificando si el usuario existe para:', email.trim());
+      try {
+        const methods = await fetchSignInMethodsForEmail(auth, email.trim());
+        if (methods.length === 0) {
+          console.warn('[Firebase Auth] Correo sin métodos de acceso registrados (USER_NOT_FOUND):', email.trim());
+          return { user: null, error: 'USER_NOT_FOUND' };
+        }
+      } catch (checkErr) {
+        // If fetchSignInMethodsForEmail fails or is restricted, fallback to standard neutral credential error
+        console.warn('[Firebase Auth] Verificación de métodos complementaria ignorada:', checkErr);
+      }
       return { user: null, error: 'INVALID_CREDENTIALS' };
     }
 
+    // 3. Wrong password explicitly: Keep neutral as requested for security
+    if (code === 'auth/wrong-password') {
+      console.warn('[Firebase Auth] Aviso: Contraseña incorrecta para usuario existente:', email.trim());
+      return { user: null, error: 'INVALID_CREDENTIALS' };
+    }
+
+    if (code === 'auth/invalid-email') {
+      console.warn('[Firebase Auth] Aviso: Formato de correo no válido:', email.trim());
+      return { user: null, error: 'INVALID_EMAIL' };
+    }
+
     if (code === 'auth/too-many-requests') {
+      console.warn('[Firebase Auth] Aviso: Demasiados intentos fallidos (' + code + ')');
       return { user: null, error: 'TOO_MANY_REQUESTS' };
     }
 
+    console.warn('[Firebase Auth] Aviso general en inicio de sesión (' + code + '):', firebaseError.message);
     return { user: null, error: firebaseError.message || 'AUTH_ERROR' };
   }
 }
@@ -141,7 +166,23 @@ export async function executeSignUp(
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), pass);
     const user = userCredential.user;
-    console.log('[Firebase Auth] ✔ Usuario creado en Firebase con UID:', user.uid);
+    console.log('[Firebase Auth] ✔ Usuario creado en Firebase Auth con UID:', user.uid, 'Email:', user.email);
+
+    // PROMPT 4: Inmediatamente después de createUserWithEmailAndPassword(), disparar sendEmailVerification()
+    console.log('[Firebase Auth] ▶ [INMEDIATO] Disparando sendEmailVerification() automático para:', user.email);
+    try {
+      await sendEmailVerification(user);
+      console.log(
+        `%c[Firebase Auth] ✔ [INMEDIATO] Correo de verificación inicial enviado exitosamente a: ${user.email}`,
+        'color: #10b981; font-weight: bold;'
+      );
+    } catch (emailErr: any) {
+      console.error('[Firebase Auth] ✖ [INMEDIATO] Error en envío inicial de sendEmailVerification():', {
+        code: emailErr?.code,
+        message: emailErr?.message,
+        detail: emailErr,
+      });
+    }
 
     // Update display name if provided
     if (displayName.trim()) {
@@ -173,15 +214,6 @@ export async function executeSignUp(
     } catch (firestoreErr) {
       console.error('[Firebase Auth] ✖ Error guardando en Firestore usuarios:', firestoreErr);
       // Non-fatal: the user account in Auth was created successfully
-    }
-
-    // Immediately execute real sendEmailVerification()
-    console.log('[Firebase Auth] Disparando sendEmailVerification() para:', user.email);
-    try {
-      await sendEmailVerification(user);
-      console.log(`%c[Firebase Auth] ✔ Correo de verificación enviado exitosamente a: ${user.email}`, 'color: #10b981; font-weight: bold;');
-    } catch (emailErr) {
-      console.error('[Firebase Auth] ✖ Error en sendEmailVerification():', emailErr);
     }
 
     return { user, error: null };

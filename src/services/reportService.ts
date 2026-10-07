@@ -224,10 +224,16 @@ export function subscribeToPublicAcceptedReports(
 
         reports.sort((a, b) => new Date(b.fechaCreacionISO).getTime() - new Date(a.fechaCreacionISO).getTime());
         
-        // Si DEMO_MODE está desactivado, excluimos los reportes de simulación para mostrar el sistema 100% limpio
-        const visibleReports = DEMO_MODE 
-          ? reports 
-          : reports.filter((r) => r.origen !== 'simulacion');
+        // Mostrar únicamente reportes reales hechos por usuarios y aprobados por el administrador (excluir cualquier simulación)
+        const visibleReports = reports.filter(
+          (r) =>
+            r.estado === 'aceptado' &&
+            r.origen !== 'simulacion' &&
+            r.uid !== 'system-simulation' &&
+            r.uid !== 'sim_robot_comuna8' &&
+            r.autorEmail !== 'simulacion.alerta@securityurban.gov.co' &&
+            !r.id.startsWith('sim-')
+        );
 
         onUpdate(visibleReports);
       },
@@ -260,7 +266,10 @@ export function subscribeToAllReportsForAdmin(
       (snapshot: QuerySnapshot<DocumentData>) => {
         const reports: IncidentReport[] = [];
         snapshot.forEach((docSnap) => {
-          reports.push(normalizeReport(docSnap.id, docSnap.data()));
+          const normalized = normalizeReport(docSnap.id, docSnap.data());
+          if (normalized.origen !== 'simulacion' && normalized.uid !== 'system-simulation' && !normalized.id.startsWith('sim-')) {
+            reports.push(normalized);
+          }
         });
 
         reports.sort((a, b) => new Date(b.fechaCreacionISO).getTime() - new Date(a.fechaCreacionISO).getTime());

@@ -38,6 +38,7 @@ import {
   updateFirestoreUserStatus,
   seedInitialCommunityUsersIfEmpty,
 } from '../services/userService';
+import { ModalPortal } from './ModalPortal';
 
 interface UserManagementScreenProps {
   currentUserRole: UserRole;
@@ -53,7 +54,7 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
   onNavigateHome,
 }) => {
   const { colors, theme } = useTheme();
-  const { language } = useLanguage();
+  const { language, t, translateRole, translateStatus } = useLanguage();
   const isDark = theme === 'dark';
 
   // State for users and metrics directly from Firestore
@@ -307,10 +308,10 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                   FIRESTORE LIVE
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
                 {language === 'es' ? 'Gestión de Usuarios & Control de Accesos' : 'User Management & Access Control'}
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 mt-1 leading-relaxed font-medium">
                 {language === 'es'
                   ? 'Base de datos en tiempo real de ciudadanos, operadores tácticos y administradores de la Comuna 8.'
                   : 'Real-time database of citizens, tactical operators, and administrators in Comuna 8.'}
@@ -731,7 +732,7 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                           ) : (
                             <Users className="w-3 h-3 text-slate-500" />
                           )}
-                          <span>{user.rol}</span>
+                          <span>{translateRole(user.rol)}</span>
                         </span>
                       </td>
 
@@ -747,7 +748,7 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                               user.estado === 'activo' ? 'bg-emerald-500' : 'bg-rose-500'
                             }`}
                           />
-                          <span>{user.estado}</span>
+                          <span>{translateStatus(user.estado)}</span>
                         </span>
                       </td>
 
@@ -820,46 +821,52 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
       {/* ========================================== */}
       {/* MODAL 1: VER PERFIL DETALLADO               */}
       {/* ========================================== */}
-      {selectedUserForDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className={`w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden relative ${
-            isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
+      <ModalPortal
+        isOpen={Boolean(selectedUserForDetail)}
+        onClose={() => setSelectedUserForDetail(null)}
+        maxWidthClass="max-w-xl"
+        cardClassName={
+          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        }
+      >
+        {selectedUserForDetail && (
+          <>
             {/* Header accent strip */}
-            <div className="h-2 bg-gradient-to-r from-red-600 via-rose-500 to-amber-500" />
+            <div className="h-2 bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 shrink-0" />
 
-            <div className="p-6 sm:p-7 space-y-6">
-              {/* Modal Top */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-700 via-red-600 to-rose-500 text-white font-black text-xl flex items-center justify-center shadow-lg shadow-red-900/30 border border-red-400">
-                    {selectedUserForDetail.nombre.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-mono font-bold text-red-600 dark:text-red-400 uppercase tracking-widest">
-                      EXPEDIENTE COMUNAL // FIRESTORE
-                    </span>
-                    <h3 className="text-xl font-black font-['Rajdhani'] tracking-wide">
-                      {selectedUserForDetail.nombre}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <Mail className="w-3.5 h-3.5" />
-                      <span>{selectedUserForDetail.correo}</span>
-                    </p>
-                  </div>
+            {/* Fixed Top Header */}
+            <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-red-700 via-red-600 to-rose-500 text-white font-black text-xl flex items-center justify-center shadow-lg shadow-red-900/30 border border-red-400 shrink-0">
+                  {selectedUserForDetail.nombre.charAt(0).toUpperCase()}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedUserForDetail(null)}
-                  className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-mono font-bold text-red-600 dark:text-red-400 uppercase tracking-widest block">
+                    EXPEDIENTE COMUNAL // FIRESTORE
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-black font-['Rajdhani'] tracking-wide truncate">
+                    {selectedUserForDetail.nombre}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5 truncate">
+                    <Mail className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{selectedUserForDetail.correo}</span>
+                  </p>
+                </div>
               </div>
 
+              <button
+                type="button"
+                onClick={() => setSelectedUserForDetail(null)}
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-5">
               {/* Status and Role badges */}
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-extrabold uppercase border ${
                   selectedUserForDetail.rol === 'administrador'
                     ? 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/80 dark:text-red-300 dark:border-red-800'
@@ -883,7 +890,6 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
 
               {/* Data Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                {/* Field: Sector */}
                 <div className="p-3.5 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
                   <span className="text-[10px] font-mono text-slate-400 block uppercase">Sector / Cuadrante</span>
                   <div className="flex items-center gap-1.5 mt-1 font-semibold">
@@ -892,7 +898,6 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Field: Fecha Registro */}
                 <div className="p-3.5 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
                   <span className="text-[10px] font-mono text-slate-400 block uppercase">Fecha de Registro</span>
                   <div className="flex items-center gap-1.5 mt-1 font-semibold">
@@ -901,7 +906,6 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Field: Último Acceso */}
                 <div className="p-3.5 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
                   <span className="text-[10px] font-mono text-slate-400 block uppercase">Última Conexión</span>
                   <div className="flex items-center gap-1.5 mt-1 font-semibold">
@@ -914,7 +918,6 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Field: UID de Firebase */}
                 <div className="p-3.5 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
                   <span className="text-[10px] font-mono text-slate-400 block uppercase">Firebase UID</span>
                   <div className="flex items-center justify-between mt-1">
@@ -949,79 +952,97 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                   </p>
                 </div>
               )}
-
-              {/* Modal Footer */}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const u = selectedUserForDetail;
-                    setSelectedUserForDetail(null);
-                    setSelectedUserForRoleChange(u);
-                    setPendingRole(u.rol);
-                  }}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-500" />
-                  <span>{language === 'es' ? 'Cambiar Rol' : 'Change Role'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const u = selectedUserForDetail;
-                    setSelectedUserForDetail(null);
-                    setSelectedUserForStatusToggle(u);
-                  }}
-                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer text-white ${
-                    selectedUserForDetail.estado === 'activo'
-                      ? 'bg-rose-600 hover:bg-rose-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
-                >
-                  {selectedUserForDetail.estado === 'activo' ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>{language === 'es' ? 'Suspender Cuenta' : 'Suspend Account'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-3.5 h-3.5" />
-                      <span>{language === 'es' ? 'Reactivar Cuenta' : 'Reactivate Account'}</span>
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
+
+            {/* Fixed Modal Footer */}
+            <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 flex flex-wrap items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const u = selectedUserForDetail;
+                  setSelectedUserForDetail(null);
+                  setSelectedUserForRoleChange(u);
+                  setPendingRole(u.rol);
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                <span>{language === 'es' ? 'Cambiar Rol' : 'Change Role'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const u = selectedUserForDetail;
+                  setSelectedUserForDetail(null);
+                  setSelectedUserForStatusToggle(u);
+                }}
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer text-white ${
+                  selectedUserForDetail.estado === 'activo'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {selectedUserForDetail.estado === 'activo' ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>{language === 'es' ? 'Suspender Cuenta' : 'Suspend Account'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>{language === 'es' ? 'Reactivar Cuenta' : 'Reactivate Account'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </ModalPortal>
 
       {/* ========================================== */}
       {/* MODAL 2: CAMBIAR ROL                        */}
       {/* ========================================== */}
-      {selectedUserForRoleChange && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className={`w-full max-w-md rounded-3xl border shadow-2xl overflow-hidden ${
-            isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            <div className="h-2 bg-gradient-to-r from-amber-500 to-red-600" />
+      <ModalPortal
+        isOpen={Boolean(selectedUserForRoleChange)}
+        onClose={() => setSelectedUserForRoleChange(null)}
+        disableClose={isUpdatingAction}
+        maxWidthClass="max-w-md"
+        cardClassName={
+          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        }
+      >
+        {selectedUserForRoleChange && (
+          <>
+            <div className="h-2 bg-gradient-to-r from-amber-500 to-red-600 shrink-0" />
 
-            <div className="p-6 space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/30 flex items-center justify-center">
+            {/* Fixed Top Header */}
+            <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/30 flex items-center justify-center shrink-0">
                   <KeyRound className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-lg">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-base sm:text-lg truncate">
                     {language === 'es' ? 'Cambiar Rol de Acceso' : 'Change Access Role'}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 truncate">
                     {selectedUserForRoleChange.nombre} ({selectedUserForRoleChange.correo})
                   </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForRoleChange(null)}
+                disabled={isUpdatingAction}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
+            {/* Scrollable Body */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 {language === 'es'
                   ? 'Selecciona el nuevo nivel de privilegios para este usuario en Firestore. El cambio surtirá efecto inmediatamente en toda la plataforma.'
@@ -1080,51 +1101,59 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                   </label>
                 ))}
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setSelectedUserForRoleChange(null)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  {language === 'es' ? 'Cancelar' : 'Cancel'}
-                </button>
-                <button
-                  type="button"
-                  disabled={isUpdatingAction}
-                  onClick={handleConfirmRoleChange}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
-                >
-                  {isUpdatingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{language === 'es' ? 'Guardar en Firestore' : 'Save to Firestore'}</span>
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
+
+            {/* Fixed Footer */}
+            <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForRoleChange(null)}
+                disabled={isUpdatingAction}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isUpdatingAction}
+                onClick={handleConfirmRoleChange}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {isUpdatingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{language === 'es' ? 'Guardar en Firestore' : 'Save to Firestore'}</span>
+              </button>
+            </div>
+          </>
+        )}
+      </ModalPortal>
 
       {/* ========================================== */}
       {/* MODAL 3: CONFIRMAR SUSPENDER / REACTIVAR   */}
       {/* ========================================== */}
-      {selectedUserForStatusToggle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className={`w-full max-w-md rounded-3xl border shadow-2xl overflow-hidden ${
-            isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
+      <ModalPortal
+        isOpen={Boolean(selectedUserForStatusToggle)}
+        onClose={() => setSelectedUserForStatusToggle(null)}
+        disableClose={isUpdatingAction}
+        maxWidthClass="max-w-md"
+        cardClassName={
+          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        }
+      >
+        {selectedUserForStatusToggle && (
+          <>
             <div
-              className={`h-2 ${
+              className={`h-2 shrink-0 ${
                 selectedUserForStatusToggle.estado === 'activo'
                   ? 'bg-rose-600'
                   : 'bg-emerald-500'
               }`}
             />
 
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3">
+            {/* Fixed Top Header */}
+            <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center ${
+                  className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 ${
                     selectedUserForStatusToggle.estado === 'activo'
                       ? 'bg-rose-500/15 text-rose-600 border border-rose-500/30'
                       : 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30'
@@ -1136,18 +1165,29 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                     <Unlock className="w-5 h-5" />
                   )}
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-lg">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-base sm:text-lg truncate">
                     {selectedUserForStatusToggle.estado === 'activo'
                       ? language === 'es' ? '¿Suspender Cuenta Comunal?' : 'Suspend Community Account?'
                       : language === 'es' ? '¿Reactivar Cuenta Comunal?' : 'Reactivate Community Account?'}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 truncate">
                     {selectedUserForStatusToggle.nombre}
                   </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForStatusToggle(null)}
+                disabled={isUpdatingAction}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
+            {/* Scrollable Body */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4">
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                 {selectedUserForStatusToggle.estado === 'activo' ? (
                   language === 'es' ? (
@@ -1171,38 +1211,39 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                   )
                 )}
               </p>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setSelectedUserForStatusToggle(null)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  {language === 'es' ? 'Cancelar' : 'Cancel'}
-                </button>
-                <button
-                  type="button"
-                  disabled={isUpdatingAction}
-                  onClick={handleConfirmStatusToggle}
-                  className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50 ${
-                    selectedUserForStatusToggle.estado === 'activo'
-                      ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/30'
-                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-900/30'
-                  }`}
-                >
-                  {isUpdatingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>
-                    {selectedUserForStatusToggle.estado === 'activo'
-                      ? language === 'es' ? 'Confirmar Suspensión' : 'Confirm Suspension'
-                      : language === 'es' ? 'Confirmar Reactivación' : 'Confirm Reactivation'}
-                  </span>
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
+
+            {/* Fixed Footer */}
+            <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForStatusToggle(null)}
+                disabled={isUpdatingAction}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isUpdatingAction}
+                onClick={handleConfirmStatusToggle}
+                className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50 ${
+                  selectedUserForStatusToggle.estado === 'activo'
+                    ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/30'
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-900/30'
+                }`}
+              >
+                {isUpdatingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {selectedUserForStatusToggle.estado === 'activo'
+                    ? language === 'es' ? 'Confirmar Suspensión' : 'Confirm Suspension'
+                    : language === 'es' ? 'Confirmar Reactivación' : 'Confirm Reactivation'}
+                </span>
+              </button>
+            </div>
+          </>
+        )}
+      </ModalPortal>
     </div>
   );
 };

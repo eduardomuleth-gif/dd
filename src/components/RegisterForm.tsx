@@ -1,10 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, ShieldCheck, ArrowRight, AlertTriangle, MapPin } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { executeSignUp } from '../services/firebaseAuth';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
 import { SecurityCaptcha } from './SecurityCaptcha';
+
+export const COMUNA_8_SECTORS_REGISTRATION = [
+  'Villa Hermosa',
+  'La Ladera',
+  'Sucre',
+  'Enciso',
+  'Boston',
+  'Los Mangos',
+  'Trece de Noviembre',
+  'El Pinal',
+  'Las Estancias',
+  'San Antonio',
+  'Llanaditas',
+  'La Libertad',
+  'Villa Turbay',
+  'Villatina',
+  'Golondrinas',
+  'Batallón Girardot',
+  'Santa Lucía',
+  'Pinares de Oriente',
+  'Otro',
+] as const;
 
 interface RegisterFormProps {
   onSuccess: () => void;
@@ -20,7 +42,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [sector, setSector] = useState('Villa Hermosa');
+  const [sector, setSector] = useState<string>('Villa Hermosa');
+  const [customSector, setCustomSector] = useState<string>('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +52,15 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   const [captchaError, setCaptchaError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const alertContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll to error message when it appears
+  useEffect(() => {
+    if (errorMessage && alertContainerRef.current) {
+      alertContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [errorMessage]);
 
   // Validate password criteria: minimum 8 chars, uppercase, number
   const isPasswordValid =
@@ -41,6 +73,12 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     // Full name check
     if (!fullName.trim()) {
       setErrorMessage('Por favor ingresa tu nombre completo.');
+      return;
+    }
+
+    // Sector validation if "Otro"
+    if (sector === 'Otro' && !customSector.trim()) {
+      setErrorMessage('Por favor especifique su sector o barrio de residencia en la Comuna 8.');
       return;
     }
 
@@ -72,10 +110,11 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     setCaptchaError(false);
 
     setIsLoading(true);
-    console.log('[Security Urban :: UI] Enviando formulario de registro para:', email.trim());
+    const finalSector = sector === 'Otro' ? customSector.trim() : sector;
+    console.log('[Security Urban :: UI] Enviando formulario de registro para:', email.trim(), 'Sector:', finalSector);
 
     try {
-      const result = await executeSignUp(email.trim(), password, fullName.trim(), sector);
+      const result = await executeSignUp(email.trim(), password, fullName.trim(), finalSector);
 
       if (result.error) {
         if (result.error === 'EMAIL_ALREADY_IN_USE') {
@@ -99,13 +138,6 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {errorMessage && (
-        <div className="p-4 rounded-2xl bg-red-100 border border-red-400 text-red-900 dark:bg-red-950/70 dark:border-red-600/70 dark:text-red-200 text-sm flex items-start gap-3 shadow-xs">
-          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <span className="leading-snug font-medium">{errorMessage}</span>
-        </div>
-      )}
-
       {/* Full Name */}
       <div>
         <label htmlFor="register-name-input" className={`block text-sm sm:text-base font-semibold mb-2.5 ${colors.label}`}>
@@ -118,7 +150,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             type="text"
             required
             value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
+            onChange={(e) => {
+              setFullName(e.target.value);
+              if (errorMessage) setErrorMessage(null);
+            }}
             placeholder={t('fullNamePlaceholder')}
             autoComplete="name"
             className={`w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText} ${colors.inputPlaceholder}`}
@@ -138,7 +173,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             type="email"
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errorMessage) setErrorMessage(null);
+            }}
             placeholder={t('emailPlaceholder')}
             autoComplete="email"
             className={`w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText} ${colors.inputPlaceholder}`}
@@ -147,36 +185,65 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       </div>
 
       {/* Sector Comunal (Comuna 8) */}
-      <div>
-        <label htmlFor="register-sector-input" className={`block text-sm sm:text-base font-semibold mb-2.5 ${colors.label}`}>
-          Sector / Barrio (Comuna 8)
+      <div className="space-y-2">
+        <label htmlFor="register-sector-input" className={`block text-sm sm:text-base font-semibold ${colors.label}`}>
+          Sector / Barrio de Residencia (Comuna 8)
         </label>
         <div className="relative">
           <MapPin className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${colors.inputIcon}`} />
           <select
             id="register-sector-input"
             value={sector}
-            onChange={(e) => setSector(e.target.value)}
-            className={`w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border appearance-none cursor-pointer ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText}`}
+            onChange={(e) => {
+              setSector(e.target.value);
+              if (errorMessage) setErrorMessage(null);
+            }}
+            className={`w-full pl-12 pr-10 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border appearance-none cursor-pointer ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText}`}
           >
-            <option value="Villa Hermosa">Villa Hermosa (Comuna 8)</option>
-            <option value="Enciso">Enciso</option>
-            <option value="La Ladera">La Ladera</option>
-            <option value="Sucre">Sucre</option>
-            <option value="Boston">Boston</option>
-            <option value="Los Mangos">Los Mangos</option>
-            <option value="Trece de Noviembre">Trece de Noviembre</option>
-            <option value="El Pinal">El Pinal</option>
-            <option value="Las Estancias">Las Estancias</option>
-            <option value="San Antonio">San Antonio</option>
-            <option value="Llanaditas">Llanaditas</option>
-            <option value="La Libertad">La Libertad</option>
-            <option value="Otro sector Comuna 8">Otro sector (Comuna 8)</option>
+            {COMUNA_8_SECTORS_REGISTRATION.map((sec) => (
+              <option key={sec} value={sec}>
+                {sec === 'Otro' ? 'Otro sector / barrio (Comuna 8)' : sec}
+              </option>
+            ))}
           </select>
           <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400">
             ▼
           </div>
         </div>
+
+        {/* PROMPT 2: Immediate Manual Input Field if 'Otro' is selected */}
+        {sector === 'Otro' && (
+          <div
+            id="register-manual-sector-field"
+            className="p-3 sm:p-3.5 rounded-2xl border-2 border-red-500/80 bg-red-50/90 dark:bg-red-950/40 flex flex-col gap-1.5 transition-all shadow-xs animate-in fade-in slide-in-from-top-1 duration-150"
+          >
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="register-custom-sector-input"
+                className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5"
+              >
+                <span>Especifique su sector:</span>
+              </label>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono font-bold">Requerido</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="register-custom-sector-input"
+                type="text"
+                autoFocus
+                required
+                value={customSector}
+                onChange={(e) => {
+                  setCustomSector(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                placeholder="Ej. Villa Lili, La Honda, San José de la Cima, etc."
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm sm:text-base border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-xs"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Password with Strength Meter */}
@@ -191,7 +258,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             type={showPassword ? 'text' : 'password'}
             required
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errorMessage) setErrorMessage(null);
+            }}
             placeholder={t('passwordPlaceholder')}
             autoComplete="new-password"
             className={`w-full pl-12 pr-12 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText} ${colors.inputPlaceholder}`}
@@ -222,7 +292,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             type={showPassword ? 'text' : 'password'}
             required
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (errorMessage) setErrorMessage(null);
+            }}
             placeholder={t('confirmPasswordPlaceholder')}
             autoComplete="new-password"
             className={`w-full pl-12 pr-4 py-3.5 sm:py-4 rounded-2xl text-base outline-none transition shadow-xs border ${colors.inputBg} ${colors.inputBorder} ${colors.inputFocusBorder} ${colors.inputText} ${colors.inputPlaceholder}`}
@@ -235,7 +308,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         <input
           type="checkbox"
           checked={acceptTerms}
-          onChange={(e) => setAcceptTerms(e.target.checked)}
+          onChange={(e) => {
+            setAcceptTerms(e.target.checked);
+            if (errorMessage) setErrorMessage(null);
+          }}
           className="w-4 h-4 sm:w-5 sm:h-5 mt-0.5 rounded border-slate-400 dark:border-slate-700 bg-white dark:bg-slate-900 text-red-600 focus:ring-red-500 shrink-0 cursor-pointer"
         />
         <span className={`text-xs sm:text-sm font-medium leading-relaxed ${colors.mutedText}`}>
@@ -247,7 +323,10 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       <div className="pt-1">
         <SecurityCaptcha
           isVerified={isCaptchaVerified}
-          onVerify={setIsCaptchaVerified}
+          onVerify={(v) => {
+            setIsCaptchaVerified(v);
+            if (v) setCaptchaError(false);
+          }}
           error={captchaError}
         />
       </div>
@@ -268,6 +347,17 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
           </>
         )}
       </button>
+
+      {/* PROMPT 3: Error Message Positioned Directly Under the Submit Action */}
+      {errorMessage && (
+        <div
+          ref={alertContainerRef}
+          className="p-4 rounded-2xl bg-red-100 border-2 border-red-500 text-red-900 dark:bg-red-950/80 dark:border-red-600 dark:text-red-200 text-sm sm:text-base flex items-start gap-3 shadow-md animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <span className="leading-snug font-bold">{errorMessage}</span>
+        </div>
+      )}
 
       {/* Switch to Login link */}
       <div className="text-center pt-2">

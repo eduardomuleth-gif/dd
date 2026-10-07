@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   AlertTriangle,
@@ -14,6 +14,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { INCIDENT_CATEGORIES, IncidentCategory, ReportPriority, CreateReportInput } from '../types/report';
 import { createIncidentReport } from '../services/reportService';
+import { ModalPortal } from './ModalPortal';
 
 interface CreateReportModalProps {
   isOpen: boolean;
@@ -47,7 +48,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   defaultSector,
 }) => {
   const { theme, colors } = useTheme();
-  const { language } = useLanguage();
+  const { language, t, translateCategory, translatePriority } = useLanguage();
   const isDark = theme === 'dark';
 
   // Form state
@@ -62,6 +63,15 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const alertContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll to alert messages when they appear
+  useEffect(() => {
+    if ((errorMsg || successMsg) && alertContainerRef.current) {
+      alertContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [errorMsg, successMsg]);
 
   if (!isOpen) return null;
 
@@ -127,68 +137,63 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto animate-fadeIn">
-      <div
-        className={`relative w-full max-w-2xl rounded-2xl sm:rounded-3xl border shadow-2xl overflow-hidden my-auto transition-all ${
-          isDark ? 'bg-slate-900 border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
-        }`}
-      >
-        {/* Header HUD Bar */}
-        <div className="px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-red-600/10 via-amber-500/10 to-transparent">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-md">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold tracking-widest text-red-600 dark:text-red-400 uppercase">
-                  SISTEMA DE MONITOREO // COMUNA 8
-                </span>
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-500 border border-amber-500/30">
-                  REVISIÓN ADMIN
-                </span>
-              </div>
-              <h2 className="text-lg sm:text-xl font-black font-['Rajdhani'] uppercase tracking-wide">
-                {language === 'es' ? 'Reportar Incidente Comunitario' : 'Report Community Incident'}
-              </h2>
-            </div>
+    <ModalPortal
+      isOpen={isOpen}
+      onClose={onClose}
+      disableClose={isSubmitting}
+      maxWidthClass="max-w-2xl"
+      cardClassName={
+        isDark
+          ? 'bg-slate-900 border-slate-700/80 text-white'
+          : 'bg-white border-slate-200 text-slate-900'
+      }
+    >
+      {/* Fixed Top Header HUD Bar */}
+      <div className="shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-gradient-to-r from-red-600/10 via-amber-500/10 to-transparent">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-md shrink-0">
+            <AlertTriangle className="w-5 h-5" />
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="text-[10px] font-mono font-bold tracking-widest text-red-600 dark:text-red-400 uppercase truncate">
+                SISTEMA DE MONITOREO // COMUNA 8
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                REVISIÓN ADMIN
+              </span>
+            </div>
+            <h2 className="text-base sm:text-xl font-black font-['Rajdhani'] uppercase tracking-wide truncate">
+              {language === 'es' ? 'Reportar Incidente Comunitario' : 'Report Community Incident'}
+            </h2>
+          </div>
         </div>
 
-        {/* Verification Notice Banner */}
-        <div className="px-5 sm:px-6 py-3 bg-amber-500/10 border-b border-amber-500/20 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
-          <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
-          <p className="leading-relaxed">
-            <strong>{language === 'es' ? 'Política de Verificación:' : 'Verification Notice:'}</strong>{' '}
-            {language === 'es'
-              ? 'Por seguridad comunitaria, tu reporte se registrará con estado 🟡 PENDIENTE. No será visible en el mapa público ni en alertas generales hasta que un administrador lo verifique.'
-              : 'For community safety, your report starts as 🟡 PENDING and will only be publicly broadcast once verified by an admin.'}
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={isSubmitting}
+          aria-label={language === 'es' ? 'Cerrar ventana' : 'Close modal'}
+          className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0 disabled:opacity-50"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          {errorMsg && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
+      {/* Form Container: Scrollable Middle Body + Fixed Bottom Action Bar */}
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        {/* Scrollable Content Area */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4">
+          {/* Verification Notice Banner (Inside scrollable area right at the top so it is never cut off) */}
+          <div className="p-3 sm:p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 sm:gap-3 text-xs text-amber-800 dark:text-amber-300">
+            <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+            <p className="leading-relaxed">
+              <strong>{language === 'es' ? 'Política de Verificación:' : 'Verification Notice:'}</strong>{' '}
+              {language === 'es'
+                ? 'Por seguridad comunitaria, tu reporte se registrará con estado 🟡 PENDIENTE. No será visible en el mapa público ni en alertas generales hasta que un administrador lo verifique.'
+                : 'For community safety, your report starts as 🟡 PENDING and will only be publicly broadcast once verified by an admin.'}
+            </p>
+          </div>
 
           {/* Row 1: Categoría y Nivel de Urgencia */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -205,7 +210,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
               >
                 {INCIDENT_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
-                    {cat}
+                    {translateCategory(cat)}
                   </option>
                 ))}
               </select>
@@ -235,7 +240,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                         : 'bg-slate-100 border-slate-300 text-slate-600 hover:text-slate-800'
                     }`}
                   >
-                    {prio}
+                    {translatePriority(prio)}
                   </button>
                 ))}
               </div>
@@ -259,11 +264,11 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 }
                 maxLength={120}
                 required
-                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
+                className={`w-full pl-3.5 pr-14 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
                   isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400'
                 }`}
               />
-              <span className="absolute right-3 top-2.5 text-[10px] font-mono text-slate-400">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 pointer-events-none">
                 {titulo.length}/120
               </span>
             </div>
@@ -312,7 +317,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 {language === 'es' ? '5. Dirección o Punto de Referencia' : '5. Address / Landmark'}
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={direccion}
@@ -347,39 +352,63 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition cursor-pointer ${
-                isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
-              }`}
-            >
-              {language === 'es' ? 'Cancelar' : 'Cancel'}
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-red-950/40 transition cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{language === 'es' ? 'Enviando a Firestore...' : 'Saving to Firestore...'}</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span>{language === 'es' ? 'Registrar Reporte' : 'Submit Report'}</span>
-                </>
+          {/* Feedback alert positioned inside scrollable area with auto-scroll */}
+          {(errorMsg || successMsg) && (
+            <div ref={alertContainerRef} className="pt-1">
+              {errorMsg && (
+                <div className="p-3.5 rounded-xl bg-red-500/10 border-2 border-red-500/40 text-red-600 dark:text-red-400 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-sm animate-in fade-in duration-150">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span>{errorMsg}</span>
+                </div>
               )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              {successMsg && (
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-sm animate-in fade-in duration-150">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{successMsg}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Fixed Bottom Footer: Action Buttons always visible */}
+        <div
+          className={`shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-t flex items-center justify-end gap-2.5 sm:gap-3 ${
+            isDark
+              ? 'border-slate-800 bg-slate-900/95'
+              : 'border-slate-200 bg-slate-50/95'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition cursor-pointer ${
+              isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
+            }`}
+          >
+            {language === 'es' ? 'Cancelar' : 'Cancel'}
+          </button>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-5 sm:px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-950/40 transition cursor-pointer disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>{language === 'es' ? 'Enviando...' : 'Saving...'}</span>
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                <span>{language === 'es' ? 'Registrar Reporte' : 'Submit Report'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </ModalPortal>
   );
 };

@@ -12,7 +12,7 @@
  */
 
 // Toggle maestro para activar / desactivar la simulación de actividad
-export const DEMO_MODE = true;
+export const DEMO_MODE = false;
 
 // Intervalo de evaluación del generador (cada 45-60 segundos -> 50s = 50,000 ms)
 export const SIMULATION_CHECK_INTERVAL_MS = 50 * 1000;

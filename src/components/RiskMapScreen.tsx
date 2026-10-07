@@ -22,10 +22,14 @@ import {
   Eye,
   CheckCircle2,
   RefreshCw,
-  LocateFixed
+  LocateFixed,
+  LayoutGrid,
+  List
 } from 'lucide-react';
-import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
-import { GOOGLE_MAPS_API_KEY } from '../config/maps';
+import { importLibrary } from '@googlemaps/js-api-loader';
+import { GOOGLE_MAPS_API_KEY, ensureGoogleMapsInitialized } from '../config/maps';
+import { useSmoothMapUsability, MapUsabilityOverlay } from './MapUsabilityOverlay';
+import { useLanguage } from '../context/LanguageContext';
 import {
   COMUNA_8_SECTORS,
   COMUNA_8_CENTER,
@@ -195,6 +199,7 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
   onNavigateHome,
   onNavigateDashboard,
 }) => {
+  const { language, t, translateRisk } = useLanguage();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const placesInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -205,6 +210,7 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
   const markersRef = useRef<{ marker: google.maps.marker.AdvancedMarkerElement; sector: SectorRiskData }[]>([]);
   const userMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const searchMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const selectedSectorMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
 
   // States
   const [mapLoaded, setMapLoaded] = useState<boolean>(false);
@@ -217,11 +223,23 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
     coordinates: { lat: number; lng: number };
   } | null>(null);
   const [placesSearchText, setPlacesSearchText] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [filterLevel, setFilterLevel] = useState<'all' | RiskLevel>('all');
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(14);
+
+  // Grouped sectors by category: Mayor (high), Intermedio (moderate), Bajo / base (central)
+  const highRiskSectors = useMemo(
+    () => COMUNA_8_SECTORS.filter((s) => s.level === 'high'),
+    []
+  );
+  const moderateRiskSectors = useMemo(
+    () => COMUNA_8_SECTORS.filter((s) => s.level === 'moderate'),
+    []
+  );
+  const lowRiskSectors = useMemo(
+    () => COMUNA_8_SECTORS.filter((s) => s.level === 'central'),
+    []
+  );
 
   // Initialize Map
   useEffect(() => {
@@ -231,11 +249,7 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
       if (!mapContainerRef.current) return;
 
       try {
-        setOptions({
-          key: GOOGLE_MAPS_API_KEY,
-          v: 'weekly',
-          libraries: ['places', 'geometry', 'marker', 'geocoding'],
-        });
+        ensureGoogleMapsInitialized();
 
         // Import required libraries using Google Maps Platform JS SDK
         const { Map, Circle } = (await importLibrary('maps')) as google.maps.MapsLibrary;
@@ -471,8 +485,73 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
       if (searchMarkerRef.current) {
         searchMarkerRef.current.map = null;
       }
+      if (selectedSectorMarkerRef.current) {
+        selectedSectorMarkerRef.current.map = null;
+      }
     };
   }, [GOOGLE_MAPS_API_KEY]);
+
+  // Highlight the currently selected sector on the map with an active focus pin
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (selectedSectorMarkerRef.current) {
+      selectedSectorMarkerRef.current.map = null;
+      selectedSectorMarkerRef.current = null;
+    }
+
+    if (!selectedSector) return;
+
+    let cancelled = false;
+    importLibrary('marker')
+      .then((markerLib: any) => {
+        if (cancelled || !mapInstanceRef.current) return;
+        const { AdvancedMarkerElement } = markerLib;
+
+        const focusEl = document.createElement('div');
+        focusEl.className = 'relative flex flex-col items-center pointer-events-none select-none';
+
+        const ringColor =
+          selectedSector.level === 'high'
+            ? 'border-rose-500 bg-rose-600/95 text-white shadow-[0_0_20px_rgba(244,63,94,0.85)]'
+            : selectedSector.level === 'moderate'
+            ? 'border-amber-400 bg-amber-500/95 text-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.85)]'
+            : 'border-emerald-400 bg-emerald-600/95 text-white shadow-[0_0_20px_rgba(16,185,129,0.85)]';
+
+        const pulseColor =
+          selectedSector.level === 'high'
+            ? 'bg-rose-500/35'
+            : selectedSector.level === 'moderate'
+            ? 'bg-amber-400/35'
+            : 'bg-emerald-400/35';
+
+        focusEl.innerHTML = `
+          <div class="relative flex items-center justify-center">
+            <div class="absolute w-14 h-14 rounded-full ${pulseColor} animate-ping"></div>
+            <div class="relative px-2.5 py-1 rounded-lg border-2 font-mono text-xs font-extrabold flex items-center gap-1.5 backdrop-blur-md ${ringColor}">
+              <span>📍</span>
+              <span class="whitespace-nowrap">${selectedSector.name}</span>
+            </div>
+          </div>
+        `;
+
+        const marker = new AdvancedMarkerElement({
+          map: mapInstanceRef.current,
+          position: selectedSector.coordinates,
+          title: `${selectedSector.name} (${selectedSector.quadrant})`,
+          content: focusEl,
+          zIndex: 400,
+        });
+
+        selectedSectorMarkerRef.current = marker;
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSector, mapLoaded]);
 
   // Update view mode (Heatmap vs Markers vs Both)
   useEffect(() => {
@@ -494,25 +573,26 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
     }
   }, [viewMode, mapLoaded]);
 
-  // Custom Zoom Controls
-  const handleZoomIn = () => {
-    if (mapInstanceRef.current) {
-      const current = mapInstanceRef.current.getZoom() || 14;
-      mapInstanceRef.current.setZoom(current + 1);
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (mapInstanceRef.current) {
-      const current = mapInstanceRef.current.getZoom() || 13;
-      mapInstanceRef.current.setZoom(current - 1);
-    }
-  };
+  // Unified Smooth Map Usability (Scroll page by default, Ctrl/Cmd + wheel smooth zoom, smooth +/- buttons, 2-finger mobile)
+  const {
+    zoomLevel: smoothZoomLevel,
+    isHintHighlighted,
+    isCtrlZooming,
+    handleZoomIn,
+    handleZoomOut,
+    smoothZoomTo,
+  } = useSmoothMapUsability({
+    mapContainerRef,
+    mapInstanceRef,
+    mapLoaded,
+    initialZoom: COMUNA_8_DEFAULT_ZOOM,
+    onZoomChange: (z) => setZoomLevel(z),
+  });
 
   const handleResetCenter = () => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.panTo(COMUNA_8_CENTER);
-      mapInstanceRef.current.setZoom(COMUNA_8_DEFAULT_ZOOM);
+      smoothZoomTo(COMUNA_8_DEFAULT_ZOOM);
     }
     setSelectedSector(COMUNA_8_SECTORS[0]);
     setSearchedLocation(null);
@@ -856,56 +936,39 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
     );
   }, []);
 
-  // Normalization helper for diacritics and case-insensitive search
-  const normalizeText = (text: string) =>
-    text
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .trim();
-
-  // Filtered sectors list with partial, accent-insensitive and multi-field matching
-  // Filtered sectors list for Comuna 8 (18 Sectores)
-  const filteredSectors = useMemo(() => {
-    const q = normalizeText(searchQuery);
-    return COMUNA_8_SECTORS.filter((sector) => {
-      const matchesSearch =
-        !q ||
-        normalizeText(sector.name).includes(q) ||
-        normalizeText(sector.comuna).includes(q) ||
-        normalizeText(sector.quadrant).includes(q) ||
-        normalizeText(sector.contextNote).includes(q) ||
-        normalizeText(sector.levelLabel).includes(q);
-      const matchesLevel = filterLevel === 'all' || sector.level === filterLevel;
-      return matchesSearch && matchesLevel;
-    });
-  }, [searchQuery, filterLevel]);
-
   const selectAndFocusSector = (sector: SectorRiskData) => {
     setSelectedSector(sector);
     setSearchedLocation(null);
     if (mapInstanceRef.current) {
       mapInstanceRef.current.panTo(sector.coordinates);
-      mapInstanceRef.current.setZoom(15);
+      mapInstanceRef.current.setZoom(16);
+    }
+  };
+
+  const handleSelectSectorById = (sectorId: string) => {
+    if (!sectorId) return;
+    const found = COMUNA_8_SECTORS.find((s) => s.id === sectorId);
+    if (found) {
+      selectAndFocusSector(found);
     }
   };
 
   return (
-    <div className="w-full max-w-[1720px] mx-auto space-y-6 sm:space-y-7 px-2 sm:px-4 lg:px-6">
+    <div className="w-full max-w-[1720px] mx-auto space-y-6 sm:space-y-7 px-2 sm:px-4 lg:px-6 pt-1 sm:pt-2 scroll-mt-36">
       {/* 1. Header & Navigation Context */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-white/10">
         <div>
           <div className="flex items-center gap-2 text-xs font-mono text-amber-600 dark:text-amber-500 tracking-wider uppercase mb-1.5 font-bold">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
-            <span className="font-semibold">Módulo Geoespacial // Comuna 8 — Villa Hermosa</span>
+            <span className="font-semibold">{t('riskMapBadge')}</span>
             <span className="text-slate-400 dark:text-slate-600">|</span>
-            <span className="text-theme-secondary font-medium">Google Maps Platform</span>
+            <span className="text-theme-secondary font-medium">{t('riskMapProvider')}</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-theme-primary flex items-center gap-2">
-            <span>Mapa de Riesgo y Prevención</span>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black font-['Rajdhani'] uppercase tracking-wider text-theme-primary flex items-center gap-2">
+            <span>{t('riskMapTitle')}</span>
           </h1>
-          <p className="text-sm sm:text-base text-theme-secondary mt-1 max-w-3xl leading-relaxed">
-            Monitoreo preventivo de sectores, termografía de concentración de riesgo y cuadrantes comunitarios de la Comuna 8 (Villa Hermosa, Medellín).
+          <p className="text-base sm:text-lg text-theme-secondary mt-1.5 max-w-3xl leading-relaxed font-medium">
+            {t('riskMapDescription')}
           </p>
         </div>
 
@@ -914,17 +977,17 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
           {onNavigateDashboard && (
             <button
               onClick={onNavigateDashboard}
-              className="px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors shadow-xs cursor-pointer"
+              className="px-4 py-2.5 text-sm font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors shadow-xs cursor-pointer"
             >
-              Ir al Panel de Control
+              {t('goToDashboard')}
             </button>
           )}
           {onNavigateHome && (
             <button
               onClick={onNavigateHome}
-              className="px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors shadow-xs cursor-pointer"
+              className="px-4 py-2.5 text-sm font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors shadow-xs cursor-pointer"
             >
-              Inicio
+              {t('navHome')}
             </button>
           )}
         </div>
@@ -933,37 +996,37 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
       {/* 2. Mandatory Citizen Disclaimer Banner exclusively for Comuna 8 */}
       <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/50 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 backdrop-blur-md shadow-xs">
         <Info className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-        <div className="flex-1 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal">
-          <span className="font-bold text-amber-900 dark:text-amber-300">Aviso informativo de referencia y transparencia comunitaria:</span>{' '}
-          La clasificación y niveles de referencia de los 18 sectores de la Comuna 8 (Villa Hermosa) es orientativa y se basa en dinámicas históricas comunitarias y reportes públicos disponibles. No constituye un diagnóstico exacto por barrio ni una calificación institucional vinculante o estigmatizante sobre los territorios. Para información oficial y actualizada, consulta el{' '}
+        <div className="flex-1 text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+          <span className="font-bold text-amber-900 dark:text-amber-300">{t('disclaimerTitle')}</span>{' '}
+          {t('disclaimerText')}{' '}
           <a
             href="https://www.medellin.gov.co/es/secretaria-seguridad-convivencia/sisc/"
             target="_blank"
             rel="noopener noreferrer"
             className="text-amber-800 dark:text-amber-300 font-bold underline hover:text-amber-950 dark:hover:text-amber-200 inline-flex items-center gap-1"
           >
-            SISC de la Alcaldía de Medellín
-            <ExternalLink className="w-3.5 h-3.5 ml-0.5 inline" />
+            {t('siscLinkText')}
+            <ExternalLink className="w-4 h-4 ml-0.5 inline" />
           </a>
           .
         </div>
       </div>
 
-      {/* 3. Main Tactical Map Display & 3-Column Independent Layout on Desktop (Map 60%, Ficha 20%, Explorador 20%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-10 gap-5 items-stretch">
-        {/* Column 1: Interactive Map View & Controls (60% / 6 of 10 cols on XL) */}
-        <div className="lg:col-span-2 xl:col-span-6 flex flex-col gap-3.5 h-auto xl:h-[76vh] xl:min-h-[640px] xl:max-h-[860px]">
-          {/* Top Map Toolbar: Google Places Autocomplete Search & View Controls */}
-          <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 backdrop-blur-md shadow-sm shrink-0">
+      {/* 3. Main Tactical Map Display (Left) & Sector Informative + Transit Recommendations Panel (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Left Column: Interactive Map View, Sector Category Dropdowns & Controls (7 of 12 cols on Desktop) */}
+        <div className="lg:col-span-7 flex flex-col gap-3.5 h-auto lg:h-[84vh] lg:min-h-[740px] lg:max-h-[960px]">
+          {/* Toolbar Row 1: Google Places Autocomplete Search & View Mode / GPS Controls */}
+          <div className="bg-white dark:bg-slate-900/90 border border-slate-300 dark:border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 backdrop-blur-md shadow-sm shrink-0">
             {/* Google Places Autocomplete Search Input for Medellín */}
-            <div ref={searchContainerRef} className="relative flex-1 min-w-[260px] max-w-full lg:max-w-[360px]">
+            <div ref={searchContainerRef} className="relative flex-1 min-w-[240px]">
               <Search className="w-4 h-4 text-cyan-600 dark:text-cyan-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={placesInputRef}
                 id="input-places-autocomplete"
                 type="text"
                 autoComplete="off"
-                placeholder="Buscar calle, carrera, barrio o lugar en Medellín..."
+                placeholder={t('searchPlacesPlaceholder')}
                 value={placesSearchText}
                 onChange={(e) => setPlacesSearchText(e.target.value)}
                 onKeyDown={(e) => {
@@ -972,26 +1035,18 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                     geocodeAddressFallback(placesSearchText);
                   }
                 }}
-                className="w-full bg-slate-50 dark:bg-slate-950/90 border border-slate-300 dark:border-white/15 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-theme-primary placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner"
+                className="w-full bg-slate-50 dark:bg-slate-950/90 border border-slate-300 dark:border-white/15 rounded-xl pl-9 pr-8 py-2.5 text-sm text-theme-primary placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner"
               />
               {placesSearchText && (
                 <button
                   type="button"
                   onClick={handleResetCenter}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white p-0.5 transition-colors cursor-pointer"
-                  title="Limpiar búsqueda de lugar"
+                  title="Limpiar búsqueda"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
-            </div>
-
-            {/* Comuna Indicator Badge */}
-            <div className="flex items-center gap-1.5">
-              <div className="px-3 py-1.5 rounded-xl border border-cyan-400/40 bg-cyan-50 dark:bg-cyan-950/70 text-cyan-900 dark:text-cyan-200 text-xs font-bold flex items-center gap-1.5 shadow-xs">
-                <MapPin className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
-                <span>Comuna 8 — Villa Hermosa</span>
-              </div>
             </div>
 
             {/* Controls Group: View Mode Toggle & GPS */}
@@ -1002,80 +1057,203 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                   id="btn-mode-heat"
                   type="button"
                   onClick={() => setViewMode('heat')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'heat'
                       ? 'bg-rose-600 dark:bg-rose-900/90 text-white dark:text-rose-100 border border-rose-500/60 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                      : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                 >
-                  <Flame className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
-                  <span>Calor</span>
+                  <Flame className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                  <span>{t('modeHeat')}</span>
                 </button>
 
                 <button
                   id="btn-mode-markers"
                   type="button"
                   onClick={() => setViewMode('markers')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'markers'
                       ? 'bg-amber-600 dark:bg-amber-900/90 text-white dark:text-amber-100 border border-amber-500/60 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                      : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                 >
-                  <MapPin className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                  <span>Marcadores</span>
+                  <MapPin className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                  <span>{t('modeMarkers')}</span>
                 </button>
 
                 <button
                   id="btn-mode-both"
                   type="button"
                   onClick={() => setViewMode('both')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'both'
                       ? 'bg-indigo-600 dark:bg-indigo-900/90 text-white dark:text-indigo-100 border border-indigo-500/60 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
+                      : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                   title="Mostrar termografía y pines simultáneamente"
                 >
-                  <Layers className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-                  <span className="hidden sm:inline">Híbrida</span>
+                  <Layers className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                  <span className="hidden sm:inline">{t('modeHybrid')}</span>
                 </button>
               </div>
 
-              {/* Tactical Live Geolocation & Recenter */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  id="btn-geolocation"
-                  type="button"
-                  onClick={handleGetCurrentLocation}
-                  disabled={isLocating}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-cyan-400/50 bg-cyan-100 dark:bg-cyan-950/60 hover:bg-cyan-200 dark:hover:bg-cyan-900/60 text-cyan-900 dark:text-cyan-300 text-xs font-bold transition-all disabled:opacity-50 shadow-xs cursor-pointer active:scale-95"
-                  title="Centrar en mi ubicación en vivo (GPS)"
-                >
-                  {isLocating ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-600 dark:text-cyan-400" />
-                  ) : (
-                    <LocateFixed className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                  )}
-                  <span className="hidden sm:inline font-bold">
-                    {isLocating ? 'GPS...' : 'GPS'}
-                  </span>
-                </button>
+              {/* Tactical Live Geolocation */}
+              <button
+                id="btn-geolocation"
+                type="button"
+                onClick={handleGetCurrentLocation}
+                disabled={isLocating}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-cyan-400/50 bg-cyan-100 dark:bg-cyan-950/60 hover:bg-cyan-200 dark:hover:bg-cyan-900/60 text-cyan-900 dark:text-cyan-300 text-xs sm:text-sm font-bold transition-all disabled:opacity-50 shadow-xs cursor-pointer active:scale-95"
+                title="Centrar en mi ubicación en vivo (GPS)"
+              >
+                {isLocating ? (
+                  <RefreshCw className="w-4 h-4 animate-spin text-cyan-600 dark:text-cyan-400" />
+                ) : (
+                  <LocateFixed className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                )}
+                <span className="hidden sm:inline font-bold">
+                  {isLocating ? t('locatingGps') : t('centerGpsBtn')}
+                </span>
+              </button>
+            </div>
+          </div>
 
-                <button
-                  id="btn-recenter-comuna8"
-                  onClick={handleResetCenter}
-                  className="p-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors shadow-xs cursor-pointer"
-                  title="Centrar en Comuna 8 (Villa Hermosa)"
+          {/* Toolbar Row 2: "Centrar en Comuna 8 (Villa Hermosa)" Button + Sector Category Dropdowns (Mayor, Intermedio, Bajo (base)) */}
+          <div className="bg-white dark:bg-slate-900/95 border border-slate-300 dark:border-white/15 rounded-2xl p-3 flex flex-col xl:flex-row xl:items-center gap-2.5 backdrop-blur-md shadow-sm shrink-0">
+            {/* Button: Centrar en Comuna 8 (Villa Hermosa) */}
+            <button
+              id="btn-recenter-comuna8"
+              type="button"
+              onClick={handleResetCenter}
+              className="px-3.5 py-2.5 rounded-xl border border-cyan-400/50 bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/80 dark:hover:bg-cyan-900/80 text-cyan-900 dark:text-cyan-200 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99] shrink-0"
+              title={
+                language === 'es'
+                  ? 'Centrar en Comuna 8 (Villa Hermosa)'
+                  : 'Center on Comuna 8 (Villa Hermosa)'
+              }
+            >
+              <Compass className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+              <span>
+                {language === 'es'
+                  ? 'Centrar en Comuna 8 (Villa Hermosa)'
+                  : 'Center on Comuna 8 (Villa Hermosa)'}
+              </span>
+            </button>
+
+            {/* 3 Category Dropdowns Side by Side: Mayor, Intermedio, Bajo (base) */}
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {/* Categoría 1: Mayor */}
+              <div
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
+                  selectedSector?.level === 'high'
+                    ? 'bg-rose-50 dark:bg-rose-950/70 border-rose-400 dark:border-rose-500/80 ring-2 ring-rose-500/20'
+                    : 'bg-rose-50/50 dark:bg-slate-950/80 border-rose-200 dark:border-rose-500/30'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                  <label
+                    htmlFor="select-sector-high"
+                    className="text-xs font-extrabold uppercase tracking-wide text-rose-800 dark:text-rose-300 cursor-pointer"
+                  >
+                    {language === 'es' ? 'Mayor' : 'High'}
+                  </label>
+                </div>
+                <select
+                  id="select-sector-high"
+                  value={selectedSector?.level === 'high' ? selectedSector.id : ''}
+                  onChange={(e) => handleSelectSectorById(e.target.value)}
+                  className="w-full min-w-0 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-500/40 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 cursor-pointer truncate"
                 >
-                  <Compass className="w-4 h-4 text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white" />
-                </button>
+                  <option value="">
+                    {language === 'es'
+                      ? `Sectores (${highRiskSectors.length})...`
+                      : `Sectors (${highRiskSectors.length})...`}
+                  </option>
+                  {highRiskSectors.map((sector) => (
+                    <option key={sector.id} value={sector.id}>
+                      {sector.name} ({sector.quadrant})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Categoría 2: Intermedio */}
+              <div
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
+                  selectedSector?.level === 'moderate'
+                    ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-400 dark:border-amber-500/80 ring-2 ring-amber-500/20'
+                    : 'bg-amber-50/50 dark:bg-slate-950/80 border-amber-200 dark:border-amber-500/30'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                  <label
+                    htmlFor="select-sector-moderate"
+                    className="text-xs font-extrabold uppercase tracking-wide text-amber-900 dark:text-amber-300 cursor-pointer"
+                  >
+                    {language === 'es' ? 'Intermedio' : 'Moderate'}
+                  </label>
+                </div>
+                <select
+                  id="select-sector-moderate"
+                  value={selectedSector?.level === 'moderate' ? selectedSector.id : ''}
+                  onChange={(e) => handleSelectSectorById(e.target.value)}
+                  className="w-full min-w-0 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/40 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer truncate"
+                >
+                  <option value="">
+                    {language === 'es'
+                      ? `Sectores (${moderateRiskSectors.length})...`
+                      : `Sectors (${moderateRiskSectors.length})...`}
+                  </option>
+                  {moderateRiskSectors.map((sector) => (
+                    <option key={sector.id} value={sector.id}>
+                      {sector.name} ({sector.quadrant})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Categoría 3: Bajo (base) */}
+              <div
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
+                  selectedSector?.level === 'central'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-400 dark:border-emerald-500/80 ring-2 ring-emerald-500/20'
+                    : 'bg-emerald-50/50 dark:bg-slate-950/80 border-emerald-200 dark:border-emerald-500/30'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                  <label
+                    htmlFor="select-sector-low"
+                    className="text-xs font-extrabold uppercase tracking-wide text-emerald-900 dark:text-emerald-300 cursor-pointer whitespace-nowrap"
+                  >
+                    {language === 'es' ? 'Bajo (base)' : 'Low (base)'}
+                  </label>
+                </div>
+                <select
+                  id="select-sector-low"
+                  value={selectedSector?.level === 'central' ? selectedSector.id : ''}
+                  onChange={(e) => handleSelectSectorById(e.target.value)}
+                  className="w-full min-w-0 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/40 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 cursor-pointer truncate"
+                >
+                  <option value="">
+                    {language === 'es'
+                      ? `Sectores (${lowRiskSectors.length})...`
+                      : `Sectors (${lowRiskSectors.length})...`}
+                  </option>
+                  {lowRiskSectors.map((sector) => (
+                    <option key={sector.id} value={sector.id}>
+                      {sector.name} ({sector.quadrant})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
 
-          {/* Map Canvas Container - Expands to fill Column 1 height */}
-          <div className="relative w-full h-[520px] sm:h-[600px] xl:h-full xl:flex-1 rounded-2xl overflow-hidden border border-slate-300 dark:border-white/15 bg-[#0c1017] shadow-lg">
+          {/* Map Canvas Container - Expands to fill remaining space in Column 1 */}
+          <div className="relative w-full h-[460px] sm:h-[520px] lg:h-auto lg:flex-1 lg:min-h-[380px] rounded-2xl overflow-hidden border border-slate-300 dark:border-white/15 bg-[#0c1017] shadow-lg">
             {/* Google Maps Mounted Div */}
             <div ref={mapContainerRef} className="w-full h-full" id="google-risk-map-canvas" />
 
@@ -1094,65 +1272,64 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
               </div>
             )}
 
-            {/* Custom On-Map HUD Zoom Controls */}
-            <div className="absolute bottom-5 right-5 z-10 flex flex-col gap-1.5 bg-slate-900/95 p-1.5 rounded-xl border border-white/20 backdrop-blur-md shadow-2xl">
-              <button
-                id="btn-zoom-in"
-                onClick={handleZoomIn}
-                className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-100 transition-colors active:scale-95 shadow cursor-pointer"
-                title="Acercar mapa (+)"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              <div className="h-[1px] bg-white/15 mx-1" />
-              <button
-                id="btn-zoom-out"
-                onClick={handleZoomOut}
-                className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-100 transition-colors active:scale-95 shadow cursor-pointer"
-                title="Alejar mapa (-)"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-            </div>
+            {/* Unified Map Usability Overlay: "Usa Ctrl + rueda para hacer zoom" + Smooth + / - Controls */}
+            <MapUsabilityOverlay
+              zoomLevel={smoothZoomLevel || zoomLevel}
+              isHintHighlighted={isHintHighlighted}
+              isCtrlZooming={isCtrlZooming}
+              onZoomIn={handleZoomIn}
+              onZoomOut={handleZoomOut}
+              onResetCenter={handleResetCenter}
+              resetTitle="Centrar en Comuna 8 (Villa Hermosa)"
+              noticePosition="bottom-center"
+            />
 
             {/* Sector Quick Badge Count on Map Top-Left with High Contrast text */}
-            <div className="absolute top-4 left-4 z-10 bg-slate-900/95 px-3.5 py-2 rounded-xl border border-white/20 backdrop-blur-md text-xs font-mono text-slate-100 flex items-center gap-2.5 shadow-xl">
+            <div className="absolute top-4 left-4 z-10 bg-slate-900/95 px-3.5 py-2 rounded-xl border border-white/20 backdrop-blur-md text-xs font-mono text-slate-100 flex items-center gap-2.5 shadow-xl pointer-events-none">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
               <span className="font-bold text-white">
-                {COMUNA_8_SECTORS.length} Sectores Monitoreados • Comuna 8
+                {t('monitoredSectorsCount')} • Comuna 8
               </span>
               <span className="text-slate-500">|</span>
-              <span className="text-cyan-300 font-extrabold">Zoom: {zoomLevel}x</span>
+              <span className="text-cyan-300 font-extrabold">
+                Zoom: {(smoothZoomLevel || zoomLevel).toFixed(1).replace(/\.0$/, '')}x
+              </span>
             </div>
           </div>
 
-          {/* Independent Thermal Legend Card outside & directly below the map canvas */}
-          <div className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/10 rounded-2xl p-3 sm:p-3.5 shadow-sm backdrop-blur-md shrink-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
-              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 shrink-0">
-                <div className="p-1.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400">
-                  <Flame className="w-4 h-4" />
+          {/* Independent Thermal Legend Card properly contained inside its box */}
+          <div className="w-full overflow-hidden bg-white dark:bg-slate-900/95 border border-slate-300 dark:border-white/15 rounded-2xl p-4 shadow-sm backdrop-blur-md shrink-0">
+            <div className="flex flex-col gap-2.5 w-full">
+              {/* Top Header Row */}
+              <div className="flex items-center justify-between gap-2 w-full">
+                <div className="flex items-center gap-2 text-xs sm:text-sm font-mono font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100 min-w-0">
+                  <div className="p-1.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 shrink-0">
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <span className="truncate">{t('thermalLegendTitle')}</span>
                 </div>
-                <span>Termografía de Riesgo</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal hidden md:inline">• Comuna 8</span>
+                <span className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+                  Comuna 8
+                </span>
               </div>
 
-              <div className="flex-1 max-w-xl flex flex-col gap-1.5">
-                <div className="w-full h-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-600 border border-slate-300 dark:border-white/20 shadow-inner" />
-                <div className="w-full flex items-center justify-between text-[11px] sm:text-xs font-mono gap-1">
-                  <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-xs" />
-                    <span>Tránsito / Base</span>
+              {/* Full-Width Contained Heat Gradient Bar */}
+              <div className="w-full flex flex-col gap-2">
+                <div className="relative w-full h-3.5 rounded-full bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-600 border border-slate-300 dark:border-white/20 shadow-inner overflow-hidden" />
+
+                {/* 3 Contained Labels Aligned to Left, Center, Right */}
+                <div className="w-full grid grid-cols-3 items-center gap-1 text-xs font-mono">
+                  <div className="flex items-center justify-start gap-1.5 text-emerald-800 dark:text-emerald-400 font-bold min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-xs" />
+                    <span className="truncate">{t('thermalLow')}</span>
                   </div>
-                  <span className="text-slate-400 dark:text-slate-600 select-none px-1">|</span>
-                  <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-bold shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block shadow-xs" />
-                    <span>Moderado</span>
+                  <div className="flex items-center justify-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0 shadow-xs" />
+                    <span className="truncate">{t('thermalMed')}</span>
                   </div>
-                  <span className="text-slate-400 dark:text-slate-600 select-none px-1">|</span>
-                  <div className="flex items-center gap-1.5 text-rose-700 dark:text-rose-400 font-extrabold shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block shadow-xs" />
-                    <span>Mayor atención</span>
+                  <div className="flex items-center justify-end gap-1.5 text-rose-800 dark:text-rose-400 font-extrabold min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 shadow-xs" />
+                    <span className="truncate">{t('thermalHigh')}</span>
                   </div>
                 </div>
               </div>
@@ -1160,324 +1337,304 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
           </div>
         </div>
 
-        {/* Column 2: Ficha de Sector (20% / 2 of 10 cols on XL) */}
-        <div className="lg:col-span-1 xl:col-span-2 flex flex-col h-auto xl:h-[76vh] xl:min-h-[640px] xl:max-h-[860px]">
+        {/* Right Column: Panel Informativo del Sector Seleccionado y Recomendaciones de Tránsito (5 of 12 cols on Desktop) */}
+        <div className="lg:col-span-5 flex flex-col h-auto lg:h-[84vh] lg:min-h-[740px] lg:max-h-[960px]">
           {selectedSector ? (
-            <div className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/15 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-sm relative overflow-hidden flex flex-col h-full">
-              {/* Tactical Wine/Burgundy Glow Accent */}
-              <div className="absolute -top-12 -right-12 w-32 h-32 bg-rose-600/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="bg-white dark:bg-slate-900/95 border border-slate-300 dark:border-white/15 rounded-2xl p-4 sm:p-6 backdrop-blur-md shadow-lg relative overflow-hidden flex flex-col h-full">
+              {/* Top Color Accent Bar matching Risk Level */}
+              <div
+                className={`absolute top-0 inset-x-0 h-1.5 ${
+                  selectedSector.level === 'high'
+                    ? 'bg-gradient-to-r from-rose-600 via-red-500 to-amber-500'
+                    : selectedSector.level === 'moderate'
+                    ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-emerald-500'
+                    : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500'
+                }`}
+              />
 
-              {/* Header & Sector Badge */}
-              <div className="flex items-start justify-between gap-2 mb-3.5 shrink-0">
+              {/* Header: Panel Title, Sector Name & Risk Level Badge */}
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3.5 mb-3.5 border-b border-slate-200 dark:border-white/10 shrink-0">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] sm:text-[11px] font-mono font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-0.5 truncate">
-                    {selectedSector.comuna} • {selectedSector.quadrant}
+                  <div className="flex items-center gap-2 text-[11px] font-mono font-extrabold text-cyan-700 dark:text-cyan-400 uppercase tracking-widest mb-1">
+                    <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {language === 'es'
+                        ? 'PANEL INFORMATIVO Y DE TRÁNSITO'
+                        : 'SECTOR & TRANSIT INFO PANEL'}
+                    </span>
                   </div>
-                  <h2 className="text-lg sm:text-xl font-bold text-theme-primary flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
+                  <h2 className="text-xl sm:text-2xl font-black font-['Rajdhani'] uppercase tracking-wide text-theme-primary flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0" />
                     <span className="truncate">{selectedSector.name}</span>
                   </h2>
+                  <p className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                    {selectedSector.comuna} • {selectedSector.quadrant}
+                  </p>
                 </div>
 
-                {/* Level Badge */}
-                <div
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-                    selectedSector.level === 'high'
-                      ? 'bg-rose-100 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-500/70 shadow-xs'
-                      : selectedSector.level === 'moderate'
-                      ? 'bg-amber-100 dark:bg-amber-950/90 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-500/70'
-                      : 'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-500/70'
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
+                {/* Risk Level Classification Badge */}
+                <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                    {language === 'es' ? 'Nivel de Riesgo' : 'Risk Level'}
+                  </span>
+                  <div
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border whitespace-nowrap flex items-center gap-2 shadow-xs ${
                       selectedSector.level === 'high'
-                        ? 'bg-rose-500 animate-pulse'
+                        ? 'bg-rose-100 dark:bg-rose-950/90 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-500/70'
                         : selectedSector.level === 'moderate'
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
+                        ? 'bg-amber-100 dark:bg-amber-950/90 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-500/70'
+                        : 'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-500/70'
                     }`}
-                  />
-                  <span>{selectedSector.levelLabel}</span>
+                  >
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        selectedSector.level === 'high'
+                          ? 'bg-rose-500 animate-pulse'
+                          : selectedSector.level === 'moderate'
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                    />
+                    <span>
+                      {selectedSector.level === 'high'
+                        ? language === 'es'
+                          ? 'Categoría: Mayor (Precaución Alta)'
+                          : 'Category: High Risk'
+                        : selectedSector.level === 'moderate'
+                        ? language === 'es'
+                          ? 'Categoría: Intermedio (Moderado)'
+                          : 'Category: Moderate Risk'
+                        : language === 'es'
+                        ? 'Categoría: Bajo (Base / Seguro)'
+                        : 'Category: Low (Base)'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* Scrollable Information Body */}
-              <div className="flex-1 overflow-y-auto pr-1 space-y-3 min-h-0 tactical-scrollbar">
-                {/* Context Note with high legibility */}
-                <div className="bg-amber-50 dark:bg-slate-950/80 border border-amber-300 dark:border-amber-500/40 rounded-xl p-3 sm:p-3.5 shadow-xs">
-                  <div className="text-xs sm:text-sm font-bold text-amber-900 dark:text-amber-300 mb-1 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>Nota de contexto territorial:</span>
+              <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 min-h-0 tactical-scrollbar">
+                {/* 1. Recomendaciones de Tránsito y Movilidad (Primary Section) */}
+                <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-500/40 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold font-['Rajdhani'] uppercase tracking-wider text-emerald-950 dark:text-emerald-300">
+                      <Navigation className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>
+                        {language === 'es'
+                          ? 'Recomendaciones de Tránsito y Movilidad'
+                          : 'Transit & Mobility Recommendations'}
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+                      {language === 'es' ? 'RUTA PREVENTIVA' : 'SAFE TRANSIT'}
+                    </span>
                   </div>
-                  <p className="text-xs sm:text-[13px] font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
-                    {selectedSector.contextNote}
-                  </p>
-                </div>
 
-                {/* Historical Public Diagnosis with high legibility */}
-                <div>
-                  <span className="text-[11px] sm:text-xs font-bold font-mono uppercase tracking-wider text-theme-primary block mb-1">
-                    Diagnóstico de referencia pública:
-                  </span>
-                  <p className="text-xs sm:text-[13px] text-slate-800 dark:text-slate-100 font-medium bg-slate-50 dark:bg-slate-950/75 p-3 rounded-xl border border-slate-200 dark:border-white/15 leading-relaxed">
-                    {selectedSector.historicalDiagnosis}
-                  </p>
-                </div>
-
-                {/* Citizen Advice with high legibility */}
-                <div>
-                  <span className="text-[11px] sm:text-xs font-bold font-mono uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block mb-1">
-                    Pauta de cuidado para el ciudadano:
-                  </span>
-                  <p className="text-xs sm:text-[13px] text-slate-800 dark:text-slate-100 font-medium bg-emerald-50/50 dark:bg-slate-950/75 p-3 rounded-xl border border-emerald-300 dark:border-emerald-500/30 leading-relaxed">
+                  {/* Pauta principal de tránsito */}
+                  <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 leading-relaxed bg-white/90 dark:bg-slate-950/80 p-3 rounded-xl border border-emerald-200 dark:border-emerald-500/20">
                     {selectedSector.citizenAdvice}
                   </p>
+
+                  {/* Corredor vial recomendado */}
+                  {selectedSector.recommendedCorridor && (
+                    <div className="flex items-start gap-2 text-xs text-slate-800 dark:text-slate-200 pt-0.5">
+                      <Compass className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-emerald-950 dark:text-emerald-300">
+                          {language === 'es' ? 'Corredor vial sugerido: ' : 'Recommended corridor: '}
+                        </span>
+                        <span className="font-medium">{selectedSector.recommendedCorridor}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista detallada de recomendaciones de tránsito */}
+                  {selectedSector.transitRecommendations &&
+                    selectedSector.transitRecommendations.length > 0 && (
+                      <div className="pt-1 space-y-1.5">
+                        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300 block">
+                          {language === 'es'
+                            ? 'Pautas específicas al transitar por este sector:'
+                            : 'Specific guidelines when transiting this sector:'}
+                        </span>
+                        <ul className="space-y-1.5">
+                          {selectedSector.transitRecommendations.map((rec, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-start gap-2 text-xs text-slate-800 dark:text-slate-200 leading-relaxed"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                              <span>{rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                </div>
+
+                {/* 2. Datos Relevantes del Sector (Structured Grid) */}
+                <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-white/10 rounded-2xl p-3.5 sm:p-4 space-y-2.5">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                    <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                    <span>
+                      {language === 'es'
+                        ? 'Datos Relevantes del Sector'
+                        : 'Relevant Sector Data'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 block">
+                        {language === 'es' ? 'Clasificación Territorial' : 'Risk Classification'}
+                      </span>
+                      <span className="font-bold text-slate-900 dark:text-white mt-0.5 block">
+                        {selectedSector.levelLabel}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 block">
+                        {language === 'es' ? 'Cuadrante Asignado' : 'Assigned Quadrant'}
+                      </span>
+                      <span className="font-bold text-cyan-700 dark:text-cyan-300 mt-0.5 block">
+                        {selectedSector.quadrant} • Línea 123
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 block">
+                        {language === 'es' ? 'Horario de Precaución' : 'Precaution Schedule'}
+                      </span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                        {selectedSector.precautionSchedule ||
+                          (language === 'es'
+                            ? 'Atención preventiva nocturna'
+                            : 'Nighttime preventive attention')}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 block">
+                        {language === 'es' ? 'Acceso y Transporte' : 'Transport Access'}
+                      </span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                        {selectedSector.transportAccess || 'Sistema Integrado Comuna 8'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Contexto y Diagnóstico del Sector */}
+                <div className="bg-amber-50/80 dark:bg-slate-950/80 border border-amber-300 dark:border-amber-500/40 rounded-2xl p-3.5 shadow-xs space-y-2">
+                  <div className="text-xs sm:text-sm font-bold text-amber-950 dark:text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>{t('contextNoteLabel')}</span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
+                    {selectedSector.contextNote}
+                  </p>
+                  <div className="pt-2 border-t border-amber-200/80 dark:border-amber-500/20">
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-amber-900 dark:text-amber-400 block mb-0.5">
+                      {t('sectorCardHistoricalDiag')}
+                    </span>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {selectedSector.historicalDiagnosis}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* Coordinates and Centering Action */}
-              <div className="pt-3 border-t border-slate-200 dark:border-white/15 flex items-center justify-between gap-2 mt-2 shrink-0">
-                <span className="text-[11px] font-mono font-bold text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-slate-950/80 px-2 py-1 rounded-md border border-cyan-300 dark:border-cyan-500/30 truncate">
-                  GEO: {selectedSector.coordinates.lat.toFixed(3)}°, {selectedSector.coordinates.lng.toFixed(3)}°
+              {/* Footer: Coordinates and Focus Sector on Map Button */}
+              <div className="pt-3.5 border-t border-slate-200 dark:border-white/15 flex items-center justify-between gap-2 mt-3 shrink-0">
+                <span className="text-xs font-mono font-bold text-cyan-900 dark:text-cyan-300 bg-cyan-50 dark:bg-slate-950/80 px-2.5 py-1.5 rounded-lg border border-cyan-300 dark:border-cyan-500/30 truncate">
+                  GPS: {selectedSector.coordinates.lat.toFixed(4)}° N,{' '}
+                  {selectedSector.coordinates.lng.toFixed(4)}° W
                 </span>
                 <button
+                  type="button"
                   onClick={() => selectAndFocusSector(selectedSector)}
-                  className="px-3 py-1 bg-cyan-100 hover:bg-cyan-200 dark:bg-cyan-950 dark:hover:bg-cyan-900 text-cyan-900 dark:text-cyan-200 rounded-lg border border-cyan-400/50 transition-all font-bold text-xs flex items-center gap-1 shadow-xs active:scale-95 shrink-0 cursor-pointer"
+                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl transition-all font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 cursor-pointer"
                 >
-                  <Crosshair className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                  <span>Centrar</span>
+                  <Crosshair className="w-4 h-4" />
+                  <span>
+                    {language === 'es' ? 'Enfocar en el mapa' : 'Focus on map'}
+                  </span>
                 </button>
               </div>
             </div>
           ) : searchedLocation ? (
-            <div className="bg-white dark:bg-slate-900/95 border border-cyan-300 dark:border-cyan-500/40 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-sm relative overflow-hidden flex flex-col h-full">
-              {/* Tactical Cyan Glow Accent */}
-              <div className="absolute -top-12 -right-12 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
-
+            <div className="bg-white dark:bg-slate-900/95 border border-cyan-300 dark:border-cyan-500/40 rounded-2xl p-4 sm:p-6 backdrop-blur-md shadow-sm relative overflow-hidden flex flex-col h-full">
               {/* Header & Location Badge */}
               <div className="flex items-start justify-between gap-2 mb-3.5 shrink-0">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-mono font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider mb-0.5 truncate">
-                    Búsqueda // Medellín
+                  <div className="text-xs font-mono font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider mb-0.5 truncate">
+                    {t('searchedLocationTitle')}
                   </div>
-                  <h2 className="text-base sm:text-lg font-bold text-theme-primary flex items-center gap-1.5">
+                  <h2 className="text-lg sm:text-xl font-bold text-theme-primary flex items-center gap-1.5">
                     <MapPin className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
                     <span className="truncate">{searchedLocation.name}</span>
                   </h2>
                 </div>
 
-                <div className="px-2.5 py-1 rounded-full text-[11px] font-bold border whitespace-nowrap flex items-center gap-1.5 shrink-0 bg-slate-100 dark:bg-slate-800/90 text-cyan-800 dark:text-cyan-200 border-cyan-300 dark:border-cyan-500/40">
+                <div className="px-2.5 py-1 rounded-full text-xs font-bold border whitespace-nowrap flex items-center gap-1.5 shrink-0 bg-slate-100 dark:bg-slate-800/90 text-cyan-900 dark:text-cyan-200 border-cyan-300 dark:border-cyan-500/40">
                   <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                  <span>Sin datos de riesgo</span>
+                  <span>{t('noRiskDataBadge')}</span>
                 </div>
               </div>
 
-              {/* Scrollable Information Body with tactical scrollbar */}
+              {/* Scrollable Information Body */}
               <div className="flex-1 overflow-y-auto pr-1 space-y-3 min-h-0 tactical-scrollbar">
-                {/* Geocoded Address Card */}
-                <div className="bg-cyan-50/60 dark:bg-slate-950/80 border border-cyan-200 dark:border-cyan-500/40 rounded-xl p-3 sm:p-3.5 shadow-xs">
+                <div className="bg-cyan-50/60 dark:bg-slate-950/80 border border-cyan-200 dark:border-cyan-500/40 rounded-xl p-3.5 shadow-xs">
                   <div className="text-xs sm:text-sm font-bold text-cyan-900 dark:text-cyan-300 mb-1 flex items-center gap-1.5">
-                    <Info className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
-                    <span>Lugar geolocalizado:</span>
+                    <Info className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                    <span>{t('geolocatedPlaceLabel')}</span>
                   </div>
-                  <p className="text-xs sm:text-[13px] font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
+                  <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
                     {searchedLocation.address}
                   </p>
                 </div>
 
-                {/* Territorial boundary explanation */}
-                <div className="bg-slate-50 dark:bg-slate-950/75 p-3 sm:p-3.5 rounded-xl border border-slate-200 dark:border-white/15">
-                  <span className="text-[11px] sm:text-xs font-bold font-mono uppercase tracking-wider text-theme-primary block mb-1">
-                    Nota de cobertura comunitaria:
+                <div className="bg-slate-50 dark:bg-slate-950/75 p-3.5 rounded-xl border border-slate-200 dark:border-white/15">
+                  <span className="text-xs sm:text-sm font-bold font-mono uppercase tracking-wider text-theme-primary block mb-1">
+                    {t('territorialCoverageNotice')}
                   </span>
-                  <p className="text-xs sm:text-[13px] text-theme-secondary font-medium leading-relaxed">
-                    Esta ubicación corresponde a un sector de Medellín situado fuera del perímetro focalizado de la Comuna 8 (Villa Hermosa). El mapa muestra el marcador exacto de ubicación.
+                  <p className="text-xs sm:text-sm text-theme-secondary font-medium leading-relaxed">
+                    {t('territorialCoverageText')}
                   </p>
                 </div>
 
-                {/* General care advice */}
-                <div className="bg-emerald-50/50 dark:bg-slate-950/75 p-3 sm:p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-500/30">
-                  <span className="text-[11px] sm:text-xs font-bold font-mono uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block mb-1">
-                    Pauta de autocuidado urbano:
+                <div className="bg-emerald-50/60 dark:bg-slate-950/75 p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-500/30">
+                  <span className="text-xs sm:text-sm font-bold font-mono uppercase tracking-wider text-emerald-900 dark:text-emerald-300 block mb-1">
+                    {t('urbanSelfCareNotice')}
                   </span>
-                  <p className="text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
-                    Utiliza corredores iluminados y vías principales, mantente alerta al entorno y acude al sistema integrado 123 ante cualquier novedad de seguridad o convivencia.
+                  <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
+                    {t('urbanSelfCareText')}
                   </p>
                 </div>
               </div>
 
-              {/* Coordinates and Centering Action */}
               <div className="pt-3 border-t border-slate-200 dark:border-white/15 flex items-center justify-between gap-2 mt-2 shrink-0">
-                <span className="text-[11px] font-mono font-bold text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-slate-950/80 px-2 py-1 rounded-md border border-cyan-300 dark:border-cyan-500/30 truncate">
-                  GEO: {searchedLocation.coordinates.lat.toFixed(4)}°, {searchedLocation.coordinates.lng.toFixed(4)}°
+                <span className="text-xs font-mono font-bold text-cyan-900 dark:text-cyan-300 bg-cyan-50 dark:bg-slate-950/80 px-2 py-1 rounded-md border border-cyan-300 dark:border-cyan-500/30 truncate">
+                  GEO: {searchedLocation.coordinates.lat.toFixed(4)}°,{' '}
+                  {searchedLocation.coordinates.lng.toFixed(4)}°
                 </span>
                 <button
+                  type="button"
                   onClick={() => {
                     if (mapInstanceRef.current) {
                       mapInstanceRef.current.panTo(searchedLocation.coordinates);
                       mapInstanceRef.current.setZoom(16);
                     }
                   }}
-                  className="px-3 py-1 bg-cyan-100 hover:bg-cyan-200 dark:bg-cyan-950 dark:hover:bg-cyan-900 text-cyan-900 dark:text-cyan-200 rounded-lg border border-cyan-400/50 transition-all font-bold text-xs flex items-center gap-1 shadow-xs active:scale-95 shrink-0 cursor-pointer"
+                  className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-all font-bold text-xs sm:text-sm flex items-center gap-1 shadow-xs active:scale-95 shrink-0 cursor-pointer"
                 >
-                  <Crosshair className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                  <span>Centrar</span>
+                  <Crosshair className="w-4 h-4" />
+                  <span>{t('centerSectorBtn')}</span>
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-2xl p-6 text-center text-theme-muted h-full flex flex-col items-center justify-center shadow-xs">
-              <Crosshair className="w-10 h-10 text-cyan-500 dark:text-cyan-400/70 mx-auto mb-3" />
-              <p className="text-sm font-bold text-theme-primary">Selecciona un sector o busca un lugar</p>
-              <p className="text-xs text-theme-muted mt-1 font-medium">Usa el buscador de lugares de Medellín o haz clic en el mapa para inspeccionar</p>
-            </div>
-          )}
-        </div>
-
-        {/* Column 3: Explorador de Sectores (20% / 2 of 10 cols on XL) - Comuna 8 (18 Sectores) */}
-        <div className="lg:col-span-1 xl:col-span-2 flex flex-col h-auto xl:h-[76vh] xl:min-h-[640px] xl:max-h-[860px]">
-          <div className="bg-white dark:bg-slate-900/95 border border-slate-200 dark:border-white/15 rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-sm flex flex-col h-full overflow-hidden">
-            {/* Header & Sector Count */}
-            <div className="flex items-center justify-between gap-2 mb-2.5 shrink-0">
-              <h3 className="text-sm sm:text-base font-bold text-theme-primary flex items-center gap-2">
-                <Search className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-                <span>Explorador de Sectores</span>
-              </h3>
-              <span className="text-[10px] font-mono font-bold text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-slate-800/90 px-2 py-0.5 rounded-md border border-cyan-300 dark:border-cyan-500/30 shrink-0">
-                {filteredSectors.length} / {COMUNA_8_SECTORS.length}
-              </span>
-            </div>
-
-            {/* Search Input with Clear Action */}
-            <div className="relative mb-2 shrink-0">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Buscar barrio de Comuna 8..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950/90 border border-slate-300 dark:border-white/15 rounded-xl pl-8 pr-7 py-1.5 text-xs text-theme-primary placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1"
-                  title="Limpiar búsqueda"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Quick Filter Buttons (Level filter) */}
-            <div className="flex items-center gap-1 mb-2.5 pb-1 text-[11px] shrink-0 border-b border-slate-200 dark:border-white/10 overflow-x-auto tactical-scrollbar">
-              <button
-                onClick={() => setFilterLevel('all')}
-                className={`px-2 py-0.5 rounded-lg whitespace-nowrap transition-colors font-semibold ${
-                  filterLevel === 'all'
-                    ? 'bg-slate-800 text-white dark:bg-slate-700 shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setFilterLevel('high')}
-                className={`px-1.5 py-0.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1 font-semibold ${
-                  filterLevel === 'high'
-                    ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-500/60 shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800/70 text-rose-700 dark:text-rose-300 hover:text-rose-900 dark:hover:text-white'
-                }`}
-                title="Mayor precaución"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                <span>Mayor</span>
-              </button>
-              <button
-                onClick={() => setFilterLevel('moderate')}
-                className={`px-1.5 py-0.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1 font-semibold ${
-                  filterLevel === 'moderate'
-                    ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/60 shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800/70 text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-white'
-                }`}
-                title="Intermedia"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                <span>Inter.</span>
-              </button>
-              <button
-                onClick={() => setFilterLevel('central')}
-                className={`px-1.5 py-0.5 rounded-lg whitespace-nowrap transition-colors flex items-center gap-1 font-semibold ${
-                  filterLevel === 'central'
-                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-500/60 shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800/70 text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white'
-                }`}
-                title="Menos crítica / Base"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Base</span>
-              </button>
-            </div>
-
-            {/* Scrollable Sector Cards List for Comuna 8 */}
-            <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1.5 tactical-scrollbar">
-              {filteredSectors.map((sector) => {
-                const isSelected = selectedSector?.id === sector.id;
-                const dotColor =
-                  sector.level === 'high'
-                    ? 'bg-rose-500'
-                    : sector.level === 'moderate'
-                    ? 'bg-amber-500'
-                    : 'bg-emerald-500';
-
-                return (
-                  <button
-                    key={sector.id}
-                    onClick={() => selectAndFocusSector(sector)}
-                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                      isSelected
-                        ? 'bg-amber-50 dark:bg-slate-800 border-amber-400 text-slate-950 dark:text-white shadow-xs ring-1 ring-amber-400/40'
-                        : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200/80 dark:border-white/5 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`} />
-                      <div className="min-w-0 truncate">
-                        <div className="text-xs font-bold truncate text-slate-900 dark:text-white">
-                          {sector.name}
-                        </div>
-                        <div className="text-[10px] text-slate-600 dark:text-slate-400 font-mono truncate font-medium">
-                          {sector.quadrant} • {sector.levelLabel}
-                        </div>
-                      </div>
-                    </div>
-
-                    <ChevronRight
-                      className={`w-3.5 h-3.5 shrink-0 transition-transform ${
-                        isSelected ? 'text-amber-600 dark:text-amber-400 translate-x-0.5' : 'text-slate-400'
-                      }`}
-                    />
-                  </button>
-                );
-              })}
-
-              {filteredSectors.length === 0 && (
-                <div className="py-8 text-center text-theme-muted">
-                  <p className="text-xs font-semibold">No se encontraron sectores en la Comuna 8.</p>
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setFilterLevel('all');
-                    }}
-                    className="mt-1 text-[11px] font-bold text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
-                  >
-                    Restablecer filtros
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </div>

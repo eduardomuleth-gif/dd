@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
 import {
   User as UserIcon,
@@ -44,6 +44,7 @@ import {
   executeSendEmailVerification,
   executeSignOut,
 } from '../services/firebaseAuth';
+import { ModalPortal } from './ModalPortal';
 
 // Established sectors of Comuna 8 (Villa Hermosa)
 export const COMUNA_8_SECTORS_LIST = [
@@ -121,6 +122,29 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [deleteConfirmationText, setDeleteConfirmationText] = useState<string>('');
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
   const [deleteErrorMsg, setDeleteErrorMsg] = useState<string | null>(null);
+
+  const profileAlertRef = useRef<HTMLDivElement | null>(null);
+  const securityAlertRef = useRef<HTMLDivElement | null>(null);
+  const deleteAlertRef = useRef<HTMLDivElement | null>(null);
+
+  // PROMPT 3: Auto-scroll to feedback messages when they appear
+  useEffect(() => {
+    if ((profileSuccessMsg || profileErrorMsg) && profileAlertRef.current) {
+      profileAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [profileSuccessMsg, profileErrorMsg]);
+
+  useEffect(() => {
+    if ((resetSuccessMsg || verificationSuccessMsg) && securityAlertRef.current) {
+      securityAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [resetSuccessMsg, verificationSuccessMsg]);
+
+  useEffect(() => {
+    if (deleteErrorMsg && deleteAlertRef.current) {
+      deleteAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [deleteErrorMsg]);
 
   // Fetch initial Firestore profile
   useEffect(() => {
@@ -417,7 +441,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   COMUNA 8
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
                 {language === 'es' ? 'Ajustes del Sistema' : 'System Settings'}
               </h1>
             </div>
@@ -490,24 +514,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </div>
 
-        {/* Global Feedback Banner */}
-        {profileSuccessMsg && (
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-semibold flex items-center gap-3 animate-in fade-in duration-200">
-            <CheckCircle2 className="w-5 h-5 shrink-0" />
-            <span>{profileSuccessMsg}</span>
-          </div>
-        )}
-        {profileErrorMsg && (
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm font-semibold flex items-center gap-3 animate-in fade-in duration-200">
-            <AlertTriangle className="w-5 h-5 shrink-0" />
-            <span>{profileErrorMsg}</span>
-          </div>
-        )}
-
         {/* =========================================================================
             SECCIÓN 1: PERFIL DEL USUARIO
         ========================================================================= */}
-        <section id="perfil" className="scroll-mt-20">
+        <section id="perfil" className="scroll-mt-32 lg:scroll-mt-40">
           <div className={`rounded-3xl border p-5 sm:p-7 md:p-8 backdrop-blur-md shadow-lg transition-all ${
             isDark
               ? 'bg-slate-900/80 border-slate-800 shadow-slate-950/40'
@@ -784,6 +794,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   )}
                 </button>
               </div>
+
+              {/* PROMPT 3: Profile feedback alerts positioned directly below the submit action */}
+              {(profileSuccessMsg || profileErrorMsg) && (
+                <div ref={profileAlertRef} className="pt-3">
+                  {profileSuccessMsg && (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-semibold flex items-center gap-3 animate-in fade-in duration-200 shadow-sm">
+                      <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500" />
+                      <span>{profileSuccessMsg}</span>
+                    </div>
+                  )}
+                  {profileErrorMsg && (
+                    <div className="p-4 rounded-2xl bg-rose-500/10 border-2 border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm font-semibold flex items-center gap-3 animate-in fade-in duration-200 shadow-sm">
+                      <AlertTriangle className="w-5 h-5 shrink-0 text-rose-500" />
+                      <span>{profileErrorMsg}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </form>
           </div>
         </section>
@@ -791,7 +819,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* =========================================================================
             SECCIÓN 2: PREFERENCIAS DE LA APP
         ========================================================================= */}
-        <section id="preferencias" className="scroll-mt-20">
+        <section id="preferencias" className="scroll-mt-32 lg:scroll-mt-40">
           <div className={`rounded-3xl border p-5 sm:p-7 md:p-8 backdrop-blur-md shadow-lg transition-all ${
             isDark
               ? 'bg-slate-900/80 border-slate-800 shadow-slate-950/40'
@@ -1043,7 +1071,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* =========================================================================
             SECCIÓN 3: SEGURIDAD
         ========================================================================= */}
-        <section id="seguridad" className="scroll-mt-20">
+        <section id="seguridad" className="scroll-mt-32 lg:scroll-mt-40">
           <div className={`rounded-3xl border p-5 sm:p-7 md:p-8 backdrop-blur-md shadow-lg transition-all ${
             isDark
               ? 'bg-slate-900/80 border-slate-800 shadow-slate-950/40'
@@ -1062,20 +1090,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </h2>
               </div>
             </div>
-
-            {/* Feedback messages */}
-            {resetSuccessMsg && (
-              <div className="mb-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-semibold flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 shrink-0" />
-                <span>{resetSuccessMsg}</span>
-              </div>
-            )}
-            {verificationSuccessMsg && (
-              <div className="mb-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-semibold flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 shrink-0" />
-                <span>{verificationSuccessMsg}</span>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
               {/* Account Metadata Card */}
@@ -1119,6 +1133,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <span>{isSendingVerification ? 'Enviando...' : 'Reenviar Correo de Verificación'}</span>
                   </button>
                 )}
+
+                {/* PROMPT 3: Verification alert positioned directly below the action */}
+                {verificationSuccessMsg && (
+                  <div ref={securityAlertRef} className="mt-2 p-3 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-150">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                    <span>{verificationSuccessMsg}</span>
+                  </div>
+                )}
               </div>
 
               {/* Password & Session Card */}
@@ -1149,6 +1171,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <span>{language === 'es' ? 'Cambiar Contraseña (Reset por Correo)' : 'Change Password (Reset Email)'}</span>
                   </button>
 
+                  {/* PROMPT 3: Reset password alert positioned directly below the action */}
+                  {resetSuccessMsg && (
+                    <div ref={securityAlertRef} className="p-3 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-150">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                      <span>{resetSuccessMsg}</span>
+                    </div>
+                  )}
+
                   <button
                     type="button"
                     onClick={onSignOut}
@@ -1166,7 +1196,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* =========================================================================
             SECCIÓN 4: PRIVACIDAD
         ========================================================================= */}
-        <section id="privacidad" className="scroll-mt-20">
+        <section id="privacidad" className="scroll-mt-32 lg:scroll-mt-40">
           <div className={`rounded-3xl border p-5 sm:p-7 md:p-8 backdrop-blur-md shadow-lg transition-all ${
             isDark
               ? 'bg-slate-900/80 border-slate-800 shadow-slate-950/40'
@@ -1253,7 +1283,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* =========================================================================
             SECCIÓN 5: ACERCA DE
         ========================================================================= */}
-        <section id="acerca-de" className="scroll-mt-20">
+        <section id="acerca-de" className="scroll-mt-32 lg:scroll-mt-40">
           <div className={`rounded-3xl border p-5 sm:p-7 md:p-8 backdrop-blur-md shadow-lg transition-all ${
             isDark
               ? 'bg-slate-900/80 border-slate-800 shadow-slate-950/40'
@@ -1335,7 +1365,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {/* =========================================================================
             SECCIÓN 6: ZONA DE PELIGRO
         ========================================================================= */}
-        <section id="zona-peligro" className="scroll-mt-20">
+        <section id="zona-peligro" className="scroll-mt-32 lg:scroll-mt-40">
           <div className="rounded-3xl border border-rose-300 dark:border-rose-900/60 p-5 sm:p-7 md:p-8 backdrop-blur-md bg-rose-50/50 dark:bg-rose-950/20 shadow-lg shadow-rose-950/10">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-rose-200 dark:border-rose-900/60">
               <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-md shadow-rose-900/30">
@@ -1380,99 +1410,112 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </section>
 
         {/* Modal: Doble Confirmación para Eliminar Cuenta */}
-        {isDeleteModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className={`w-full max-w-md rounded-3xl border p-6 sm:p-7 shadow-2xl relative space-y-5 ${
-              isDark ? 'bg-slate-900 border-rose-900/80 text-slate-100' : 'bg-white border-rose-300 text-slate-900'
-            }`}>
-              <button
-                type="button"
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-lg shadow-rose-900/40">
-                  <Trash2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-rose-500 uppercase tracking-widest">
-                    CONFIRMACIÓN DOBLE // IRREVERSIBLE
-                  </span>
-                  <h3 className="text-lg font-black font-['Rajdhani'] uppercase tracking-wide">
-                    {language === 'es' ? '¿Eliminar tu cuenta?' : 'Delete your account?'}
-                  </h3>
-                </div>
+        <ModalPortal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          disableClose={isDeletingAccount}
+          maxWidthClass="max-w-md"
+          cardClassName={
+            isDark ? 'bg-slate-900 border-rose-900/80 text-slate-100' : 'bg-white border-rose-300 text-slate-900'
+          }
+        >
+          {/* Fixed Header */}
+          <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-lg shadow-rose-900/40 shrink-0">
+                <Trash2 className="w-5 h-5" />
               </div>
-
-              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-700 dark:text-rose-300 space-y-1">
-                <p className="font-bold">
-                  {language === 'es'
-                    ? '⚠️ Advertencia de eliminación irreversible:'
-                    : '⚠️ Irreversible deletion warning:'}
-                </p>
-                <p>
-                  {language === 'es'
-                    ? 'Se borrarán tus credenciales de Firebase Auth y tu expediente en Firestore (/usuarios/' + (currentUser?.uid || '') + ').'
-                    : 'Your Firebase Auth credentials and Firestore record will be permanently deleted.'}
-                </p>
-              </div>
-
-              {deleteErrorMsg && (
-                <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-xs font-semibold text-rose-600 dark:text-rose-400">
-                  {deleteErrorMsg}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                  {language === 'es'
-                    ? 'Para confirmar, escribe "ELIMINAR" abajo:'
-                    : 'To confirm, type "ELIMINAR" below:'}
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmationText}
-                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
-                  placeholder="ELIMINAR"
-                  className="w-full px-4 py-2.5 rounded-xl border text-sm font-mono tracking-widest text-center uppercase focus:outline-hidden focus:ring-2 focus:ring-rose-500/40 border-rose-400 dark:border-rose-800 bg-slate-50 dark:bg-slate-950"
-                  autoFocus
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsDeleteModalOpen(false)}
-                  disabled={isDeletingAccount}
-                  className="py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold font-mono uppercase transition-colors"
-                >
-                  {language === 'es' ? 'Cancelar' : 'Cancel'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDeleteAccount}
-                  disabled={isDeletingAccount || deleteConfirmationText.trim().toUpperCase() !== 'ELIMINAR'}
-                  className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold font-mono uppercase transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {isDeletingAccount ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>{language === 'es' ? 'Borrando...' : 'Deleting...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      <span>{language === 'es' ? 'Confirmar' : 'Confirm'}</span>
-                    </>
-                  )}
-                </button>
+              <div className="min-w-0">
+                <span className="text-[10px] font-mono font-bold text-rose-500 uppercase tracking-widest block">
+                  CONFIRMACIÓN DOBLE // IRREVERSIBLE
+                </span>
+                <h3 className="text-base sm:text-lg font-black font-['Rajdhani'] uppercase tracking-wide truncate">
+                  {language === 'es' ? '¿Eliminar tu cuenta?' : 'Delete your account?'}
+                </h3>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeletingAccount}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        )}
+
+          {/* Scrollable Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-700 dark:text-rose-300 space-y-1">
+              <p className="font-bold">
+                {language === 'es'
+                  ? '⚠️ Advertencia de eliminación irreversible:'
+                  : '⚠️ Irreversible deletion warning:'}
+              </p>
+              <p>
+                {language === 'es'
+                  ? 'Se borrarán tus credenciales de Firebase Auth y tu expediente en Firestore (/usuarios/' + (currentUser?.uid || '') + ').'
+                  : 'Your Firebase Auth credentials and Firestore record will be permanently deleted.'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                {language === 'es'
+                  ? 'Para confirmar, escribe "ELIMINAR" abajo:'
+                  : 'To confirm, type "ELIMINAR" below:'}
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder="ELIMINAR"
+                className="w-full px-4 py-2.5 rounded-xl border text-sm font-mono tracking-widest text-center uppercase focus:outline-hidden focus:ring-2 focus:ring-rose-500/40 border-rose-400 dark:border-rose-800 bg-slate-50 dark:bg-slate-950"
+                autoFocus
+              />
+            </div>
+
+            {deleteErrorMsg && (
+              <div
+                ref={deleteAlertRef}
+                className="p-3 rounded-xl bg-rose-500/20 border-2 border-rose-500/40 text-xs sm:text-sm font-semibold text-rose-600 dark:text-rose-400 animate-in fade-in duration-150"
+              >
+                {deleteErrorMsg}
+              </div>
+            )}
+          </div>
+
+          {/* Fixed Footer */}
+          <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeletingAccount}
+              className="py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold font-mono uppercase transition-colors cursor-pointer"
+            >
+              {language === 'es' ? 'Cancelar' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDeleteAccount}
+              disabled={isDeletingAccount || deleteConfirmationText.trim().toUpperCase() !== 'ELIMINAR'}
+              className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold font-mono uppercase transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isDeletingAccount ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>{language === 'es' ? 'Borrando...' : 'Deleting...'}</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>{language === 'es' ? 'Confirmar' : 'Confirm'}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </ModalPortal>
 
       </div>
     </div>

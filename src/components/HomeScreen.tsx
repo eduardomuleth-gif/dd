@@ -20,6 +20,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { TacticalMapModal } from './TacticalMapModal';
 import { NavTabId } from './ModulePlaceholderView';
+import { SecurityUrbanLogo } from './SecurityUrbanLogo';
 
 interface HomeScreenProps {
   onNavigate: (tab: NavTabId) => void;
@@ -180,7 +181,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <div className="w-full h-px bg-red-500" />
                   <div className="h-full w-px bg-red-500 absolute" />
                 </div>
-                <Shield className="w-9 h-9 sm:w-11 sm:h-11 text-white stroke-[2.2] drop-shadow-[0_0_12px_rgba(255,255,255,0.7)]" />
+                <SecurityUrbanLogo className="w-10 h-10 sm:w-12 sm:h-12 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.7)]" />
               </div>
             </div>
 
@@ -252,10 +253,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* 3. Section Title for Quick Access Cards */}
       <div className="w-full mb-4 px-1 sm:px-2 flex items-center justify-between">
         <div>
-          <h2 className={`text-lg sm:text-xl font-bold tracking-tight ${colors.cardTitle}`}>
+          <h2 className={`text-xl sm:text-2xl font-bold tracking-tight ${colors.cardTitle}`}>
             {t('quickAccessTitle')}
           </h2>
-          <p className={`text-xs sm:text-sm ${colors.cardSubtitle}`}>
+          <p className={`text-sm sm:text-base ${colors.cardSubtitle}`}>
             {t('quickAccessSubtitle')}
           </p>
         </div>
@@ -263,9 +264,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <button
           type="button"
           onClick={() => handleOpenMap('all')}
-          className="text-xs sm:text-sm font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 transition cursor-pointer"
+          className="text-sm sm:text-base font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 transition cursor-pointer"
         >
-          <span>{language === 'es' ? 'Ver todo el mapa' : 'View full map'}</span>
+          <span>{t('viewFullMap')}</span>
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
@@ -278,7 +279,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           tabIndex={0}
           onClick={() => onNavigate('riskMap')}
           onKeyDown={(e) => e.key === 'Enter' && onNavigate('riskMap')}
-          className={`group rounded-2xl p-5 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
             isDark
               ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
               : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
@@ -292,18 +293,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <ShieldAlert className="w-6 h-6 stroke-[2]" />
           </div>
 
-          <h3 className={`text-base sm:text-lg font-bold mb-1.5 flex items-center justify-between ${colors.cardTitle}`}>
+          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
             <span>{t('cardPreventionTitle')}</span>
             <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
           </h3>
 
-          <p className={`text-xs sm:text-sm leading-relaxed ${colors.cardSubtitle}`}>
+          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
             {t('cardPreventionDesc')}
           </p>
 
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono text-red-600 dark:text-red-400 font-bold">
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-red-600 dark:text-red-400 font-bold">
             <span>MOD-01 // PREVENCIÓN</span>
-            <span>VER SECTOR →</span>
+            <span>{t('viewSectorArrow')}</span>
           </div>
         </div>
 
@@ -313,7 +314,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           tabIndex={0}
           onClick={() => onNavigate('alerts')}
           onKeyDown={(e) => e.key === 'Enter' && onNavigate('alerts')}
-          className={`group rounded-2xl p-5 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
             isDark
               ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
               : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
@@ -327,18 +328,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <Bell className="w-6 h-6 stroke-[2]" />
           </div>
 
-          <h3 className={`text-base sm:text-lg font-bold mb-1.5 flex items-center justify-between ${colors.cardTitle}`}>
+          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
             <span>{t('cardAlertsTitle')}</span>
             <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
           </h3>
 
-          <p className={`text-xs sm:text-sm leading-relaxed ${colors.cardSubtitle}`}>
+          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
             {t('cardAlertsDesc')}
           </p>
 
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono text-amber-500 font-bold">
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-amber-500 font-bold">
             <span>MOD-02 // ALERTAS</span>
-            <span>VER REPORTES →</span>
+            <span>{t('viewReportsArrow')}</span>
           </div>
         </div>
 
@@ -348,7 +349,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           tabIndex={0}
           onClick={() => onNavigate('safeRoutes')}
           onKeyDown={(e) => e.key === 'Enter' && onNavigate('safeRoutes')}
-          className={`group rounded-2xl p-5 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
             isDark
               ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
               : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
@@ -362,18 +363,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <Route className="w-6 h-6 stroke-[2]" />
           </div>
 
-          <h3 className={`text-base sm:text-lg font-bold mb-1.5 flex items-center justify-between ${colors.cardTitle}`}>
+          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
             <span>{t('cardRoutesTitle')}</span>
             <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
           </h3>
 
-          <p className={`text-xs sm:text-sm leading-relaxed ${colors.cardSubtitle}`}>
+          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
             {t('cardRoutesDesc')}
           </p>
 
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono text-emerald-500 font-bold">
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-emerald-500 font-bold">
             <span>MOD-03 // CORREDORES</span>
-            <span>TRAZAR RUTA →</span>
+            <span>{t('planRouteArrow')}</span>
           </div>
         </div>
 
@@ -383,7 +384,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           tabIndex={0}
           onClick={() => onNavigate('tacticalSupport')}
           onKeyDown={(e) => e.key === 'Enter' && onNavigate('tacticalSupport')}
-          className={`group rounded-2xl p-5 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
             isDark
               ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
               : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
@@ -397,18 +398,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <Users className="w-6 h-6 stroke-[2]" />
           </div>
 
-          <h3 className={`text-base sm:text-lg font-bold mb-1.5 flex items-center justify-between ${colors.cardTitle}`}>
+          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
             <span>{t('cardCommunityTitle')}</span>
             <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
           </h3>
 
-          <p className={`text-xs sm:text-sm leading-relaxed ${colors.cardSubtitle}`}>
+          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
             {t('cardCommunityDesc')}
           </p>
 
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-mono text-rose-500 font-bold">
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-rose-500 font-bold">
             <span>MOD-04 // RED VECINAL</span>
-            <span>CONTACTOS →</span>
+            <span>{t('requestSupportArrow')}</span>
           </div>
         </div>
       </div>

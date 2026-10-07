@@ -22,6 +22,10 @@ export interface FirestoreUser {
   sector: string;
   ultimoAcceso?: string;
   telefono?: string;
+  correoVerificado?: boolean;
+  codigoVerificacion?: string | null;
+  codigoExpiracion?: string | null;
+  intentosCodigo?: number;
   preferencias?: UserPreferences;
 }
 

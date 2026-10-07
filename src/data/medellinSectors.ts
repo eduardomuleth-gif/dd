@@ -14,6 +14,10 @@ export interface SectorRiskData {
   citizenAdvice: string;
   quadrant: string;
   verifiedReferenceYear: string;
+  recommendedCorridor?: string;
+  precautionSchedule?: string;
+  transportAccess?: string;
+  transitRecommendations?: string[];
 }
 
 export interface ComunaInfo {
@@ -63,6 +67,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Transitar preferentemente por Calle 56 y Calle 57 (corredor Tranvía) y evitar callejones oscuros después de las 20:00.',
     quadrant: 'Cuadrante 8-2',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Calle 56 (Zea), Calle 57 y eje del Tranvía de Ayacucho',
+    precautionSchedule: 'Reforzar precaución entre 20:00 y 05:30 h',
+    transportAccess: 'Tranvía de Ayacucho (Parada Bicentenario / Buenos Aires)',
+    transitRecommendations: [
+      'Circular por vías principales iluminadas conectadas al corredor del Tranvía.',
+      'Evitar atajos por pasajes internos o escalinatas sin iluminación en horario nocturno.',
+      'En desplazamientos vehiculares, mantener puertas aseguradas y usar la Carrera 39 o Calle 56.',
+    ],
   },
   {
     id: 'c8-san-miguel',
@@ -78,6 +90,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Mantenerse sobre los ejes viales principales e informar novedades al cuadrante comunitario.',
     quadrant: 'Cuadrante 8-2',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Carrera 40 y conexión hacia Calle 62 (Villa Hermosa)',
+    precautionSchedule: 'Mayor atención a partir de las 19:30 h',
+    transportAccess: 'Rutas integradas Cootranscol y alimentadores hacia Centro',
+    transitRecommendations: [
+      'Priorizar los corredores vehiculares de la Carrera 40 sobre las gradas peatonales internas.',
+      'No exhibir dispositivos móviles ni objetos de valor en cruces de baja visibilidad.',
+      'Coordinar acompañamiento vecinal si requiere desplazarse a pie en la noche.',
+    ],
   },
   {
     id: 'c8-villatina',
@@ -93,6 +113,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Utilizar el transporte formal colectivo y evitar transitar solo por zonas altas no iluminadas en horarios nocturnos.',
     quadrant: 'Cuadrante 8-3',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Calle 52 y vía principal de acceso al parque de Villatina',
+    precautionSchedule: 'Restringir tránsito peatonal aislado después de las 20:00 h',
+    transportAccess: 'Rutas de buses urbanos Villatina y conexión Metrocable Línea H',
+    transitRecommendations: [
+      'Abordar únicamente transporte público formal en los paraderos principales del barrio.',
+      'Evitar ascensos por senderos de ladera no pavimentados durante lluvias o de noche.',
+      'Mantener ubicación compartida activa al desplazarse hacia sectores perimetrales.',
+    ],
   },
   {
     id: 'c8-el-pinal',
@@ -108,6 +136,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Priorizar movilidad diurna y coordinar con líderes comunitarios en traslados de mudanzas o entregas comerciales.',
     quadrant: 'Cuadrante 8-4',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Carrera 28 y conexión directa hacia Enciso / Villa Hermosa',
+    precautionSchedule: 'Preferir movilidad diurna (06:00 a 18:30 h)',
+    transportAccess: 'Buses alimentadores cuenca oriental y transporte colectivo barrial',
+    transitRecommendations: [
+      'Realizar entregas, mudanzas o visitas técnicas exclusivamente en horario diurno.',
+      'En motocicleta o vehículo, conducir a baja velocidad por pendientes pronunciadas.',
+      'Evitar tomar trochas o caminos rurales hacia la parte alta sin guía local.',
+    ],
   },
   {
     id: 'c8-villa-liliam',
@@ -123,6 +159,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Acudir a los canales institucionales (SISC / Personería) ante cualquier presión indebida o cobro extorsivo.',
     quadrant: 'Cuadrante 8-4',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Vía principal de enlace Villa Liliam — Las Estancias (Calle 51)',
+    precautionSchedule: 'Precaución continua a partir de las 19:00 h',
+    transportAccess: 'Estación Las Torres (Metrocable Línea H) y rutas barriales',
+    transitRecommendations: [
+      'Utilizar el sistema Metrocable Línea H (Estación Las Torres) para ingresos y salidas seguras.',
+      'Permanecer en el corredor comercial e iluminado al esperar transporte.',
+      'Reportar de inmediato al 123 cualquier bloqueo o restricción de paso peatonal.',
+    ],
   },
   {
     id: 'c8-llanaditas',
@@ -138,6 +182,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Preferir las rutas de alimentadores del Metro y evitar atajos por trochas perimetrales sin alumbrado.',
     quadrant: 'Cuadrante 8-1',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Calle 66B y corredor de acceso a la estación Trece de Noviembre / Llanaditas',
+    precautionSchedule: 'Mayor precaución en horario nocturno (19:30 a 05:30 h)',
+    transportAccess: 'Rutas integradas Metro y buses de Villa Hermosa — Llanaditas',
+    transitRecommendations: [
+      'Transitar por la vía principal pavimentada y evitar escalinatas secundarias solitarias.',
+      'Usar las rutas de buses alimentadores en lugar de caminar por tramos empinados de noche.',
+      'Verificar el estado de la vía en días de lluvia intensa por riesgo de deslizamiento menor.',
+    ],
   },
   {
     id: 'c8-la-ladera',
@@ -153,6 +205,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Hacer uso de los senderos principales señalizados y permanecer en áreas con iluminación pública activa.',
     quadrant: 'Cuadrante 8-1',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Entorno del Parque Biblioteca León de Greiff y Calle 59A',
+    precautionSchedule: 'Precaución en pasajes internos después de las 20:30 h',
+    transportAccess: 'Corredor vehicular Calle 59A y rutas hacia Villa Hermosa',
+    transitRecommendations: [
+      'Circular por el anillo vial que bordea el Parque Biblioteca y la unidad deportiva.',
+      'Evitar internarse en callejones sin salida si no conoce el sector residencial.',
+      'Aprovechar los corredores con cámaras de vigilancia comunitaria y alumbrado LED.',
+    ],
   },
   {
     id: 'c8-villa-turbay',
@@ -168,6 +228,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Evitar circular a altas horas de la noche sin compañía y mantener contacto con el cuadrante 8-5.',
     quadrant: 'Cuadrante 8-5',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Vía central Villa Turbay — La Sierra (conexión Estación Villa Sierra)',
+    precautionSchedule: 'Alta precaución nocturna (después de las 19:00 h)',
+    transportAccess: 'Metrocable Línea H (Estación Villa Sierra) y buses integrados',
+    transitRecommendations: [
+      'Conectar directamente con la estación Villa Sierra del Metrocable para traslados seguros.',
+      'No transitar por zonas boscosas o linderos perimetrales hacia el borde oriental.',
+      'En caso de emergencia, acudir al nodo policial cercano a la estación del cable aéreo.',
+    ],
   },
   {
     id: 'c8-la-sierra',
@@ -183,6 +251,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Utilizar el sistema integrado de transporte (Estación Villa Sierra) para movilizarse de forma segura y rápida.',
     quadrant: 'Cuadrante 8-5',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Eje Metrocable Línea H (Estación Oriente — Estación Villa Sierra)',
+    precautionSchedule: 'Priorizar movilidad entre 05:30 y 20:00 h',
+    transportAccess: 'Metrocable Línea H (Estación Villa Sierra) y terminal de buses',
+    transitRecommendations: [
+      'Preferir el Metrocable Línea H como medio principal de ingreso y salida del sector.',
+      'Permanecer en las plazoletas y escalinatas principales adyacentes a la estación.',
+      'Evitar desplazamientos hacia senderos periféricos de alta pendiente en la noche.',
+    ],
   },
   {
     id: 'c8-trece-noviembre',
@@ -198,6 +274,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Comerciantes y residentes deben utilizar las redes de apoyo ciudadano y reportar inmediatamente cualquier anomalía.',
     quadrant: 'Cuadrante 8-4',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Eje Metrocable Línea M (Estación Trece de Noviembre) y vía comercial central',
+    precautionSchedule: 'Reforzar atención después de las 20:00 h',
+    transportAccess: 'Metrocable Línea M (Estación Trece de Noviembre) y rutas de buses',
+    transitRecommendations: [
+      'Transitar por el bulevar peatonal y comercial conectado a la estación del Metrocable Línea M.',
+      'Evitar portar altas sumas de efectivo y utilizar comercios sobre la vía principal.',
+      'Atender las indicaciones del personal de seguridad cívica en los alrededores de la estación.',
+    ],
   },
   {
     id: 'c8-la-libertad',
@@ -213,6 +297,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Mantenerse sobre el corredor principal de transporte público y evitar paradas en zonas desoladas.',
     quadrant: 'Cuadrante 8-5',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Vía conectora hacia Estación El Pinal / Trece de Noviembre',
+    precautionSchedule: 'Evitar tránsito nocturno por zonas no iluminadas (19:00 a 05:30 h)',
+    transportAccess: 'Metrocable Línea M y rutas alimentadoras de ladera',
+    transitRecommendations: [
+      'No detener vehículos en tramos solitarios ni desviar la ruta hacia bordes rurales.',
+      'Caminar en grupo o usar transporte integrado si se moviliza al caer la tarde.',
+      'Verificar previamente la ruta en el módulo de Rutas Seguras antes de ascender.',
+    ],
   },
   {
     id: 'c8-la-mansion',
@@ -228,6 +320,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Estar atento al entorno al esperar el transporte público y no descuidar objetos personales de valor.',
     quadrant: 'Cuadrante 8-2',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Carrera 42, Carrera 40 y Calle 64 hacia Villa Hermosa',
+    precautionSchedule: 'Atención en horas pico (06:00-08:00 y 18:00-20:30 h)',
+    transportAccess: 'Buses urbanos por Carrera 40 y cercanía a corredor Hospital / Prado',
+    transitRecommendations: [
+      'Mantener precaución con bolsos y teléfonos móviles en paraderos de alta congestión.',
+      'Preferir las aceras de mayor flujo comercial entre La Mansión y Villa Hermosa.',
+      'Evitar cruzar por calles secundarias oscuras en el límite con Prado Centro de noche.',
+    ],
   },
   {
     id: 'c8-las-estancias',
@@ -243,6 +343,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Acompañamiento vecinal en recorridos nocturnos y reporte de luminarias averiadas a través del módulo de alertas.',
     quadrant: 'Cuadrante 8-5',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Corredor Estación Las Torres (Metrocable Línea H) y vía principal Las Estancias',
+    precautionSchedule: 'Mayor precaución a partir de las 19:30 h',
+    transportAccess: 'Metrocable Línea H (Estación Las Torres) y buses urbanos',
+    transitRecommendations: [
+      'Utilizar los senderos peatonales renovados alrededor de la Estación Las Torres.',
+      'Evitar el tránsito en solitario por callejones estrechos después del anochecer.',
+      'Reportar fallas de alumbrado público en la plataforma para priorizar mantenimiento.',
+    ],
   },
   {
     id: 'c8-villa-guadalupe',
@@ -258,6 +366,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Transitar con normalidad en horarios diurnos y reportar fallas de iluminación pública.',
     quadrant: 'Cuadrante 8-1',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Carrera 39 y Calle 66 hacia el parque de Villa Hermosa',
+    precautionSchedule: 'Tránsito fluido diurno; precaución estándar después de las 21:00 h',
+    transportAccess: 'Rutas de buses Villa Hermosa — Manrique y transporte colectivo',
+    transitRecommendations: [
+      'Tránsito peatonal y vehicular favorable por las vías principales del barrio.',
+      'En horario nocturno, preferir los corredores con comercio barrial abierto.',
+      'Conservar medidas básicas de autocuidado al estacionar vehículos en vía pública.',
+    ],
   },
   {
     id: 'c8-enciso',
@@ -273,6 +389,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Hacer compras en corredores iluminados y utilizar los paraderos oficiales.',
     quadrant: 'Cuadrante 8-3',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Carrera 36A, Calle 58 y conexión con el Tranvía de Ayacucho',
+    precautionSchedule: 'Tránsito normal; precaución moderada después de las 21:00 h',
+    transportAccess: 'Tranvía de Ayacucho (Loyola / Alejandro Echavarría) y buses Enciso',
+    transitRecommendations: [
+      'Aprovechar el corredor escolar y comercial seguro de la Carrera 36A y Calle 58.',
+      'Cruzar por pasos peatonales demarcados debido al alto flujo de buses y motocicletas.',
+      'Utilizar paraderos autorizados e iluminados para esperar el transporte integrado.',
+    ],
   },
   {
     id: 'c8-los-angeles-oriente',
@@ -288,6 +412,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Cuidar pertenencias al cruzar intersecciones concurridas de la Calle 58.',
     quadrant: 'Cuadrante 8-2',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Calle 58 (Avenida Oriental hacia oriente) y Carrera 40',
+    precautionSchedule: 'Flujo constante diurno; atención preventiva después de las 20:30 h',
+    transportAccess: 'Corredor de buses Calle 58 y cercanía a estación Bicentenario',
+    transitRecommendations: [
+      'Corredor recomendado para conectar a pie o en vehículo entre el Centro y Villa Hermosa.',
+      'Prestar atención al tráfico vehicular en las intersecciones de la Calle 58.',
+      'Resguardar objetos personales en horas de alta afluencia peatonal.',
+    ],
   },
   {
     id: 'c8-villa-hermosa-centro',
@@ -303,6 +435,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Corredor recomendado para trámites y traslados diurnos. Mantener precaución normal ante hurtos por descuido.',
     quadrant: 'Cuadrante 8-1 (Comando Central)',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Parque Principal de Villa Hermosa, Carrera 40 y Calle 66',
+    precautionSchedule: 'Corredor seguro y vigilado 24/7; alta actividad entre 06:00 y 22:00 h',
+    transportAccess: 'Nodo central de rutas Villa Hermosa, taxis y alimentadores Metro',
+    transitRecommendations: [
+      'Zona ideal de tránsito, encuentro ciudadano y realización de diligencias bancarias o comerciales.',
+      'Cuenta con cobertura permanente de cámaras PTZ del 123 e iluminación LED.',
+      'Mantener autocuidado básico contra hurto por factor de oportunidad en aglomeraciones.',
+    ],
   },
   {
     id: 'c8-leon-de-greiff',
@@ -318,6 +458,14 @@ export const COMUNA_8_SECTORS: SectorRiskData[] = [
     citizenAdvice: 'Excelente punto de encuentro seguro durante el día y la tarde. Seguir los senderos iluminados hacia el transporte público.',
     quadrant: 'Cuadrante 8-1 (Zona Cultural)',
     verifiedReferenceYear: '2026',
+    recommendedCorridor: 'Plazoletas del Parque Biblioteca León de Greiff y corredor UVA La Imaginación',
+    precautionSchedule: 'Óptimo para tránsito peatonal y familiar entre 06:00 y 21:00 h',
+    transportAccess: 'Vía vehicular Calle 59A y rutas de transporte público Villa Hermosa',
+    transitRecommendations: [
+      'Punto seguro de referencia para tránsito peatonal, estudio, deporte y encuentro comunitario.',
+      'Utilizar las plazoletas iluminadas y los senderos conectados con la UVA La Imaginación.',
+      'Al retirarse en horario nocturno, descender por la vía principal iluminada hacia la Carrera 40.',
+    ],
   },
 ];
 
