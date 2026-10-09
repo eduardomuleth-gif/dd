@@ -9,24 +9,29 @@ import {
   AlertCircle,
   Shield,
   Clock,
+  Trash2,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { executeSendEmailVerification, executeSignOut } from '../services/firebaseAuth';
+import { deleteUserAccountAndFirestore } from '../services/userService';
 
 interface EmailVerificationViewProps {
   user: User;
   onVerificationSuccess: () => void;
+  onAccountDeleted?: () => void;
 }
 
 export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
   user,
   onVerificationSuccess,
+  onAccountDeleted,
 }) => {
   const { t, language } = useLanguage();
   const { colors } = useTheme();
   const [isChecking, setIsChecking] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [notification, setNotification] = useState<{ type: 'success' | 'warn'; message: string } | null>(null);
 
@@ -67,9 +72,6 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
       }
     };
 
-    // Immediate check on mount
-    checkVerificationStatus();
-
     // Periodic check every 3 seconds while waiting on this screen
     const interval = setInterval(checkVerificationStatus, 3000);
 
@@ -93,7 +95,7 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
   const handleCheckStatus = async () => {
     setIsChecking(true);
     setNotification(null);
-    console.log('[Firebase Auth] Comprobando estado manual de emailVerified para:', user.email);
+    console.log('[Firebase Auth] Comprobando estado manual de verificación de correo...');
 
     try {
       await user.reload();
@@ -106,12 +108,12 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
           type: 'warn',
           message:
             language === 'es'
-              ? 'Tu correo aún no ha sido verificado. Revisa tu bandeja de entrada o carpeta de spam y haz clic en el enlace enviado.'
+              ? 'Tu correo aún no ha sido verificado. Revisa tu bandeja de entrada o carpeta de spam y haz clic en el botón «Verificar mi cuenta».'
               : t('verificationStillPending'),
         });
       }
-    } catch (err) {
-      console.error('[Firebase Auth] Error al recargar estado del usuario:', err);
+    } catch {
+      console.warn('[Firebase Auth] Aviso al recargar estado del usuario.');
       setNotification({
         type: 'warn',
         message:
@@ -129,31 +131,31 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
 
     setIsResending(true);
     setNotification(null);
-    console.log('[Firebase Auth] Solicitud de reenvío de enlace de verificación para:', user.email);
+    console.log('[Firebase Auth] Solicitud de reenvío de enlace de verificación...');
     try {
       const res = await executeSendEmailVerification(user);
       if (res.success) {
-        console.log('[Firebase Auth] ✔ Enlace de verificación reenviado exitosamente a:', user.email);
+        console.log('[Firebase Auth] ✔ Enlace de verificación reenviado exitosamente.');
         setResendCooldown(45);
         setNotification({
           type: 'success',
           message:
             language === 'es'
-              ? '¡Hemos enviado un nuevo enlace de verificación a tu correo! Revisa tu bandeja de entrada o spam.'
+              ? '¡Hemos enviado un nuevo correo de verificación! Haz clic en el botón «Verificar mi cuenta» dentro del mensaje.'
               : t('verificationResentSuccess'),
         });
       } else {
-        console.error('[Firebase Auth] ✖ Error devuelto por Firebase al reenviar:', res.error);
+        console.warn('[Firebase Auth] Aviso devuelto por Firebase al reenviar correo de verificación.');
         setNotification({
           type: 'warn',
           message:
             language === 'es'
-              ? 'Por seguridad, espera unos segundos antes de solicitar otro enlace de verificación.'
+              ? 'Por seguridad, espera unos segundos antes de solicitar otro correo de verificación.'
               : res.error || 'Could not resend right now.',
         });
       }
-    } catch (err) {
-      console.error('[Firebase Auth] ✖ Excepción al reenviar correo:', err);
+    } catch {
+      console.warn('[Firebase Auth] Aviso al reenviar correo de verificación.');
       setNotification({
         type: 'warn',
         message:
@@ -168,6 +170,41 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
 
   const handleSignOut = async () => {
     await executeSignOut();
+  };
+
+  const handleDeleteUnverifiedAccount = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    setNotification(null);
+    try {
+      const res = await deleteUserAccountAndFirestore(user);
+      if (res.success) {
+        if (onAccountDeleted) {
+          onAccountDeleted();
+        } else {
+          await executeSignOut();
+        }
+      } else {
+        setNotification({
+          type: 'warn',
+          message:
+            res.error ||
+            (language === 'es'
+              ? 'Para eliminar esta cuenta, ve al menú superior de tu perfil → Ajustes → Eliminar Mi Cuenta.'
+              : 'To delete this account, open your profile menu → Settings → Delete My Account.'),
+        });
+      }
+    } catch {
+      setNotification({
+        type: 'warn',
+        message:
+          language === 'es'
+            ? 'No se pudo eliminar la cuenta en este momento.'
+            : 'Could not delete account right now.',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -204,7 +241,7 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
 
         <p className={`text-sm sm:text-base leading-relaxed max-w-md ${colors.cardSubtitle}`}>
           {language === 'es'
-            ? 'Hemos enviado un enlace de confirmación a tu correo electrónico. Revisa tu bandeja de entrada (o la carpeta de correo no deseado / spam) y haz clic en el enlace para activar tu cuenta.'
+            ? 'Acabas de registrarte en Security Urban. Para completar el proceso de registro, abre el mensaje que enviamos a tu correo y haz clic en el botón «Verificar mi cuenta».'
             : t('verificationPendingDesc')}
         </p>
 
@@ -213,8 +250,8 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
           <span>
             {language === 'es'
-              ? 'Detección automática activa: en cuanto abras el enlace en tu correo, entraremos automáticamente a la plataforma.'
-              : 'Auto-detection active: once you click the link in your email, you will be redirected automatically.'}
+              ? 'Después de verificar tu cuenta correctamente, serás redirigido automáticamente a la pantalla de inicio de sesión para ingresar con tus credenciales.'
+              : 'Once your account is verified, you will be automatically redirected to the sign-in screen to log in with your credentials.'}
           </span>
         </div>
       </div>
@@ -287,14 +324,34 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className={`w-full py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${colors.mutedText} hover:text-red-600`}
-        >
-          <LogOut className="w-4 h-4" />
-          <span>{t('signOut')}</span>
-        </button>
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className={`py-2 px-3 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${colors.mutedText} hover:text-red-600`}
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{t('signOut')}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteUnverifiedAccount}
+            disabled={isDeleting}
+            className="py-2 px-3 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer text-rose-600 dark:text-rose-400 hover:underline disabled:opacity-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>
+              {isDeleting
+                ? language === 'es'
+                  ? 'Eliminando cuenta...'
+                  : 'Deleting account...'
+                : language === 'es'
+                ? 'Cancelar registro y eliminar cuenta'
+                : 'Cancel registration & delete account'}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );

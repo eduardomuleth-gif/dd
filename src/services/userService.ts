@@ -12,12 +12,21 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { User, updateProfile, deleteUser } from 'firebase/auth';
+import {
+  User,
+  updateProfile,
+  deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
 import { db, auth } from './firebaseAuth';
 import { FirestoreUser, UserRole, UserStatus, UserStats, UserPreferences } from '../types/user';
 
 const USERS_COLLECTION = 'usuarios';
 const USER_PROFILE_CACHE_PREFIX = 'security_urban_user_profile_';
+const deletingUserUids = new Set<string>();
 
 function getCachedProfile(uid: string): FirestoreUser | null {
   try {
@@ -364,41 +373,193 @@ export async function saveUserPreferences(uid: string, prefs: UserPreferences): 
 }
 
 /**
- * Permanently deletes the user account:
- * 1. Deletes their document in Firestore ('usuarios/{uid}')
- * 2. Deletes the user in Firebase Authentication (deleteUser)
+ * Permanently deletes a user's Firestore document (Admin action) with non-blocking timeout
  */
-export async function deleteUserAccountAndFirestore(user: User): Promise<{ success: boolean; requiresRecentLogin?: boolean; error?: string }> {
-  const uid = user.uid;
-  console.log(`[Security Urban :: UserService] ⚠️ Iniciando eliminación irreversible de cuenta: ${uid} (${user.email})`);
+export async function deleteFirestoreUserByAdmin(uid: string): Promise<void> {
+  deletingUserUids.add(uid);
+  try {
+    const userDocRef = doc(db, USERS_COLLECTION, uid);
+    await Promise.race([
+      deleteDoc(userDocRef),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('FIRESTORE_TIMEOUT')), 2500)),
+    ]);
+    try {
+      localStorage.removeItem(`${USER_PROFILE_CACHE_PREFIX}${uid}`);
+    } catch {
+      // Ignore storage error
+    }
+    console.log(`[Security Urban :: UserService] ✔ Documento de usuario ${uid} eliminado de Firestore.`);
+  } catch (err) {
+    console.warn('[Security Urban :: UserService] Aviso al eliminar documento de usuario en Firestore:', err);
+  } finally {
+    setTimeout(() => deletingUserUids.delete(uid), 5000);
+  }
+}
+
+/**
+ * Permanently deletes the user account:
+ * 1. Re-authenticates with password if provided (prevents auth/requires-recent-login)
+ * 2. Deletes their document in Firestore ('usuarios/{uid}') with a bounded timeout so it never hangs
+ * 3. Deletes the user in Firebase Authentication (deleteUser) and clears session/cache
+ */
+export async function deleteUserAccountAndFirestore(
+  user: User,
+  currentPassword?: string
+): Promise<{
+  success: boolean;
+  requiresRecentLogin?: boolean;
+  wrongPassword?: boolean;
+  error?: string;
+}> {
+  let targetUser: User | null = auth.currentUser || user;
+  const uid = targetUser?.uid || user?.uid;
+  const userEmail = (targetUser?.email || user?.email || '').trim();
+
+  if (!targetUser || !uid) {
+    return {
+      success: false,
+      error: 'No se encontró una sesión activa para eliminar la cuenta.',
+    };
+  }
+
+  deletingUserUids.add(uid);
+  console.log('[Security Urban :: UserService] ⚠️ Iniciando eliminación irreversible de cuenta...');
+
+  const trimmedPassword = currentPassword ? currentPassword.trim() : '';
+  let isReauthenticated = false;
+
+  // 1. If password is provided, re-authenticate first so Firebase Auth token is fresh
+  if (trimmedPassword && userEmail) {
+    try {
+      const credential = EmailAuthProvider.credential(userEmail, trimmedPassword);
+      await reauthenticateWithCredential(targetUser, credential);
+      targetUser = auth.currentUser || targetUser;
+      isReauthenticated = true;
+      console.log('[Security Urban :: UserService] ✔ Reautenticación previa exitosa.');
+    } catch (reauthErr: unknown) {
+      const code = (reauthErr as { code?: string })?.code || 'unknown';
+      console.warn('[Security Urban :: UserService] Aviso en reauthenticateWithCredential (' + code + ').');
+
+      if (
+        code === 'auth/wrong-password' ||
+        code === 'auth/invalid-credential' ||
+        code === 'auth/invalid-login-credentials'
+      ) {
+        deletingUserUids.delete(uid);
+        return {
+          success: false,
+          requiresRecentLogin: true,
+          wrongPassword: true,
+          error: 'La contraseña ingresada es incorrecta. Verifica tus datos e inténtalo nuevamente.',
+        };
+      }
+
+      if (code === 'auth/too-many-requests') {
+        deletingUserUids.delete(uid);
+        return {
+          success: false,
+          requiresRecentLogin: true,
+          error: 'Demasiados intentos fallidos. Espera unos minutos antes de volver a intentarlo.',
+        };
+      }
+
+      // Fallback: sign in directly to refresh the User instance & token
+      try {
+        const freshCred = await signInWithEmailAndPassword(auth, userEmail, trimmedPassword);
+        targetUser = freshCred.user;
+        isReauthenticated = true;
+        console.log('[Security Urban :: UserService] ✔ Sesión refrescada para eliminación.');
+      } catch (fallbackErr: unknown) {
+        const fbCode = (fallbackErr as { code?: string })?.code || 'unknown';
+        deletingUserUids.delete(uid);
+        if (
+          fbCode === 'auth/wrong-password' ||
+          fbCode === 'auth/invalid-credential' ||
+          fbCode === 'auth/invalid-login-credentials'
+        ) {
+          return {
+            success: false,
+            requiresRecentLogin: true,
+            wrongPassword: true,
+            error: 'La contraseña ingresada es incorrecta. Verifica tus datos e inténtalo nuevamente.',
+          };
+        }
+        return {
+          success: false,
+          requiresRecentLogin: true,
+          error: 'No se pudo verificar tu contraseña. Verifica tu conexión e inténtalo nuevamente.',
+        };
+      }
+    }
+  }
+
+  // Check if session login is recent (< 4 minutes) when password wasn't provided
+  const lastSignInTimeStr = targetUser.metadata?.lastSignInTime;
+  const isRecentSession =
+    isReauthenticated ||
+    (lastSignInTimeStr
+      ? Date.now() - new Date(lastSignInTimeStr).getTime() < 4 * 60 * 1000
+      : false);
+
+  const userDocRef = doc(db, USERS_COLLECTION, uid);
 
   try {
-    // 1. Delete Firestore document first
-    try {
-      const userDocRef = doc(db, USERS_COLLECTION, uid);
-      await deleteDoc(userDocRef);
-      console.log(`[Security Urban :: UserService] ✔ Documento de Firestore /usuarios/${uid} eliminado`);
-    } catch (firestoreErr) {
-      console.warn('[Security Urban :: UserService] Error no fatal eliminando doc en Firestore:', firestoreErr);
+    // 2. If reauthenticated or session is recent, delete Firestore doc with a strict 1.2s timeout
+    // so Firestore offline/long-polling states NEVER block Firebase Auth deleteUser()
+    if (isRecentSession) {
+      await Promise.race([
+        deleteDoc(userDocRef).catch((e) => {
+          console.warn('[Security Urban :: UserService] Aviso eliminando documento en Firestore:', e);
+        }),
+        new Promise((resolve) => setTimeout(resolve, 1200)),
+      ]);
     }
 
-    // 2. Delete Firebase Auth user
-    await deleteUser(user);
-    console.log(`[Security Urban :: UserService] ✔ Usuario de Firebase Auth eliminado exitosamente`);
+    // 3. Delete Firebase Auth user using the live Auth user instance
+    await deleteUser(targetUser);
+
+    // 4. Clean local storage cache & ensure sign-out
+    try {
+      localStorage.removeItem(`${USER_PROFILE_CACHE_PREFIX}${uid}`);
+    } catch {
+      // Ignore storage error
+    }
+
+    try {
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+    } catch {
+      // Ignore signOut error
+    }
+
+    console.log('[Security Urban :: UserService] ✔ Cuenta de Firebase Auth eliminada exitosamente.');
     return { success: true };
   } catch (err: unknown) {
     const firebaseErr = err as { code?: string; message?: string };
-    console.error('[Security Urban :: UserService] ✖ Error eliminando cuenta:', firebaseErr);
-    if (firebaseErr.code === 'auth/requires-recent-login') {
+    const code = firebaseErr.code || 'unknown';
+    console.warn('[Security Urban :: UserService] Aviso al eliminar cuenta (' + code + ').');
+    deletingUserUids.delete(uid);
+
+    if (code === 'auth/requires-recent-login') {
       return {
         success: false,
         requiresRecentLogin: true,
-        error: 'Por seguridad, debes cerrar sesión e iniciarla nuevamente antes de eliminar tu cuenta permanentemente.',
+        error: 'Por seguridad, ingresa tu contraseña actual para confirmar la eliminación definitiva de tu cuenta.',
       };
     }
+
+    if (code === 'auth/network-request-failed') {
+      return {
+        success: false,
+        error: 'Error de conexión de red. Verifica tu internet e inténtalo nuevamente.',
+      };
+    }
+
     return {
       success: false,
-      error: firebaseErr.message || 'Error al eliminar la cuenta de usuario.',
+      error: 'No se pudo eliminar la cuenta en este momento. Ingresa tu contraseña actual e inténtalo nuevamente.',
+      requiresRecentLogin: true,
     };
   }
 }
@@ -408,11 +569,28 @@ export async function deleteUserAccountAndFirestore(user: User): Promise<{ succe
  * Ensures the user has a document in 'usuarios/{uid}'.
  */
 export async function syncCurrentUserFirestoreProfile(user: User): Promise<FirestoreUser> {
+  if (deletingUserUids.has(user.uid)) {
+    return {
+      uid: user.uid,
+      nombre: user.displayName || 'Usuario',
+      correo: user.email || '',
+      fechaRegistro: 'Hoy',
+      fechaRegistroISO: new Date().toISOString(),
+      rol: 'ciudadano',
+      estado: 'activo',
+      sector: 'Comuna 8',
+    };
+  }
+
   const userDocRef = doc(db, USERS_COLLECTION, user.uid);
   try {
     const snap = await getDoc(userDocRef);
     if (snap.exists()) {
       return normalizeUserData(snap.id, snap.data());
+    }
+
+    if (deletingUserUids.has(user.uid)) {
+      return normalizeUserData(user.uid, {});
     }
 
     // Auto-create document

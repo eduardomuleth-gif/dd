@@ -52,6 +52,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   const [captchaError, setCaptchaError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isEmailInUseError, setIsEmailInUseError] = useState(false);
 
   const alertContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -69,6 +70,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setIsEmailInUseError(false);
 
     // Full name check
     if (!fullName.trim()) {
@@ -111,16 +113,21 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
     setIsLoading(true);
     const finalSector = sector === 'Otro' ? customSector.trim() : sector;
-    console.log('[Security Urban :: UI] Enviando formulario de registro para:', email.trim(), 'Sector:', finalSector);
+    console.log('[Security Urban :: UI] Enviando formulario de registro para sector:', finalSector);
 
     try {
       const result = await executeSignUp(email.trim(), password, fullName.trim(), finalSector);
 
       if (result.error) {
         if (result.error === 'EMAIL_ALREADY_IN_USE') {
-          setErrorMessage('Ya existe una cuenta registrada con este correo electrónico.');
+          setIsEmailInUseError(true);
+          setErrorMessage('Este correo electrónico ya se encuentra registrado en la plataforma. Por favor inicia sesión con tu cuenta existente.');
         } else if (result.error === 'WEAK_PASSWORD') {
           setErrorMessage('La contraseña proporcionada es demasiado débil.');
+        } else if (result.error === 'INVALID_EMAIL') {
+          setErrorMessage('El formato del correo electrónico no es válido.');
+        } else if (result.error === 'TOO_MANY_REQUESTS') {
+          setErrorMessage('Demasiados intentos seguidos. Por favor espera un momento antes de volver a intentar.');
         } else {
           setErrorMessage('No se pudo completar el registro en este momento. Intenta de nuevo.');
         }
@@ -129,8 +136,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         onSuccess();
       }
     } catch (err) {
-      console.error('[Security Urban :: UI] Error inesperado en registro:', err);
-      setErrorMessage('Ocurrió un error inesperado al registrar la cuenta.');
+      console.warn('[Security Urban :: UI] Aviso inesperado en registro:', err);
+      setErrorMessage('Ocurrió un inconveniente al registrar la cuenta. Intenta de nuevo.');
     } finally {
       setIsLoading(false);
     }
@@ -352,10 +359,22 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       {errorMessage && (
         <div
           ref={alertContainerRef}
-          className="p-4 rounded-2xl bg-red-100 border-2 border-red-500 text-red-900 dark:bg-red-950/80 dark:border-red-600 dark:text-red-200 text-sm sm:text-base flex items-start gap-3 shadow-md animate-in fade-in slide-in-from-top-2 duration-200"
+          className="p-4 rounded-2xl bg-red-100 border-2 border-red-500 text-red-900 dark:bg-red-950/80 dark:border-red-600 dark:text-red-200 text-sm sm:text-base flex flex-col gap-3 shadow-md animate-in fade-in slide-in-from-top-2 duration-200"
         >
-          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <span className="leading-snug font-bold">{errorMessage}</span>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <span className="leading-snug font-bold">{errorMessage}</span>
+          </div>
+          {isEmailInUseError && (
+            <button
+              type="button"
+              onClick={onSwitchToLogin}
+              className="self-start ml-8 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-sm transition cursor-pointer"
+            >
+              <span>Ir a Iniciar Sesión</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )}
 

@@ -38,7 +38,12 @@ import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderV
 import { TacticalMapModal } from './components/TacticalMapModal';
 import { UserProfileMenu } from './components/UserProfileMenu';
 import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
-import { subscribeToAuth, executeSignOut } from './services/firebaseAuth';
+import {
+  subscribeToAuth,
+  executeSignOut,
+  subscribeToPasswordRecovery,
+  PasswordRecoveryState,
+} from './services/firebaseAuth';
 import { syncCurrentUserFirestoreProfile } from './services/userService';
 import { UserRole } from './types/user';
 import { startActivitySimulation } from './services/activitySimulationService';
@@ -60,6 +65,12 @@ const MainScreen: React.FC = () => {
   // Modals and drawers
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [passwordRecoveryState, setPasswordRecoveryState] = useState<PasswordRecoveryState>({
+    isRecovery: false,
+    email: null,
+    hasValidSession: false,
+    linkError: null,
+  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
 
@@ -211,6 +222,20 @@ const MainScreen: React.FC = () => {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Subscribe to Supabase Auth PASSWORD_RECOVERY events
+  useEffect(() => {
+    const unsubscribeRecovery = subscribeToPasswordRecovery((recoveryState) => {
+      setPasswordRecoveryState(recoveryState);
+      if (recoveryState.isRecovery) {
+        setCurrentUser(null);
+        setIsAuthLoading(false);
+        setActiveTab('login');
+        setIsForgotPasswordOpen(true);
+      }
+    });
+    return () => unsubscribeRecovery();
   }, []);
 
   // Motor de simulación periódica de actividad comunitaria para fines de demostración académica
@@ -470,11 +495,23 @@ const MainScreen: React.FC = () => {
           </div>
         </main>
 
-        {/* Forgot Password Modal */}
+        {/* Forgot Password / Password Recovery Modal */}
         <ForgotPasswordModal
-          isOpen={isForgotPasswordOpen}
+          isOpen={isForgotPasswordOpen || passwordRecoveryState.isRecovery}
           onClose={() => setIsForgotPasswordOpen(false)}
           defaultEmail={forgotPasswordEmail}
+          isRecoveryMode={passwordRecoveryState.isRecovery}
+          recoveryEmail={passwordRecoveryState.email}
+          hasValidRecoverySession={passwordRecoveryState.hasValidSession}
+          recoveryLinkError={passwordRecoveryState.linkError}
+          onExitRecoveryMode={() =>
+            setPasswordRecoveryState({
+              isRecovery: false,
+              email: null,
+              hasValidSession: false,
+              linkError: null,
+            })
+          }
         />
       </div>
     );

@@ -33,6 +33,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isUserNotFound, setIsUserNotFound] = useState(false);
+  const [isWrongPassword, setIsWrongPassword] = useState(false);
 
   const alertContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -93,6 +94,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     setIsUserNotFound(false);
+    setIsWrongPassword(false);
 
     // Lockout check
     if (lockoutRemaining > 0) {
@@ -109,12 +111,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     setCaptchaError(false);
 
     setIsLoading(true);
-    console.log('[Security Urban :: UI] Enviando intento de inicio de sesión para:', email.trim());
+    console.log('[Security Urban :: UI] Enviando intento de inicio de sesión...');
 
     try {
       const result = await executeSignIn(email.trim(), password);
 
-      if (result.error) {
+      if (result.error || !result.user) {
         if (result.error === 'ACCOUNT_SUSPENDED') {
           setErrorMessage(
             language === 'es'
@@ -124,7 +126,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           return;
         }
 
-        // PROMPT 1: Detect specifically if the email is not registered
+        // Case 2: Unregistered email explicitly reported by Firebase Auth
         if (result.error === 'USER_NOT_FOUND') {
           setIsUserNotFound(true);
           setErrorMessage(
@@ -135,6 +137,47 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           return;
         }
 
+        // Invalid email format
+        if (result.error === 'INVALID_EMAIL') {
+          setErrorMessage(
+            language === 'es'
+              ? 'El formato del correo electrónico no es válido. Verifica tus datos e inténtalo nuevamente.'
+              : 'The email address format is invalid. Please check your details and try again.'
+          );
+          return;
+        }
+
+        // Case 3a: Network connectivity failure
+        if (result.error === 'NETWORK_ERROR') {
+          setErrorMessage(
+            language === 'es'
+              ? 'Error de conexión. Verifica tu conexión a internet e inténtalo nuevamente.'
+              : 'Connection error. Please check your internet connection and try again.'
+          );
+          return;
+        }
+
+        // Case 3b: Server, configuration, or service unavailability error
+        if (result.error === 'SERVER_ERROR') {
+          setErrorMessage(
+            language === 'es'
+              ? 'No se pudo iniciar sesión por un problema de conexión con el servidor o de configuración. Inténtalo nuevamente más tarde.'
+              : 'Unable to sign in due to a server or configuration issue. Please try again later.'
+          );
+          return;
+        }
+
+        // Firebase rate limit
+        if (result.error === 'TOO_MANY_REQUESTS') {
+          setErrorMessage(
+            language === 'es'
+              ? 'Demasiados intentos fallidos. Por seguridad, espera unos minutos antes de volver a intentarlo.'
+              : 'Too many failed attempts. For security, please wait a few minutes before trying again.'
+          );
+          return;
+        }
+
+        // Case 1: Wrong password / invalid credentials for existing account
         const nextAttempts = failedAttempts + 1;
         setFailedAttempts(nextAttempts);
         sessionStorage.setItem(FAILED_ATTEMPTS_STORAGE_KEY, nextAttempts.toString());
@@ -147,8 +190,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           console.warn(`[Security Urban :: UI] Límite de ${MAX_FAILED_ATTEMPTS} intentos alcanzado. Bloqueando por ${LOCKOUT_SECONDS}s.`);
           setErrorMessage(t('tooManyAttempts'));
         } else {
-          // Neutral message to prevent user enumeration for wrong passwords
-          setErrorMessage(t('invalidCredentials'));
+          setIsWrongPassword(true);
+          setErrorMessage(
+            language === 'es'
+              ? 'La contraseña es incorrecta. Verifica tus datos e inténtalo nuevamente.'
+              : 'The password is incorrect. Please check your details and try again.'
+          );
         }
       } else {
         // Success
@@ -159,8 +206,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         onSuccess();
       }
     } catch (err: unknown) {
-      console.warn('[Security Urban :: UI] Aviso general en inicio de sesión:', err);
-      setErrorMessage(t('invalidCredentials'));
+      console.warn('[Security Urban :: UI] Aviso de conexión o servidor en inicio de sesión:', err);
+      setErrorMessage(
+        language === 'es'
+          ? 'No se pudo iniciar sesión por un problema de conexión o del servidor. Inténtalo nuevamente.'
+          : 'Could not sign in due to a connection or server issue. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -331,7 +382,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               </div>
             )}
 
-            {!isUserNotFound && failedAttempts > 0 && failedAttempts < MAX_FAILED_ATTEMPTS && (
+            {!isUserNotFound && isWrongPassword && failedAttempts > 0 && failedAttempts < MAX_FAILED_ATTEMPTS && (
               <span className="text-xs font-mono font-medium opacity-90 block">
                 Intento fallido {failedAttempts} de {MAX_FAILED_ATTEMPTS}
               </span>

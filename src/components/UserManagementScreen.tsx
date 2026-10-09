@@ -27,6 +27,7 @@ import {
   Check,
   Radio,
   SlidersHorizontal,
+  Trash2,
   X
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
@@ -36,6 +37,7 @@ import {
   subscribeToFirestoreUsers,
   updateFirestoreUserRole,
   updateFirestoreUserStatus,
+  deleteFirestoreUserByAdmin,
   seedInitialCommunityUsersIfEmpty,
 } from '../services/userService';
 import { ModalPortal } from './ModalPortal';
@@ -82,6 +84,7 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
   const [selectedUserForRoleChange, setSelectedUserForRoleChange] = useState<FirestoreUser | null>(null);
   const [pendingRole, setPendingRole] = useState<UserRole>('ciudadano');
   const [selectedUserForStatusToggle, setSelectedUserForStatusToggle] = useState<FirestoreUser | null>(null);
+  const [selectedUserForDelete, setSelectedUserForDelete] = useState<FirestoreUser | null>(null);
   const [isUpdatingAction, setIsUpdatingAction] = useState<boolean>(false);
 
   // Notifications
@@ -211,6 +214,31 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
     } catch (err) {
       showToast(
         language === 'es' ? 'No se pudo cambiar el estado' : 'Failed to change status',
+        'error'
+      );
+    } finally {
+      setIsUpdatingAction(false);
+    }
+  };
+
+  // Handle User Deletion from Firestore Execution
+  const handleConfirmUserDelete = async () => {
+    if (!selectedUserForDelete) return;
+    const target = selectedUserForDelete;
+    setIsUpdatingAction(true);
+    try {
+      await deleteFirestoreUserByAdmin(target.uid);
+      setUsers((prev) => prev.filter((u) => u.uid !== target.uid));
+      showToast(
+        language === 'es'
+          ? `Cuenta de "${target.nombre}" eliminada de Firestore.`
+          : `Account for "${target.nombre}" deleted from Firestore.`,
+        'success'
+      );
+      setSelectedUserForDelete(null);
+    } catch {
+      showToast(
+        language === 'es' ? 'No se pudo eliminar el usuario' : 'Failed to delete user',
         'error'
       );
     } finally {
@@ -807,6 +835,18 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                             <Eye className="w-3.5 h-3.5" />
                             <span className="hidden sm:inline">{language === 'es' ? 'Detalles' : 'Details'}</span>
                           </button>
+
+                          {/* Acción 4: Eliminar usuario */}
+                          {!isCurrentLoggedUser && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUserForDelete(user)}
+                              className="p-1.5 sm:px-2 sm:py-1 rounded-xl border border-rose-300 dark:border-rose-900/70 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white dark:bg-rose-950/50 dark:text-rose-400 dark:hover:bg-rose-600 dark:hover:text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                              title={language === 'es' ? 'Eliminar cuenta de usuario' : 'Delete user account'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1239,6 +1279,83 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                     ? language === 'es' ? 'Confirmar Suspensión' : 'Confirm Suspension'
                     : language === 'es' ? 'Confirmar Reactivación' : 'Confirm Reactivation'}
                 </span>
+              </button>
+            </div>
+          </>
+        )}
+      </ModalPortal>
+
+      {/* ========================================== */}
+      {/* MODAL 4: CONFIRMAR ELIMINAR USUARIO        */}
+      {/* ========================================== */}
+      <ModalPortal
+        isOpen={Boolean(selectedUserForDelete)}
+        onClose={() => setSelectedUserForDelete(null)}
+        disableClose={isUpdatingAction}
+        maxWidthClass="max-w-md"
+        cardClassName={
+          isDark ? 'bg-slate-950 border-rose-900/80 text-slate-100' : 'bg-white border-rose-200 text-slate-900'
+        }
+      >
+        {selectedUserForDelete && (
+          <>
+            <div className="h-2 shrink-0 bg-rose-600" />
+
+            <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-base sm:text-lg truncate">
+                    {language === 'es' ? '¿Eliminar Cuenta de Usuario?' : 'Delete User Account?'}
+                  </h3>
+                  <p className="text-xs text-slate-400 truncate">
+                    {selectedUserForDelete.nombre} ({selectedUserForDelete.correo})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForDelete(null)}
+                disabled={isUpdatingAction}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4">
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                {language === 'es' ? (
+                  <>
+                    Esta acción eliminará permanentemente el expediente de <strong>{selectedUserForDelete.nombre}</strong> de la colección <strong>usuarios</strong> en Firestore.
+                  </>
+                ) : (
+                  <>
+                    This action will permanently delete <strong>{selectedUserForDelete.nombre}</strong> from the Firestore <strong>usuarios</strong> collection.
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForDelete(null)}
+                disabled={isUpdatingAction}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isUpdatingAction}
+                onClick={handleConfirmUserDelete}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-md shadow-rose-900/30 cursor-pointer disabled:opacity-50"
+              >
+                {isUpdatingAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>{language === 'es' ? 'Confirmar Eliminación' : 'Confirm Deletion'}</span>
               </button>
             </div>
           </>
