@@ -27,7 +27,7 @@ import { CreateReportModal } from './CreateReportModal';
 
 interface DashboardScreenProps {
   onNavigate: (tab: NavTabId) => void;
-  onOpenTacticalMap?: () => void;
+  onOpenTacticalMap: () => void;
   currentUserId?: string;
 }
 
@@ -125,19 +125,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
 
   // Selected sector for the Statistical Sector Risk & Safety Donut Dashboard
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<'all' | 'high' | 'moderate' | 'central'>('all');
   const [selectedSectorId, setSelectedSectorId] = useState<string>(
     COMUNA_8_SECTORS[0]?.id || 'sec-villa-hermosa'
   );
-
-  const highRiskSectors = useMemo(() => COMUNA_8_SECTORS.filter((s) => s.level === 'high'), []);
-  const moderateRiskSectors = useMemo(() => COMUNA_8_SECTORS.filter((s) => s.level === 'moderate'), []);
-  const lowRiskSectors = useMemo(() => COMUNA_8_SECTORS.filter((s) => s.level === 'central'), []);
-
-  const filteredSectorsForDropdown = useMemo(() => {
-    if (selectedCategoryFilter === 'all') return COMUNA_8_SECTORS;
-    return COMUNA_8_SECTORS.filter((s) => s.level === selectedCategoryFilter);
-  }, [selectedCategoryFilter]);
 
   // 1. Subscribe to real public accepted reports (onSnapshot)
   useEffect(() => {
@@ -654,131 +644,42 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
               {/* Statistical Sector Safety & Risk Donut Dashboard (Replaces old day details below bar chart) */}
               <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-4">
-                <div className="flex flex-col gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
-                        <PieChart className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h3 className={`text-lg font-bold font-['Rajdhani'] uppercase tracking-wide ${colors.cardTitle}`}>
-                          {language === 'es'
-                            ? 'Nivel de Riesgo y Seguridad por Sectores Categorizados'
-                            : 'Categorized Sector Risk & Safety Dashboard'}
-                        </h3>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                          {language === 'es'
-                            ? 'Filtra por categoría y selecciona un sector para visualizar sus indicadores porcentuales'
-                            : 'Filter by category and select a sector to view its percentage indicators'}
-                        </p>
-                      </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
+                      <PieChart className="w-4 h-4" />
                     </div>
-
-                    {/* Sector Selector Dropdown grouped by Category */}
-                    <div className="w-full sm:w-auto sm:min-w-[240px]">
-                      <label htmlFor="dashboard-sector-select" className="sr-only">
-                        {language === 'es' ? 'Seleccionar sector' : 'Select sector'}
-                      </label>
-                      <select
-                        id="dashboard-sector-select"
-                        value={selectedSectorId}
-                        onChange={(e) => setSelectedSectorId(e.target.value)}
-                        className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 shadow-xs cursor-pointer"
-                      >
-                        {selectedCategoryFilter === 'all' ? (
-                          <>
-                            <optgroup label={language === 'es' ? `Categoría Mayor — Riesgo Alto (${highRiskSectors.length})` : `High Risk Category (${highRiskSectors.length})`}>
-                              {highRiskSectors.map((sec) => (
-                                <option key={sec.id} value={sec.id}>
-                                  {sec.name} ({sec.quadrant})
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label={language === 'es' ? `Categoría Intermedio — Moderado (${moderateRiskSectors.length})` : `Moderate Category (${moderateRiskSectors.length})`}>
-                              {moderateRiskSectors.map((sec) => (
-                                <option key={sec.id} value={sec.id}>
-                                  {sec.name} ({sec.quadrant})
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label={language === 'es' ? `Categoría Bajo (base) — Preventivo (${lowRiskSectors.length})` : `Low (base) Category (${lowRiskSectors.length})`}>
-                              {lowRiskSectors.map((sec) => (
-                                <option key={sec.id} value={sec.id}>
-                                  {sec.name} ({sec.quadrant})
-                                </option>
-                              ))}
-                            </optgroup>
-                          </>
-                        ) : (
-                          filteredSectorsForDropdown.map((sec) => (
-                            <option key={sec.id} value={sec.id}>
-                              {sec.name} ({sec.quadrant})
-                            </option>
-                          ))
-                        )}
-                      </select>
+                    <div>
+                      <h3 className={`text-lg font-bold font-['Rajdhani'] uppercase tracking-wide ${colors.cardTitle}`}>
+                        {language === 'es'
+                          ? 'Nivel de Riesgo y Seguridad por Sector'
+                          : 'Sector Risk & Safety Level Dashboard'}
+                      </h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {language === 'es'
+                          ? 'Selecciona un sector para consultar sus métricas porcentuales'
+                          : 'Select a sector to view its percentage metrics'}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Category Filter Pills + Territorial Distribution */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    {[
-                      {
-                        id: 'all' as const,
-                        label: language === 'es' ? `Todos (${totalMonitoredSectors})` : `All (${totalMonitoredSectors})`,
-                        firstSectorId: COMUNA_8_SECTORS[0]?.id,
-                        activeClass: 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 border-slate-900 dark:border-white',
-                        dotClass: 'bg-cyan-500',
-                      },
-                      {
-                        id: 'high' as const,
-                        label: language === 'es' ? `Mayor (${highRiskSectors.length})` : `High (${highRiskSectors.length})`,
-                        firstSectorId: highRiskSectors[0]?.id,
-                        activeClass: 'bg-rose-600 text-white border-rose-500',
-                        dotClass: 'bg-rose-500',
-                      },
-                      {
-                        id: 'moderate' as const,
-                        label: language === 'es' ? `Intermedio (${moderateRiskSectors.length})` : `Moderate (${moderateRiskSectors.length})`,
-                        firstSectorId: moderateRiskSectors[0]?.id,
-                        activeClass: 'bg-amber-600 text-white border-amber-500',
-                        dotClass: 'bg-amber-500',
-                      },
-                      {
-                        id: 'central' as const,
-                        label: language === 'es' ? `Bajo (base) (${lowRiskSectors.length})` : `Low (base) (${lowRiskSectors.length})`,
-                        firstSectorId: lowRiskSectors[0]?.id,
-                        activeClass: 'bg-emerald-600 text-white border-emerald-500',
-                        dotClass: 'bg-emerald-500',
-                      },
-                    ].map((catBtn) => {
-                      const isCatActive = selectedCategoryFilter === catBtn.id;
-                      return (
-                        <button
-                          key={catBtn.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedCategoryFilter(catBtn.id);
-                            if (catBtn.id !== 'all' && catBtn.firstSectorId) {
-                              const currentInCat = COMUNA_8_SECTORS.find(
-                                (s) => s.id === selectedSectorId && s.level === catBtn.id
-                              );
-                              if (!currentInCat) {
-                                setSelectedSectorId(catBtn.firstSectorId);
-                              }
-                            }
-                          }}
-                          className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
-                            isCatActive
-                              ? `${catBtn.activeClass} shadow-xs`
-                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-400'
-                          }`}
-                        >
-                          <span className={`w-2 h-2 rounded-full ${isCatActive ? 'bg-white dark:bg-current' : catBtn.dotClass}`} />
-                          <span>{catBtn.label}</span>
-                        </button>
-                      );
-                    })}
+                  {/* Sector Selector Dropdown */}
+                  <div className="w-full sm:w-auto sm:min-w-[230px]">
+                    <label htmlFor="dashboard-sector-select" className="sr-only">
+                      {language === 'es' ? 'Seleccionar sector' : 'Select sector'}
+                    </label>
+                    <select
+                      id="dashboard-sector-select"
+                      value={selectedSectorId}
+                      onChange={(e) => setSelectedSectorId(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 shadow-xs cursor-pointer"
+                    >
+                      {COMUNA_8_SECTORS.map((sec) => (
+                        <option key={sec.id} value={sec.id}>
+                          {sec.name} ({sec.quadrant})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

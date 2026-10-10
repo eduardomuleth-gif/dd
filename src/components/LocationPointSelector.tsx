@@ -35,7 +35,6 @@ export interface PlaceSuggestion {
   title: string;
   subtitle: string;
   location?: { lat: number; lng: number };
-  placeId?: string;
   type: 'google' | 'sector' | 'safePlace';
   refId?: string;
 }
@@ -223,57 +222,15 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
           });
         });
 
-      // 3. Query Google Maps Places API (AutocompleteService + Place.searchByText + Geocoder) for real street addresses and places in Medellín
+      // 3. Query Google Maps Places API (New) for real street addresses and places in Medellín
       const googleMatches: PlaceSuggestion[] = [];
-      const queryWithCity =
-        qLower.includes('medellin') || qLower.includes('medellín')
-          ? q
-          : `${q}, Medellín, Antioquia`;
-
       try {
-        const placesLib = (await importLibrary('places')) as any;
-        const { Place, AutocompleteService } = placesLib;
-
-        // 3a. AutocompleteService predictions for instant street address suggestions
-        if (AutocompleteService) {
-          await new Promise<void>((resolve) => {
-            try {
-              const autoService = new AutocompleteService();
-              autoService.getPlacePredictions(
-                {
-                  input: queryWithCity,
-                  componentRestrictions: { country: 'co' },
-                },
-                (predictions: any[] | null, status: any) => {
-                  if (
-                    !isCancelled &&
-                    status === google.maps.places.PlacesServiceStatus.OK &&
-                    predictions?.length
-                  ) {
-                    predictions.slice(0, 4).forEach((pred, idx) => {
-                      const mainText = pred.structured_formatting?.main_text || pred.description;
-                      const secondaryText =
-                        pred.structured_formatting?.secondary_text || 'Medellín, Antioquia';
-                      googleMatches.push({
-                        id: `sug-auto-${pred.place_id || idx}`,
-                        title: mainText,
-                        subtitle: secondaryText,
-                        placeId: pred.place_id,
-                        type: 'google',
-                      });
-                    });
-                  }
-                  resolve();
-                }
-              );
-            } catch {
-              resolve();
-            }
-          });
-        }
-
-        // 3b. Place.searchByText with coordinates if we still have room for suggestions
-        if (googleMatches.length < 4 && Place && typeof Place.searchByText === 'function') {
+        const { Place } = (await importLibrary('places')) as any;
+        if (Place && typeof Place.searchByText === 'function') {
+          const queryWithCity =
+            qLower.includes('medellin') || qLower.includes('medellín')
+              ? q
+              : `${q}, Medellín, Antioquia`;
           const response = await Place.searchByText({
             textQuery: queryWithCity,
             fields: ['displayName', 'formattedAddress', 'location'],
@@ -290,14 +247,10 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
                 typeof loc?.lat === 'function' ? loc.lat() : Number(loc?.lat ?? loc?.latitude);
               const lng =
                 typeof loc?.lng === 'function' ? loc.lng() : Number(loc?.lng ?? loc?.longitude);
-              const titleStr = p.displayName || q;
-              const alreadyAdded = googleMatches.some(
-                (gm) => gm.title.toLowerCase() === titleStr.toLowerCase()
-              );
-              if (!isNaN(lat) && !isNaN(lng) && !alreadyAdded) {
+              if (!isNaN(lat) && !isNaN(lng)) {
                 googleMatches.push({
                   id: `sug-gmp-${idx}-${lat.toFixed(4)}`,
-                  title: titleStr,
+                  title: p.displayName || q,
                   subtitle: p.formattedAddress || 'Medellín, Antioquia',
                   location: { lat, lng },
                   type: 'google',
@@ -307,31 +260,29 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
           }
         }
       } catch {
-        // Ignore Places error and proceed to Geocoder fallback if empty
-      }
-
-      // 3c. Fallback to Geocoder if Google Places returned no matches
-      if (googleMatches.length === 0 && !isCancelled) {
+        // Fallback to Geocoder if Places searchByText fails
         try {
           const { Geocoder } = (await importLibrary('geocoding')) as google.maps.GeocodingLibrary;
           const geocoder = new Geocoder();
-          await new Promise<void>((resolve) => {
-            geocoder.geocode({ address: queryWithCity, region: 'co' }, (results, status) => {
-              if (!isCancelled && status === google.maps.GeocoderStatus.OK && results) {
-                results.slice(0, 4).forEach((r, idx) => {
-                  const lat = r.geometry.location.lat();
-                  const lng = r.geometry.location.lng();
-                  googleMatches.push({
-                    id: `sug-geo-${idx}`,
-                    title: r.formatted_address.split(',')[0] || q,
-                    subtitle: r.formatted_address,
-                    location: { lat, lng },
-                    type: 'google',
-                  });
+          const queryWithCity =
+            qLower.includes('medellin') || qLower.includes('medellín')
+              ? q
+              : `${q}, Medellín, Colombia`;
+          geocoder.geocode({ address: queryWithCity, region: 'co' }, (results, status) => {
+            if (!isCancelled && status === google.maps.GeocoderStatus.OK && results) {
+              results.slice(0, 4).forEach((r, idx) => {
+                const lat = r.geometry.location.lat();
+                const lng = r.geometry.location.lng();
+                googleMatches.push({
+                  id: `sug-geo-${idx}`,
+                  title: r.formatted_address.split(',')[0] || q,
+                  subtitle: r.formatted_address,
+                  location: { lat, lng },
+                  type: 'google',
                 });
-              }
-              resolve();
-            });
+              });
+              setSuggestions([...googleMatches, ...localMatches].slice(0, 6));
+            }
           });
         } catch {
           // Ignore
@@ -409,7 +360,7 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
     }
   };
 
-  const handleSelectSuggestion = async (sug: PlaceSuggestion) => {
+  const handleSelectSuggestion = (sug: PlaceSuggestion) => {
     setShowSuggestions(false);
     setIsOpen(false);
     if (sug.type === 'safePlace' && sug.refId) {
@@ -425,40 +376,10 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
         ? `${sug.title}, ${sug.subtitle}`
         : sug.title;
     onChange('otro');
-
-    if (sug.location) {
-      onCustomTextChange(fullAddress, sug.location);
-      setTimeout(() => {
-        onSubmitManual();
-      }, 50);
-      return;
-    }
-
-    // Resolve placeId or address via Geocoder so exact coordinates are passed immediately
-    onCustomTextChange(fullAddress, undefined);
-    try {
-      const { Geocoder } = (await importLibrary('geocoding')) as google.maps.GeocodingLibrary;
-      const geocoder = new Geocoder();
-      geocoder.geocode(
-        sug.placeId ? { placeId: sug.placeId } : { address: fullAddress, region: 'co' },
-        (results, status) => {
-          if (status === google.maps.GeocoderStatus.OK && results?.[0]?.geometry?.location) {
-            const resolvedCoord = {
-              lat: results[0].geometry.location.lat(),
-              lng: results[0].geometry.location.lng(),
-            };
-            onCustomTextChange(fullAddress, resolvedCoord);
-          }
-          setTimeout(() => {
-            onSubmitManual();
-          }, 50);
-        }
-      );
-    } catch {
-      setTimeout(() => {
-        onSubmitManual();
-      }, 50);
-    }
+    onCustomTextChange(fullAddress, sug.location);
+    setTimeout(() => {
+      onSubmitManual();
+    }, 50);
   };
 
   const isMenuVisible = isOpen || (showSuggestions && value === 'otro' && customText.trim().length >= 2);

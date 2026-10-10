@@ -30,8 +30,6 @@ import { importLibrary } from '@googlemaps/js-api-loader';
 import { GOOGLE_MAPS_API_KEY, ensureGoogleMapsInitialized } from '../config/maps';
 import { useSmoothMapUsability, MapUsabilityOverlay } from './MapUsabilityOverlay';
 import { useLanguage } from '../context/LanguageContext';
-import { subscribeToPublicAcceptedReports } from '../services/reportService';
-import type { IncidentReport } from '../types/report';
 import {
   COMUNA_8_SECTORS,
   COMUNA_8_CENTER,
@@ -228,15 +226,6 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(14);
-  const [communityAcceptedReports, setCommunityAcceptedReports] = useState<IncidentReport[]>([]);
-
-  // Subscribe to real approved community alerts from Firestore
-  useEffect(() => {
-    const unsub = subscribeToPublicAcceptedReports((reports) => {
-      setCommunityAcceptedReports(reports);
-    });
-    return () => unsub();
-  }, []);
 
   // Grouped sectors by category: Mayor (high), Intermedio (moderate), Bajo / base (central)
   const highRiskSectors = useMemo(
@@ -1500,28 +1489,12 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
 
                 {/* 2. Datos Relevantes del Sector (Structured Grid) */}
                 <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-white/10 rounded-2xl p-3.5 sm:p-4 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                      <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
-                      <span>
-                        {language === 'es'
-                          ? 'Datos Relevantes del Sector'
-                          : 'Relevant Sector Data'}
-                      </span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
-                      {
-                        communityAcceptedReports.filter((r) => {
-                          const repSec = (r.sector || '').toLowerCase();
-                          const secName = selectedSector.name.toLowerCase();
-                          return (
-                            repSec === secName ||
-                            secName.includes(repSec) ||
-                            repSec.includes(secName.split('(')[0].trim())
-                          );
-                        }).length
-                      }{' '}
-                      {language === 'es' ? 'alertas aprobadas' : 'approved alerts'}
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                    <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                    <span>
+                      {language === 'es'
+                        ? 'Datos Relevantes del Sector'
+                        : 'Relevant Sector Data'}
                     </span>
                   </div>
 
