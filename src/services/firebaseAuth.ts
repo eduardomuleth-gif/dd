@@ -44,6 +44,9 @@ export const firebaseApp: FirebaseApp = getApps().length > 0
 export const auth: Auth = getAuth(firebaseApp);
 auth.languageCode = 'es';
 
+export const AUTH_SYNC_CHANNEL_NAME = 'security_urban_auth_sync_channel';
+export const PASSWORD_RESET_PENDING_KEY = 'security_urban_password_reset_pending';
+
 const EMAIL_VERIFICATION_COOLDOWN_MS = 60_000;
 const lastVerificationEmailSentMap = new Map<string, number>();
 
@@ -536,16 +539,26 @@ export async function executeSendEmailVerification(
  * Execute Password Reset Email using standard Firebase hosted flow redirecting to https://securityurban.vercel.app
  */
 export async function executePasswordReset(
-  email: string
+  rawEmail: string
 ): Promise<{ success: boolean; error: string | null; code?: string }> {
-  const actionCodeSettings: ActionCodeSettings = {
-    url: 'https://securityurban.vercel.app',
-    handleCodeInApp: false,
-  };
-  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email.trim(), 'con actionCodeSettings:', actionCodeSettings);
+  const email = rawEmail.trim();
+  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email);
   try {
-    await sendPasswordResetEmail(auth, email.trim(), actionCodeSettings);
-    console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${email.trim()}`, 'color: #10b981; font-weight: bold;');
+    await sendPasswordResetEmail(auth, email, {
+      url: 'https://securityurban.vercel.app',
+      handleCodeInApp: false
+    });
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(
+          PASSWORD_RESET_PENDING_KEY,
+          JSON.stringify({ email, timestamp: Date.now() })
+        );
+      }
+    } catch {
+      // Ignore storage access errors
+    }
+    console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${email}`, 'color: #10b981; font-weight: bold;');
     return { success: true, error: null };
   } catch (err: unknown) {
     const firebaseError = err as { code?: string; message?: string };

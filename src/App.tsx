@@ -39,7 +39,13 @@ import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderV
 import { TacticalMapModal } from './components/TacticalMapModal';
 import { UserProfileMenu } from './components/UserProfileMenu';
 import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
-import { subscribeToAuth, executeSignOut, auth } from './services/firebaseAuth';
+import {
+  subscribeToAuth,
+  executeSignOut,
+  auth,
+  AUTH_SYNC_CHANNEL_NAME,
+  PASSWORD_RESET_PENDING_KEY,
+} from './services/firebaseAuth';
 import { syncCurrentUserFirestoreProfile } from './services/userService';
 import { UserRole } from './types/user';
 import { startActivitySimulation } from './services/activitySimulationService';
@@ -119,6 +125,95 @@ const MainScreen: React.FC = () => {
       clearUrlAuthParams();
     }
   }, [authReturnNotice]);
+
+  // Prevent duplicate tabs when returning from Firebase password reset or email verification
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return;
+
+    const channel = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
+    const tabId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Check if this newly opened tab is a return from password reset / email action
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode') || params.get('authFlow');
+    let hasPendingReset = false;
+    try {
+      const pendingRaw = localStorage.getItem(PASSWORD_RESET_PENDING_KEY);
+      if (pendingRaw) {
+        const parsed = JSON.parse(pendingRaw) as { email?: string; timestamp?: number };
+        // Valid within 30 minutes
+        if (parsed.timestamp && Date.now() - parsed.timestamp < 30 * 60 * 1000) {
+          hasPendingReset = true;
+        } else {
+          localStorage.removeItem(PASSWORD_RESET_PENDING_KEY);
+        }
+      }
+    } catch {
+      // Ignore storage access errors
+    }
+
+    const isReturningFromAuthFlow =
+      mode === 'resetPassword' || mode === 'verifyEmail' || hasPendingReset;
+
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data as {
+        type?: string;
+        senderId?: string;
+        flow?: string;
+      };
+      if (!data || data.senderId === tabId) return;
+
+      if (data.type === 'NEW_AUTH_RETURN_TAB_OPENED') {
+        // An existing tab receives notice that a duplicate return tab was opened:
+        // adopt the login state here and tell the duplicate tab it can close, or close this older background tab if window.close() is blocked on the new tab.
+        setActiveTab('login');
+        setIsForgotPasswordOpen(false);
+        if (data.flow === 'resetPassword') {
+          setAuthReturnNotice(
+            'Proceso de restablecimiento completado. Inicia sesión con tu nueva contraseña.'
+          );
+          try {
+            localStorage.removeItem(PASSWORD_RESET_PENDING_KEY);
+          } catch {
+            // Ignore
+          }
+        }
+        channel.postMessage({
+          type: 'EXISTING_TAB_ACKNOWLEDGED',
+          senderId: tabId,
+          flow: data.flow,
+        });
+        try {
+          window.focus();
+        } catch {
+          // Ignore focus restrictions
+        }
+      } else if (data.type === 'EXISTING_TAB_ACKNOWLEDGED' && isReturningFromAuthFlow) {
+        // An original tab is already open and updated its state; close this duplicate tab
+        try {
+          localStorage.removeItem(PASSWORD_RESET_PENDING_KEY);
+        } catch {
+          // Ignore
+        }
+        window.close();
+      }
+    };
+
+    channel.addEventListener('message', handleMessage);
+
+    if (isReturningFromAuthFlow) {
+      channel.postMessage({
+        type: 'NEW_AUTH_RETURN_TAB_OPENED',
+        senderId: tabId,
+        flow: mode || (hasPendingReset ? 'resetPassword' : 'auth'),
+      });
+    }
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, []);
 
   // Measure fixed header height so main content never hides behind the navigation bar
   const headerRef = useRef<HTMLElement | null>(null);

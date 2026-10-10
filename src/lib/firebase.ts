@@ -12,6 +12,8 @@ import {
   clearLastInitialVerificationError,
   executeSignOut,
   subscribeToAuth,
+  AUTH_SYNC_CHANNEL_NAME,
+  PASSWORD_RESET_PENDING_KEY,
 } from '../services/firebaseAuth';
 import { SecurityLogItem } from '../types/auth';
 
@@ -28,6 +30,8 @@ export {
   clearLastInitialVerificationError,
   executeSignOut,
   subscribeToAuth,
+  AUTH_SYNC_CHANNEL_NAME,
+  PASSWORD_RESET_PENDING_KEY,
 };
 
 // Console logger helper for security auditing (visible in DevTools F12 console)
