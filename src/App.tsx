@@ -71,7 +71,7 @@ const MainScreen: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
 
-  // Firebase Email Action Code Parameters (?mode=verifyEmail&oobCode=...) or Return Flow (?authFlow=...)
+  // Firebase Email Action Code Parameters (?mode=verifyEmail|resetPassword&oobCode=...) or Return Flow (?authFlow=...)
   const [authActionParams, setAuthActionParams] = useState<{
     mode: string;
     oobCode: string;
@@ -81,11 +81,11 @@ const MainScreen: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('mode');
     const oobCode = params.get('oobCode');
-    if (mode === 'verifyEmail' && oobCode) {
+    if ((mode === 'verifyEmail' || mode === 'resetPassword') && oobCode) {
       return {
         mode,
         oobCode,
-        continueUrl: params.get('continueUrl'),
+        continueUrl: params.get('continueUrl') || 'https://securityurban.vercel.app',
       };
     }
     return null;
@@ -102,6 +102,18 @@ const MainScreen: React.FC = () => {
     }
     if (!oobCode && (authFlow === 'resetPassword' || mode === 'resetPassword')) {
       return 'Proceso de restablecimiento completado. Inicia sesión con tu nueva contraseña.';
+    }
+    try {
+      const pendingRaw = localStorage.getItem(PASSWORD_RESET_PENDING_KEY);
+      if (!oobCode && pendingRaw) {
+        const parsed = JSON.parse(pendingRaw) as { email?: string; timestamp?: number };
+        if (parsed.timestamp && Date.now() - parsed.timestamp < 30 * 60 * 1000) {
+          localStorage.removeItem(PASSWORD_RESET_PENDING_KEY);
+          return 'Proceso de restablecimiento completado. Inicia sesión con tu nueva contraseña.';
+        }
+      }
+    } catch {
+      // Ignore storage access errors
     }
     return null;
   });
@@ -126,34 +138,17 @@ const MainScreen: React.FC = () => {
     }
   }, [authReturnNotice]);
 
-  // Prevent duplicate tabs when returning from Firebase password reset or email verification
+  // Synchronize auth return state across tabs cleanly WITHOUT calling window.close()
   useEffect(() => {
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return;
 
     const channel = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
     const tabId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // Check if this newly opened tab is a return from password reset / email action
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('mode') || params.get('authFlow');
-    let hasPendingReset = false;
-    try {
-      const pendingRaw = localStorage.getItem(PASSWORD_RESET_PENDING_KEY);
-      if (pendingRaw) {
-        const parsed = JSON.parse(pendingRaw) as { email?: string; timestamp?: number };
-        // Valid within 30 minutes
-        if (parsed.timestamp && Date.now() - parsed.timestamp < 30 * 60 * 1000) {
-          hasPendingReset = true;
-        } else {
-          localStorage.removeItem(PASSWORD_RESET_PENDING_KEY);
-        }
-      }
-    } catch {
-      // Ignore storage access errors
-    }
-
     const isReturningFromAuthFlow =
-      mode === 'resetPassword' || mode === 'verifyEmail' || hasPendingReset;
+      mode === 'resetPassword' || mode === 'verifyEmail' || Boolean(authReturnNotice);
 
     const handleMessage = (event: MessageEvent) => {
       const data = event.data as {
@@ -164,8 +159,6 @@ const MainScreen: React.FC = () => {
       if (!data || data.senderId === tabId) return;
 
       if (data.type === 'NEW_AUTH_RETURN_TAB_OPENED') {
-        // An existing tab receives notice that a duplicate return tab was opened:
-        // adopt the login state here and tell the duplicate tab it can close, or close this older background tab if window.close() is blocked on the new tab.
         setActiveTab('login');
         setIsForgotPasswordOpen(false);
         if (data.flow === 'resetPassword') {
@@ -178,24 +171,6 @@ const MainScreen: React.FC = () => {
             // Ignore
           }
         }
-        channel.postMessage({
-          type: 'EXISTING_TAB_ACKNOWLEDGED',
-          senderId: tabId,
-          flow: data.flow,
-        });
-        try {
-          window.focus();
-        } catch {
-          // Ignore focus restrictions
-        }
-      } else if (data.type === 'EXISTING_TAB_ACKNOWLEDGED' && isReturningFromAuthFlow) {
-        // An original tab is already open and updated its state; close this duplicate tab
-        try {
-          localStorage.removeItem(PASSWORD_RESET_PENDING_KEY);
-        } catch {
-          // Ignore
-        }
-        window.close();
       }
     };
 
@@ -205,7 +180,7 @@ const MainScreen: React.FC = () => {
       channel.postMessage({
         type: 'NEW_AUTH_RETURN_TAB_OPENED',
         senderId: tabId,
-        flow: mode || (hasPendingReset ? 'resetPassword' : 'auth'),
+        flow: mode || 'resetPassword',
       });
     }
 
@@ -213,7 +188,7 @@ const MainScreen: React.FC = () => {
       channel.removeEventListener('message', handleMessage);
       channel.close();
     };
-  }, []);
+  }, [authReturnNotice]);
 
   // Measure fixed header height so main content never hides behind the navigation bar
   const headerRef = useRef<HTMLElement | null>(null);

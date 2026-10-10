@@ -8,6 +8,8 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   applyActionCode,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
   ActionCodeSettings,
   signOut,
   onAuthStateChanged,
@@ -163,11 +165,13 @@ export function formatFirebaseEmailError(code: string, rawMessage?: string): str
   }
 }
 
+export const VERCEL_APP_URL = 'https://securityurban.vercel.app';
+
 /**
  * ActionCodeSettings for email verification and password reset redirecting back to the Vercel production URL.
  */
 export const verificationActionCodeSettings: ActionCodeSettings = {
-  url: 'https://securityurban.vercel.app',
+  url: VERCEL_APP_URL,
   handleCodeInApp: false,
 };
 
@@ -595,6 +599,52 @@ export async function executeApplyActionCode(oobCode: string): Promise<{ success
       return { success: false, error: 'El enlace de verificación ya fue utilizado o no es válido.' };
     }
     return { success: false, error: firebaseError.message || 'No se pudo verificar el código.' };
+  }
+}
+
+/**
+ * Verify Password Reset Code (when link with ?mode=resetPassword&oobCode=... is opened on the app)
+ */
+export async function executeVerifyPasswordResetCode(
+  oobCode: string
+): Promise<{ email: string | null; error: string | null }> {
+  try {
+    const email = await verifyPasswordResetCode(auth, oobCode);
+    return { email, error: null };
+  } catch (err: unknown) {
+    const firebaseError = err as { code?: string; message?: string };
+    if (firebaseError.code === 'auth/expired-action-code') {
+      return { email: null, error: 'El enlace de recuperación ha expirado. Solicita uno nuevo.' };
+    }
+    if (firebaseError.code === 'auth/invalid-action-code') {
+      return { email: null, error: 'El enlace de recuperación ya fue utilizado o no es válido.' };
+    }
+    return { email: null, error: firebaseError.message || 'Código de recuperación inválido.' };
+  }
+}
+
+/**
+ * Confirm Password Reset with new password
+ */
+export async function executeConfirmPasswordReset(
+  oobCode: string,
+  newPassword: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    await confirmPasswordReset(auth, oobCode, newPassword);
+    return { success: true, error: null };
+  } catch (err: unknown) {
+    const firebaseError = err as { code?: string; message?: string };
+    if (firebaseError.code === 'auth/weak-password') {
+      return { success: false, error: 'La contraseña debe tener al menos 6 caracteres.' };
+    }
+    if (firebaseError.code === 'auth/expired-action-code') {
+      return { success: false, error: 'El enlace ha expirado. Solicita un nuevo correo de recuperación.' };
+    }
+    if (firebaseError.code === 'auth/invalid-action-code') {
+      return { success: false, error: 'El enlace ya fue utilizado o no es válido.' };
+    }
+    return { success: false, error: firebaseError.message || 'No se pudo actualizar la contraseña.' };
   }
 }
 
