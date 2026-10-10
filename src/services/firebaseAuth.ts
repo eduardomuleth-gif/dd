@@ -171,22 +171,22 @@ export const verificationActionCodeSettings: ActionCodeSettings = {
 };
 
 /**
+ * ActionCodeSettings for password reset redirecting to /reset-password on Vercel with handleCodeInApp: true.
+ */
+export const passwordResetActionCodeSettings: ActionCodeSettings = {
+  url: 'https://securityurban.vercel.app/reset-password',
+  handleCodeInApp: true,
+};
+
+/**
  * Builds ActionCodeSettings pointing back to the current Security Urban web origin
  * so email verification and password reset links return to a valid page.
  */
-export function buildActionCodeSettings(flow: 'verifyEmail' | 'resetPassword'): ActionCodeSettings | undefined {
+export function buildActionCodeSettings(flow: 'verifyEmail' | 'resetPassword'): ActionCodeSettings {
   if (flow === 'verifyEmail') {
     return verificationActionCodeSettings;
   }
-  if (typeof window === 'undefined' || !window.location?.origin) {
-    return undefined;
-  }
-  const returnUrl = new URL('/', window.location.origin);
-  returnUrl.searchParams.set('authFlow', flow);
-  return {
-    url: returnUrl.toString(),
-    handleCodeInApp: false,
-  };
+  return passwordResetActionCodeSettings;
 }
 
 // Initialize Firestore with long-polling fallback to prevent WebSocket drops in sandboxed iframe previews
@@ -551,10 +551,13 @@ export async function executeSendEmailVerification(
 export async function executePasswordReset(
   email: string
 ): Promise<{ success: boolean; error: string | null; code?: string }> {
-  const actionSettings = buildActionCodeSettings('resetPassword');
-  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email.trim(), 'con ActionCodeSettings:', actionSettings);
+  const actionCodeSettings: ActionCodeSettings = {
+    url: 'https://securityurban.vercel.app/reset-password',
+    handleCodeInApp: true,
+  };
+  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email.trim(), 'con ActionCodeSettings:', actionCodeSettings);
   try {
-    await sendPasswordResetEmail(auth, email.trim(), actionSettings);
+    await sendPasswordResetEmail(auth, email.trim(), actionCodeSettings);
     console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${email.trim()}`, 'color: #10b981; font-weight: bold;');
     return { success: true, error: null };
   } catch (err: unknown) {

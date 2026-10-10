@@ -70,7 +70,6 @@ interface SettingsScreenProps {
   currentUserRole?: UserRole;
   onNavigateHome: () => void;
   onSignOut: () => void;
-  onAccountDeleted?: () => void;
   initialSection?: 'profile' | 'preferences' | 'security' | 'privacy' | 'about' | 'danger';
 }
 
@@ -79,7 +78,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   currentUserRole = 'ciudadano',
   onNavigateHome,
   onSignOut,
-  onAccountDeleted,
   initialSection = 'profile',
 }) => {
   const { theme, toggleTheme, colors } = useTheme();
@@ -120,19 +118,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // Section 4: Privacy state
   const [perfilVisibleComunidad, setPerfilVisibleComunidad] = useState<boolean>(true);
 
-  // Section 6: Danger Zone state (Confirmation modal)
+  // Section 6: Danger Zone state (Double confirmation modal)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState<string>('');
   const [deletePassword, setDeletePassword] = useState<string>('');
   const [showDeletePassword, setShowDeletePassword] = useState<boolean>(false);
-  const [requiresPasswordForDelete, setRequiresPasswordForDelete] = useState<boolean>(false);
+  const [needsPasswordForDelete, setNeedsPasswordForDelete] = useState<boolean>(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
   const [deleteErrorMsg, setDeleteErrorMsg] = useState<string | null>(null);
 
   const profileAlertRef = useRef<HTMLDivElement | null>(null);
   const securityAlertRef = useRef<HTMLDivElement | null>(null);
   const deleteAlertRef = useRef<HTMLDivElement | null>(null);
-  const deletePasswordInputRef = useRef<HTMLInputElement | null>(null);
 
   // PROMPT 3: Auto-scroll to feedback messages when they appear
   useEffect(() => {
@@ -369,27 +366,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
-  const openDeleteAccountModal = () => {
-    setDeleteConfirmationText('');
-    setDeletePassword('');
-    setShowDeletePassword(false);
-    setRequiresPasswordForDelete(false);
-    setDeleteErrorMsg(null);
-    setIsDeleteModalOpen(true);
-  };
-
-  // Handle Account Deletion (Section 6)
-  const handleConfirmDeleteAccount = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!currentUser || isDeletingAccount) return;
-
-    if (requiresPasswordForDelete && !deletePassword.trim()) {
+  // Handle Account Deletion with double confirmation (Section 6)
+  const handleConfirmDeleteAccount = async () => {
+    if (!currentUser) return;
+    if (deleteConfirmationText.trim().toUpperCase() !== 'ELIMINAR') {
       setDeleteErrorMsg(
         language === 'es'
-          ? 'Por favor ingresa tu contraseña actual para confirmar la eliminación de tu cuenta.'
-          : 'Please enter your current password to confirm account deletion.'
+          ? 'Debes escribir exactamente la palabra "ELIMINAR" para confirmar.'
+          : 'You must type "ELIMINAR" exactly to confirm.'
       );
-      setTimeout(() => deletePasswordInputRef.current?.focus(), 50);
+      return;
+    }
+
+    if (needsPasswordForDelete && !deletePassword.trim()) {
+      setDeleteErrorMsg(
+        language === 'es'
+          ? 'Ingresa tu contraseña actual para autorizar la eliminación en Firebase Authentication.'
+          : 'Please enter your current password to authorize account deletion.'
+      );
       return;
     }
 
@@ -400,17 +394,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const result = await deleteUserAccountAndFirestore(currentUser, deletePassword);
       if (result.success) {
         setIsDeleteModalOpen(false);
-        if (onAccountDeleted) {
-          onAccountDeleted();
-        } else {
-          onSignOut();
-        }
+        onSignOut();
       } else {
         if (result.requiresRecentLogin) {
-          setRequiresPasswordForDelete(true);
-          setTimeout(() => deletePasswordInputRef.current?.focus(), 50);
+          setNeedsPasswordForDelete(true);
         }
-        setDeleteErrorMsg(result.error || 'Error al eliminar la cuenta.');
+        setDeleteErrorMsg(result.error || 'Error desconocido al eliminar la cuenta.');
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -1214,15 +1203,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <LogOut className="w-4 h-4" />
                     <span>{language === 'es' ? 'Cerrar Sesión Activa' : 'Sign Out Active Session'}</span>
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={openDeleteAccountModal}
-                    className="w-full py-2.5 px-4 rounded-xl bg-rose-600/10 hover:bg-rose-600/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs font-bold font-mono transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>{language === 'es' ? 'Eliminar Permanentemente Mi Cuenta' : 'Permanently Delete My Account'}</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -1431,7 +1411,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
               <button
                 type="button"
-                onClick={openDeleteAccountModal}
+                onClick={() => {
+                  setDeleteConfirmationText('');
+                  setDeletePassword('');
+                  setShowDeletePassword(false);
+                  setNeedsPasswordForDelete(false);
+                  setDeleteErrorMsg(null);
+                  setIsDeleteModalOpen(true);
+                }}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer shrink-0 self-start sm:self-auto"
               >
                 <Trash2 className="w-4 h-4" />
@@ -1441,7 +1428,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </section>
 
-        {/* Modal: Confirmación para Eliminar Cuenta */}
+        {/* Modal: Doble Confirmación para Eliminar Cuenta */}
         <ModalPortal
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
@@ -1451,128 +1438,137 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             isDark ? 'bg-slate-900 border-rose-900/80 text-slate-100' : 'bg-white border-rose-300 text-slate-900'
           }
         >
-          <form onSubmit={handleConfirmDeleteAccount} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            {/* Fixed Header */}
-            <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-lg shadow-rose-900/40 shrink-0">
-                  <Trash2 className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-mono font-bold text-rose-500 uppercase tracking-widest block">
-                    ACCIÓN IRREVERSIBLE // SECURITY URBAN
-                  </span>
-                  <h3 className="text-base sm:text-lg font-black font-['Rajdhani'] uppercase tracking-wide truncate">
-                    {language === 'es' ? '¿Eliminar tu cuenta?' : 'Delete your account?'}
-                  </h3>
-                </div>
+          {/* Fixed Header */}
+          <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-lg shadow-rose-900/40 shrink-0">
+                <Trash2 className="w-5 h-5" />
               </div>
-
-              <button
-                type="button"
-                onClick={() => setIsDeleteModalOpen(false)}
-                disabled={isDeletingAccount}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="min-w-0">
+                <span className="text-[10px] font-mono font-bold text-rose-500 uppercase tracking-widest block">
+                  CONFIRMACIÓN DOBLE // IRREVERSIBLE
+                </span>
+                <h3 className="text-base sm:text-lg font-black font-['Rajdhani'] uppercase tracking-wide truncate">
+                  {language === 'es' ? '¿Eliminar tu cuenta?' : 'Delete your account?'}
+                </h3>
+              </div>
             </div>
 
-            {/* Scrollable Body */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
-              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-700 dark:text-rose-300 space-y-1">
-                <p className="font-bold">
-                  {language === 'es'
-                    ? '⚠️ Advertencia de eliminación permanente:'
-                    : '⚠️ Permanent deletion warning:'}
-                </p>
-                <p>
-                  {language === 'es'
-                    ? 'Se borrarán de forma definitiva tus credenciales en Firebase Authentication y tu perfil en Security Urban (' + (currentUser?.email || '') + ').'
-                    : 'Your Firebase Auth credentials and Firestore record will be permanently deleted.'}
-                </p>
-              </div>
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeletingAccount}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                  {language === 'es'
-                    ? 'Contraseña actual de tu cuenta:'
-                    : 'Your current account password:'}
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    ref={deletePasswordInputRef}
-                    type={showDeletePassword ? 'text' : 'password'}
-                    value={deletePassword}
-                    onChange={(e) => {
-                      setDeletePassword(e.target.value);
-                      if (deleteErrorMsg) setDeleteErrorMsg(null);
-                    }}
-                    placeholder={language === 'es' ? 'Ingresa tu contraseña para confirmar' : 'Enter your password to confirm'}
-                    autoComplete="current-password"
-                    autoFocus
-                    className={`w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm focus:outline-hidden focus:ring-2 focus:ring-rose-500/40 bg-slate-50 dark:bg-slate-950 ${
-                      requiresPasswordForDelete
-                        ? 'border-rose-500 dark:border-rose-500 ring-2 ring-rose-500/20'
-                        : 'border-slate-300 dark:border-slate-700'
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowDeletePassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1"
-                    tabIndex={-1}
-                  >
-                    {showDeletePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {language === 'es'
-                    ? 'Por seguridad, Firebase requiere verificar tu identidad para eliminar la cuenta.'
-                    : 'For security, Firebase verifies your identity before deleting the account.'}
-                </p>
-              </div>
+          {/* Scrollable Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-700 dark:text-rose-300 space-y-1">
+              <p className="font-bold">
+                {language === 'es'
+                  ? '⚠️ Advertencia de eliminación irreversible:'
+                  : '⚠️ Irreversible deletion warning:'}
+              </p>
+              <p>
+                {language === 'es'
+                  ? 'Se borrarán tus credenciales de Firebase Auth y tu expediente en Firestore (/usuarios/' + (currentUser?.uid || '') + ').'
+                  : 'Your Firebase Auth credentials and Firestore record will be permanently deleted.'}
+              </p>
+            </div>
 
-              {deleteErrorMsg && (
-                <div
-                  ref={deleteAlertRef}
-                  className="p-3 rounded-xl bg-rose-500/20 border-2 border-rose-500/40 text-xs sm:text-sm font-semibold text-rose-600 dark:text-rose-400 animate-in fade-in duration-150"
+            {/* Password field for Firebase Re-authentication */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                {language === 'es'
+                  ? '1. Ingresa tu contraseña actual (seguridad Firebase):'
+                  : '1. Enter your current password (Firebase security):'}
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showDeletePassword ? 'text' : 'password'}
+                  value={deletePassword}
+                  onChange={(e) => {
+                    setDeletePassword(e.target.value);
+                    if (deleteErrorMsg) setDeleteErrorMsg(null);
+                  }}
+                  placeholder={language === 'es' ? 'Tu contraseña actual' : 'Your current password'}
+                  className={`w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm focus:outline-hidden focus:ring-2 focus:ring-rose-500/40 ${
+                    needsPasswordForDelete
+                      ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/30'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDeletePassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
-                  {deleteErrorMsg}
-                </div>
-              )}
+                  {showDeletePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
-            {/* Fixed Footer */}
-            <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setIsDeleteModalOpen(false)}
-                disabled={isDeletingAccount}
-                className="py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold font-mono uppercase transition-colors cursor-pointer"
-              >
-                {language === 'es' ? 'Cancelar' : 'Cancel'}
-              </button>
-              <button
-                type="submit"
-                disabled={isDeletingAccount}
-                className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold font-mono uppercase transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {isDeletingAccount ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>{language === 'es' ? 'Eliminando...' : 'Deleting...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    <span>{language === 'es' ? 'Eliminar Cuenta' : 'Delete Account'}</span>
-                  </>
-                )}
-              </button>
+            <div className="space-y-1.5">
+              <label className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block">
+                {language === 'es'
+                  ? '2. Para confirmar, escribe "ELIMINAR" abajo:'
+                  : '2. To confirm, type "ELIMINAR" below:'}
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmationText}
+                onChange={(e) => {
+                  setDeleteConfirmationText(e.target.value);
+                  if (deleteErrorMsg) setDeleteErrorMsg(null);
+                }}
+                placeholder="ELIMINAR"
+                className="w-full px-4 py-2.5 rounded-xl border text-sm font-mono tracking-widest text-center uppercase focus:outline-hidden focus:ring-2 focus:ring-rose-500/40 border-rose-400 dark:border-rose-800 bg-slate-50 dark:bg-slate-950"
+              />
             </div>
-          </form>
+
+            {deleteErrorMsg && (
+              <div
+                ref={deleteAlertRef}
+                className="p-3 rounded-xl bg-rose-500/20 border-2 border-rose-500/40 text-xs sm:text-sm font-semibold text-rose-600 dark:text-rose-400 animate-in fade-in duration-150"
+              >
+                {deleteErrorMsg}
+              </div>
+            )}
+          </div>
+
+          {/* Fixed Footer */}
+          <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(false)}
+              disabled={isDeletingAccount}
+              className="py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold font-mono uppercase transition-colors cursor-pointer"
+            >
+              {language === 'es' ? 'Cancelar' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDeleteAccount}
+              disabled={isDeletingAccount || deleteConfirmationText.trim().toUpperCase() !== 'ELIMINAR'}
+              className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold font-mono uppercase transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isDeletingAccount ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>{language === 'es' ? 'Borrando...' : 'Deleting...'}</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>{language === 'es' ? 'Confirmar' : 'Confirm'}</span>
+                </>
+              )}
+            </button>
+          </div>
         </ModalPortal>
 
       </div>

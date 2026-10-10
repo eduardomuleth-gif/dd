@@ -26,6 +26,7 @@ import { RegisterForm } from './components/RegisterForm';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { EmailVerificationView } from './components/EmailVerificationView';
 import { AuthActionHandlerView } from './components/AuthActionHandlerView';
+import { ResetPasswordView } from './components/ResetPasswordView';
 import { HomeScreen } from './components/HomeScreen';
 import { DashboardScreen } from './components/DashboardScreen';
 import { RiskMapScreen } from './components/RiskMapScreen';
@@ -39,7 +40,7 @@ import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderV
 import { TacticalMapModal } from './components/TacticalMapModal';
 import { UserProfileMenu } from './components/UserProfileMenu';
 import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
-import { subscribeToAuth, executeSignOut } from './services/firebaseAuth';
+import { subscribeToAuth, executeSignOut, auth } from './services/firebaseAuth';
 import { syncCurrentUserFirestoreProfile } from './services/userService';
 import { UserRole } from './types/user';
 import { startActivitySimulation } from './services/activitySimulationService';
@@ -51,6 +52,7 @@ const MainScreen: React.FC = () => {
 
   // Authentication State with Route Guard
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>('ciudadano');
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
@@ -63,6 +65,13 @@ const MainScreen: React.FC = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
+
+  // Detect /reset-password route
+  const [isResetPasswordRoute, setIsResetPasswordRoute] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.replace(/\/+$/, '');
+    return path === '/reset-password';
+  });
 
   // Firebase Email Action Code Parameters (?mode=verifyEmail|resetPassword&oobCode=...) or Return Flow (?authFlow=...)
   const [authActionParams, setAuthActionParams] = useState<{
@@ -102,10 +111,10 @@ const MainScreen: React.FC = () => {
     return null;
   });
 
-  const clearUrlAuthParams = () => {
+  const clearUrlAuthParams = (resetPathToRoot = false) => {
     if (typeof window !== 'undefined' && window.history?.replaceState) {
-      const cleanUrl = window.location.pathname + window.location.hash;
-      window.history.replaceState({}, document.title, cleanUrl);
+      const targetPath = resetPathToRoot ? '/' : window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, targetPath);
     }
   };
 
@@ -197,15 +206,19 @@ const MainScreen: React.FC = () => {
 
   // PROMPT 4: Automatic emailVerified reload listener across the application
   useEffect(() => {
-    if (!currentUser || currentUser.emailVerified) return;
+    if (!currentUser || currentUser.emailVerified || isEmailVerified) return;
     let isMounted = true;
 
     const checkVerificationStatus = async () => {
       try {
-        await currentUser.reload();
-        if (currentUser.emailVerified && isMounted) {
+        const activeUser = auth.currentUser || currentUser;
+        if (typeof activeUser.reload === 'function') {
+          await activeUser.reload();
+        }
+        if (activeUser.emailVerified && isMounted) {
           console.log('[Security Urban :: RouteGuard] ✔ emailVerified = true detectado en recarga. Desbloqueando acceso completo a la plataforma.');
-          setCurrentUser({ ...currentUser, emailVerified: true } as User);
+          setIsEmailVerified(true);
+          setCurrentUser(auth.currentUser || activeUser);
         }
       } catch {
         // Silently retry
@@ -224,13 +237,14 @@ const MainScreen: React.FC = () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
     };
-  }, [currentUser]);
+  }, [currentUser, isEmailVerified]);
 
   // Subscribe to real Firebase auth changes via route guard
   useEffect(() => {
     console.log('[Security Urban :: RouteGuard] Inicializando listener onAuthStateChanged...');
     const unsubscribe = subscribeToAuth(async (user) => {
       setCurrentUser(user);
+      setIsEmailVerified(Boolean(user?.emailVerified));
       setIsAuthLoading(false);
 
       if (user) {
@@ -241,13 +255,14 @@ const MainScreen: React.FC = () => {
             console.warn('[Security Urban :: RouteGuard] Cuenta suspendida en Firestore, forzando cierre de sesión...');
             await executeSignOut();
             setCurrentUser(null);
+            setIsEmailVerified(false);
             return;
           }
 
           // If verified via 6-digit OTP code in Firestore, honor verified status
           if (profile.correoVerificado === true && !user.emailVerified) {
             console.log('[Security Urban :: RouteGuard] Correo verificado mediante código OTP en Firestore -> Acceso completo habilitado');
-            setCurrentUser({ ...user, emailVerified: true } as User);
+            setIsEmailVerified(true);
           }
 
           // Default demo elevation to admin if email contains admin/root, otherwise use profile.rol
@@ -257,6 +272,7 @@ const MainScreen: React.FC = () => {
         }
       } else {
         console.log('[Security Urban :: RouteGuard] ✖ Sin sesión activa -> Redirigiendo a Login');
+        setIsEmailVerified(false);
         setCurrentUserRole('ciudadano');
         setCurrentView('home'); // Reset authenticated view pointer
       }
@@ -330,8 +346,8 @@ const MainScreen: React.FC = () => {
     );
   }
 
-  // 2. UNAUTHENTICATED OR EMAIL ACTION HANDLER FLOW
-  if (!currentUser || authActionParams) {
+  // 2. UNAUTHENTICATED OR EMAIL ACTION HANDLER OR /reset-password FLOW
+  if (!currentUser || authActionParams || isResetPasswordRoute) {
     return (
       <div className={`min-h-screen relative flex flex-col justify-between overflow-x-hidden selection:bg-red-600 selection:text-white pb-8 transition-colors ${colors.canvasBg} ${colors.canvasText}`}>
         {/* Visual Background: canvas + diagonal split panel + subtle circuit texture */}
@@ -417,18 +433,32 @@ const MainScreen: React.FC = () => {
               <SecurityBadges />
             </div>
 
-            {authActionParams ? (
+            {isResetPasswordRoute || authActionParams?.mode === 'resetPassword' ? (
+              <ResetPasswordView
+                initialOobCode={authActionParams?.oobCode}
+                onRedirectToLogin={(successMsg) => {
+                  clearUrlAuthParams(true);
+                  setIsResetPasswordRoute(false);
+                  setAuthActionParams(null);
+                  setActiveTab('login');
+                  if (successMsg) {
+                    setAuthReturnNotice(successMsg);
+                  }
+                }}
+              />
+            ) : authActionParams ? (
               <AuthActionHandlerView
                 mode={authActionParams.mode}
                 oobCode={authActionParams.oobCode}
                 continueUrl={authActionParams.continueUrl}
                 onEmailVerifiedSuccess={() => {
                   if (currentUser) {
-                    setCurrentUser({ ...currentUser, emailVerified: true } as User);
+                    setIsEmailVerified(true);
+                    setCurrentUser(auth.currentUser || currentUser);
                   }
                 }}
                 onCompleteToLogin={() => {
-                  clearUrlAuthParams();
+                  clearUrlAuthParams(true);
                   setAuthActionParams(null);
                   setActiveTab('login');
                 }}
@@ -869,11 +899,12 @@ const MainScreen: React.FC = () => {
         style={{ paddingTop: headerHeight ? `${headerHeight + 24}px` : undefined }}
         className={`relative w-full ${currentView === 'riskMap' ? 'max-w-[1720px]' : 'max-w-[1440px]'} mx-auto px-3 sm:px-6 lg:px-8 pt-24 sm:pt-28 lg:pt-38 pb-16 flex flex-col items-stretch justify-start grow`}
       >
-        {!currentUser.emailVerified ? (
+        {!currentUser.emailVerified && !isEmailVerified ? (
           <EmailVerificationView
             user={currentUser}
             onVerificationSuccess={() => {
-              setCurrentUser({ ...currentUser, emailVerified: true } as User);
+              setIsEmailVerified(true);
+              setCurrentUser(auth.currentUser || currentUser);
             }}
           />
         ) : currentView === 'home' ? (
