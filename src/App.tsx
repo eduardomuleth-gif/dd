@@ -25,6 +25,7 @@ import { LoginForm } from './components/LoginForm';
 import { RegisterForm } from './components/RegisterForm';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { EmailVerificationView } from './components/EmailVerificationView';
+import { AuthActionHandlerView } from './components/AuthActionHandlerView';
 import { HomeScreen } from './components/HomeScreen';
 import { DashboardScreen } from './components/DashboardScreen';
 import { RiskMapScreen } from './components/RiskMapScreen';
@@ -38,12 +39,7 @@ import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderV
 import { TacticalMapModal } from './components/TacticalMapModal';
 import { UserProfileMenu } from './components/UserProfileMenu';
 import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
-import {
-  subscribeToAuth,
-  executeSignOut,
-  subscribeToPasswordRecovery,
-  PasswordRecoveryState,
-} from './services/firebaseAuth';
+import { subscribeToAuth, executeSignOut } from './services/firebaseAuth';
 import { syncCurrentUserFirestoreProfile } from './services/userService';
 import { UserRole } from './types/user';
 import { startActivitySimulation } from './services/activitySimulationService';
@@ -65,14 +61,59 @@ const MainScreen: React.FC = () => {
   // Modals and drawers
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
-  const [passwordRecoveryState, setPasswordRecoveryState] = useState<PasswordRecoveryState>({
-    isRecovery: false,
-    email: null,
-    hasValidSession: false,
-    linkError: null,
-  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
+
+  // Firebase Email Action Code Parameters (?mode=verifyEmail|resetPassword&oobCode=...) or Return Flow (?authFlow=...)
+  const [authActionParams, setAuthActionParams] = useState<{
+    mode: string;
+    oobCode: string;
+    continueUrl?: string | null;
+  } | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    const oobCode = params.get('oobCode');
+    if (mode && oobCode) {
+      return {
+        mode,
+        oobCode,
+        continueUrl: params.get('continueUrl'),
+      };
+    }
+    return null;
+  });
+
+  const [authReturnNotice, setAuthReturnNotice] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    const oobCode = params.get('oobCode');
+    const authFlow = params.get('authFlow');
+    if (!oobCode && authFlow === 'verifyEmail') {
+      return '¡Tu correo electrónico ha sido confirmado! Ya puedes iniciar sesión para acceder a Security Urban.';
+    }
+    if (!oobCode && authFlow === 'resetPassword') {
+      return 'Proceso de restablecimiento completado. Inicia sesión con tu nueva contraseña.';
+    }
+    if (!oobCode && mode === 'verifyEmail') {
+      return '¡Tu correo electrónico ha sido confirmado! Ya puedes iniciar sesión.';
+    }
+    return null;
+  });
+
+  const clearUrlAuthParams = () => {
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  };
+
+  useEffect(() => {
+    if (authReturnNotice) {
+      clearUrlAuthParams();
+    }
+  }, [authReturnNotice]);
 
   // Measure fixed header height so main content never hides behind the navigation bar
   const headerRef = useRef<HTMLElement | null>(null);
@@ -224,20 +265,6 @@ const MainScreen: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Subscribe to Supabase Auth PASSWORD_RECOVERY events
-  useEffect(() => {
-    const unsubscribeRecovery = subscribeToPasswordRecovery((recoveryState) => {
-      setPasswordRecoveryState(recoveryState);
-      if (recoveryState.isRecovery) {
-        setCurrentUser(null);
-        setIsAuthLoading(false);
-        setActiveTab('login');
-        setIsForgotPasswordOpen(true);
-      }
-    });
-    return () => unsubscribeRecovery();
-  }, []);
-
   // Motor de simulación periódica de actividad comunitaria para fines de demostración académica
   useEffect(() => {
     if (!DEMO_MODE) return;
@@ -303,8 +330,8 @@ const MainScreen: React.FC = () => {
     );
   }
 
-  // 2. UNAUTHENTICATED FLOW: ONLY LOGIN / REGISTER SCREEN (No navigation bar, no user profile, no module menus)
-  if (!currentUser) {
+  // 2. UNAUTHENTICATED OR EMAIL ACTION HANDLER FLOW
+  if (!currentUser || authActionParams) {
     return (
       <div className={`min-h-screen relative flex flex-col justify-between overflow-x-hidden selection:bg-red-600 selection:text-white pb-8 transition-colors ${colors.canvasBg} ${colors.canvasText}`}>
         {/* Visual Background: canvas + diagonal split panel + subtle circuit texture */}
@@ -379,7 +406,7 @@ const MainScreen: React.FC = () => {
           </div>
         </header>
 
-        {/* Center: Full-Screen Dedicated Login / Register Card */}
+        {/* Center: Full-Screen Dedicated Login / Register / Email Action Handler Card */}
         <main className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 flex flex-col items-center justify-center grow">
           <div
             id="auth-main-card-container"
@@ -390,102 +417,134 @@ const MainScreen: React.FC = () => {
               <SecurityBadges />
             </div>
 
-            {/* Container with rounded corners, pronounced depth shadow, and thin red border */}
-            <div
-              id="auth-card"
-              className={`rounded-3xl p-8 sm:p-12 md:p-14 shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18),0_0_25px_rgba(220,38,38,0.1)] dark:shadow-[0_30px_70px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(220,38,38,0.2)] backdrop-blur-md relative overflow-hidden border transition-all ${colors.cardBg} ${colors.cardBorder}`}
-            >
-              {/* Distinct top accent bar (5px high) with red -> orange gradient */}
-              <div className="absolute top-0 inset-x-0 h-[5px] bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 shadow-sm shadow-red-500/25" />
+            {authActionParams ? (
+              <AuthActionHandlerView
+                mode={authActionParams.mode}
+                oobCode={authActionParams.oobCode}
+                continueUrl={authActionParams.continueUrl}
+                onEmailVerifiedSuccess={() => {
+                  if (currentUser) {
+                    setCurrentUser({ ...currentUser, emailVerified: true } as User);
+                  }
+                }}
+                onCompleteToLogin={() => {
+                  clearUrlAuthParams();
+                  setAuthActionParams(null);
+                  setActiveTab('login');
+                }}
+              />
+            ) : (
+              /* Container with rounded corners, pronounced depth shadow, and thin red border */
+              <div
+                id="auth-card"
+                className={`rounded-3xl p-8 sm:p-12 md:p-14 shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18),0_0_25px_rgba(220,38,38,0.1)] dark:shadow-[0_30px_70px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(220,38,38,0.2)] backdrop-blur-md relative overflow-hidden border transition-all ${colors.cardBg} ${colors.cardBorder}`}
+              >
+                {/* Distinct top accent bar (5px high) with red -> orange gradient */}
+                <div className="absolute top-0 inset-x-0 h-[5px] bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 shadow-sm shadow-red-500/25" />
 
-              {/* Geometric HUD security pattern in top-left corner */}
-              <div className="absolute top-3 left-3 w-16 h-16 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
-                <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-                  <path d="M3 24 V3 H24" strokeWidth="1.75" strokeLinecap="round" />
-                  <line x1="8" y1="3" x2="3" y2="8" strokeWidth="1" strokeLinecap="round" />
-                  <line x1="15" y1="3" x2="3" y2="15" strokeWidth="1" strokeLinecap="round" />
-                  <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-                </svg>
-              </div>
-
-              {/* Geometric HUD security pattern in top-right corner */}
-              <div className="absolute top-3 right-3 w-16 h-16 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
-                <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-                  <path d="M61 24 V3 H40" strokeWidth="1.75" strokeLinecap="round" />
-                  <line x1="56" y1="3" x2="61" y2="8" strokeWidth="1" strokeLinecap="round" />
-                  <line x1="49" y1="3" x2="61" y2="15" strokeWidth="1" strokeLinecap="round" />
-                  <circle cx="52" cy="12" r="1.5" fill="currentColor" stroke="none" />
-                </svg>
-              </div>
-
-              {/* Title Header */}
-              <div className="text-center space-y-2 mb-7">
-                <h1 className={`text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-widest font-['Rajdhani'] uppercase ${colors.cardTitle}`}>
-                  {activeTab === 'login' ? t('loginTitle') : t('registerTitle')}
-                </h1>
-                <p className={`text-sm sm:text-base font-medium ${colors.cardSubtitle}`}>
-                  {activeTab === 'login' ? t('loginSubtitle') : t('registerSubtitle')}
-                </p>
-              </div>
-
-              {/* Pill Segmented Tab Switcher */}
-              <div className={`grid grid-cols-2 p-1.5 rounded-full border shadow-inner ${colors.tabTrackBg} ${colors.tabTrackBorder}`}>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('login')}
-                  className={`py-3 text-sm sm:text-base font-bold rounded-full transition-all cursor-pointer ${
-                    activeTab === 'login'
-                      ? 'bg-red-600 text-white shadow-md shadow-red-950/30'
-                      : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
-                  }`}
-                >
-                  {t('loginTab')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('register')}
-                  className={`py-3 text-sm sm:text-base font-bold rounded-full transition-all cursor-pointer ${
-                    activeTab === 'register'
-                      ? 'bg-red-600 text-white shadow-md shadow-red-950/30'
-                      : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
-                  }`}
-                >
-                  {t('registerTab')}
-                </button>
-              </div>
-
-              {/* Decorative separator with small security shield badge */}
-              <div className="relative my-6 sm:my-8 flex items-center justify-center">
-                <div className="grow h-px bg-gradient-to-r from-transparent via-slate-300 to-slate-400 dark:via-slate-700 dark:to-slate-600" />
-                <div className="mx-3.5 px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 shadow-xs flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-red-600 dark:text-red-400 fill-red-600/15" />
-                  <span className="text-[10px] font-mono tracking-widest uppercase font-bold text-slate-700 dark:text-slate-300">
-                    CANAL SEGURO
-                  </span>
+                {/* Geometric HUD security pattern in top-left corner */}
+                <div className="absolute top-3 left-3 w-16 h-16 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
+                  <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
+                    <path d="M3 24 V3 H24" strokeWidth="1.75" strokeLinecap="round" />
+                    <line x1="8" y1="3" x2="3" y2="8" strokeWidth="1" strokeLinecap="round" />
+                    <line x1="15" y1="3" x2="3" y2="15" strokeWidth="1" strokeLinecap="round" />
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                  </svg>
                 </div>
-                <div className="grow h-px bg-gradient-to-l from-transparent via-slate-300 to-slate-400 dark:via-slate-700 dark:to-slate-600" />
-              </div>
 
-              {/* Active Tab Form */}
-              {activeTab === 'login' ? (
-                <LoginForm
-                  onSuccess={() => {
-                    // Firebase onAuthStateChanged handles the transition automatically
-                    setCurrentView('home');
-                  }}
-                  onOpenForgotPassword={handleOpenForgotPassword}
-                  onSwitchToRegister={() => setActiveTab('register')}
-                />
-              ) : (
-                <RegisterForm
-                  onSuccess={() => {
-                    // Firebase onAuthStateChanged handles the transition automatically
-                    setCurrentView('home');
-                  }}
-                  onSwitchToLogin={() => setActiveTab('login')}
-                />
-              )}
-            </div>
+                {/* Geometric HUD security pattern in top-right corner */}
+                <div className="absolute top-3 right-3 w-16 h-16 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
+                  <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
+                    <path d="M61 24 V3 H40" strokeWidth="1.75" strokeLinecap="round" />
+                    <line x1="56" y1="3" x2="61" y2="8" strokeWidth="1" strokeLinecap="round" />
+                    <line x1="49" y1="3" x2="61" y2="15" strokeWidth="1" strokeLinecap="round" />
+                    <circle cx="52" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                  </svg>
+                </div>
+
+                {/* Return banner when coming back from Firebase hosted action page */}
+                {authReturnNotice && (
+                  <div className="mb-6 p-4 rounded-2xl bg-emerald-100 border-2 border-emerald-500 text-emerald-950 dark:bg-emerald-950/70 dark:border-emerald-600 dark:text-emerald-200 text-sm font-bold flex items-center justify-between gap-3 shadow-sm">
+                    <span>{authReturnNotice}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAuthReturnNotice(null)}
+                      className="text-xs font-mono underline shrink-0 cursor-pointer"
+                    >
+                      OK
+                    </button>
+                  </div>
+                )}
+
+                {/* Title Header */}
+                <div className="text-center space-y-2 mb-7">
+                  <h1 className={`text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-widest font-['Rajdhani'] uppercase ${colors.cardTitle}`}>
+                    {activeTab === 'login' ? t('loginTitle') : t('registerTitle')}
+                  </h1>
+                  <p className={`text-sm sm:text-base font-medium ${colors.cardSubtitle}`}>
+                    {activeTab === 'login' ? t('loginSubtitle') : t('registerSubtitle')}
+                  </p>
+                </div>
+
+                {/* Pill Segmented Tab Switcher */}
+                <div className={`grid grid-cols-2 p-1.5 rounded-full border shadow-inner ${colors.tabTrackBg} ${colors.tabTrackBorder}`}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('login')}
+                    className={`py-3 text-sm sm:text-base font-bold rounded-full transition-all cursor-pointer ${
+                      activeTab === 'login'
+                        ? 'bg-red-600 text-white shadow-md shadow-red-950/30'
+                        : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
+                    }`}
+                  >
+                    {t('loginTab')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('register')}
+                    className={`py-3 text-sm sm:text-base font-bold rounded-full transition-all cursor-pointer ${
+                      activeTab === 'register'
+                        ? 'bg-red-600 text-white shadow-md shadow-red-950/30'
+                        : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
+                    }`}
+                  >
+                    {t('registerTab')}
+                  </button>
+                </div>
+
+                {/* Decorative separator with small security shield badge */}
+                <div className="relative my-6 sm:my-8 flex items-center justify-center">
+                  <div className="grow h-px bg-gradient-to-r from-transparent via-slate-300 to-slate-400 dark:via-slate-700 dark:to-slate-600" />
+                  <div className="mx-3.5 px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 shadow-xs flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-red-600 dark:text-red-400 fill-red-600/15" />
+                    <span className="text-[10px] font-mono tracking-widest uppercase font-bold text-slate-700 dark:text-slate-300">
+                      CANAL SEGURO
+                    </span>
+                  </div>
+                  <div className="grow h-px bg-gradient-to-l from-transparent via-slate-300 to-slate-400 dark:via-slate-700 dark:to-slate-600" />
+                </div>
+
+                {/* Active Tab Form */}
+                {activeTab === 'login' ? (
+                  <LoginForm
+                    onSuccess={() => {
+                      // Firebase onAuthStateChanged handles the transition automatically
+                      setCurrentView('home');
+                    }}
+                    onOpenForgotPassword={handleOpenForgotPassword}
+                    onSwitchToRegister={() => setActiveTab('register')}
+                  />
+                ) : (
+                  <RegisterForm
+                    onSuccess={() => {
+                      // Firebase onAuthStateChanged handles the transition automatically
+                      setCurrentView('home');
+                    }}
+                    onSwitchToLogin={() => setActiveTab('login')}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Footer Project Tag */}
             <div className={`mt-4 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 ${colors.mutedText}`}>
@@ -495,23 +554,11 @@ const MainScreen: React.FC = () => {
           </div>
         </main>
 
-        {/* Forgot Password / Password Recovery Modal */}
+        {/* Forgot Password Modal */}
         <ForgotPasswordModal
-          isOpen={isForgotPasswordOpen || passwordRecoveryState.isRecovery}
+          isOpen={isForgotPasswordOpen}
           onClose={() => setIsForgotPasswordOpen(false)}
           defaultEmail={forgotPasswordEmail}
-          isRecoveryMode={passwordRecoveryState.isRecovery}
-          recoveryEmail={passwordRecoveryState.email}
-          hasValidRecoverySession={passwordRecoveryState.hasValidSession}
-          recoveryLinkError={passwordRecoveryState.linkError}
-          onExitRecoveryMode={() =>
-            setPasswordRecoveryState({
-              isRecovery: false,
-              email: null,
-              hasValidSession: false,
-              linkError: null,
-            })
-          }
         />
       </div>
     );

@@ -9,33 +9,64 @@ import {
   AlertCircle,
   Shield,
   Clock,
-  Trash2,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { executeSendEmailVerification, executeSignOut } from '../services/firebaseAuth';
-import { deleteUserAccountAndFirestore } from '../services/userService';
+import {
+  executeSendEmailVerification,
+  executeSignOut,
+  getVerificationDiagnostic,
+  subscribeToVerificationDiagnostic,
+  VerificationDispatchDiagnostic,
+} from '../services/firebaseAuth';
 
 interface EmailVerificationViewProps {
   user: User;
   onVerificationSuccess: () => void;
-  onAccountDeleted?: () => void;
 }
 
 export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
   user,
   onVerificationSuccess,
-  onAccountDeleted,
 }) => {
   const { t, language } = useLanguage();
   const { colors } = useTheme();
   const [isChecking, setIsChecking] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [notification, setNotification] = useState<{ type: 'success' | 'warn'; message: string } | null>(null);
+  const [diagnostic, setDiagnostic] = useState<VerificationDispatchDiagnostic>(() =>
+    getVerificationDiagnostic()
+  );
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'warn' | 'error';
+    message: string;
+    code?: string;
+    rawMessage?: string;
+  } | null>(null);
 
   const notificationRef = useRef<HTMLDivElement | null>(null);
+
+  // Subscribe to real-time verification dispatch events so the race condition with onAuthStateChanged never hides the result
+  useEffect(() => {
+    const unsubscribe = subscribeToVerificationDiagnostic((state) => {
+      setDiagnostic(state);
+      if (state.status === 'error') {
+        setResendCooldown(0);
+        setNotification({
+          type: 'error',
+          message: state.readableMessage,
+          code: state.code,
+          rawMessage: state.rawMessage,
+        });
+      } else if (state.status === 'accepted') {
+        setNotification({
+          type: 'success',
+          message: state.readableMessage,
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Auto-scroll to notification when it appears (PROMPT 3 compliance)
   useEffect(() => {
@@ -72,6 +103,9 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
       }
     };
 
+    // Immediate check on mount
+    checkVerificationStatus();
+
     // Periodic check every 3 seconds while waiting on this screen
     const interval = setInterval(checkVerificationStatus, 3000);
 
@@ -95,7 +129,7 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
   const handleCheckStatus = async () => {
     setIsChecking(true);
     setNotification(null);
-    console.log('[Firebase Auth] Comprobando estado manual de verificación de correo...');
+    console.log('[Firebase Auth] Comprobando estado manual de emailVerified para:', user.email);
 
     try {
       await user.reload();
@@ -108,12 +142,12 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
           type: 'warn',
           message:
             language === 'es'
-              ? 'Tu correo aún no ha sido verificado. Revisa tu bandeja de entrada o carpeta de spam y haz clic en el botón «Verificar mi cuenta».'
+              ? 'Tu correo aún no ha sido verificado. Revisa tu bandeja de entrada o carpeta de spam y haz clic en el enlace enviado.'
               : t('verificationStillPending'),
         });
       }
-    } catch {
-      console.warn('[Firebase Auth] Aviso al recargar estado del usuario.');
+    } catch (err) {
+      console.error('[Firebase Auth] Error al recargar estado del usuario:', err);
       setNotification({
         type: 'warn',
         message:
@@ -131,37 +165,39 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
 
     setIsResending(true);
     setNotification(null);
-    console.log('[Firebase Auth] Solicitud de reenvío de enlace de verificación...');
+    console.log('[DIAGNÓSTICO VERIFICACIÓN] Usuario pulsó botón Reenviar enlace de verificación.');
     try {
       const res = await executeSendEmailVerification(user);
       if (res.success) {
-        console.log('[Firebase Auth] ✔ Enlace de verificación reenviado exitosamente.');
         setResendCooldown(45);
         setNotification({
           type: 'success',
           message:
             language === 'es'
-              ? '¡Hemos enviado un nuevo correo de verificación! Haz clic en el botón «Verificar mi cuenta» dentro del mensaje.'
-              : t('verificationResentSuccess'),
+              ? 'Firebase aceptó la solicitud de envío del enlace de verificación (promesa sendEmailVerification resuelta). Revisa tu bandeja de entrada o carpeta de spam.'
+              : 'Firebase accepted the verification email request (sendEmailVerification resolved). Please check your inbox or spam folder.',
         });
       } else {
-        console.warn('[Firebase Auth] Aviso devuelto por Firebase al reenviar correo de verificación.');
+        setResendCooldown(0);
         setNotification({
-          type: 'warn',
+          type: 'error',
+          code: res.code,
+          rawMessage: res.rawMessage,
           message:
-            language === 'es'
-              ? 'Por seguridad, espera unos segundos antes de solicitar otro correo de verificación.'
-              : res.error || 'Could not resend right now.',
+            res.error ||
+            (language === 'es'
+              ? 'Firebase devolvió un error al procesar la solicitud.'
+              : 'Firebase returned an error while processing the request.'),
         });
       }
-    } catch {
-      console.warn('[Firebase Auth] Aviso al reenviar correo de verificación.');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setResendCooldown(0);
       setNotification({
-        type: 'warn',
-        message:
-          language === 'es'
-            ? 'Error al enviar el enlace de verificación. Intenta nuevamente.'
-            : 'Error sending verification link.',
+        type: 'error',
+        code: 'exception',
+        rawMessage: errorMsg,
+        message: errorMsg,
       });
     } finally {
       setIsResending(false);
@@ -170,41 +206,6 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
 
   const handleSignOut = async () => {
     await executeSignOut();
-  };
-
-  const handleDeleteUnverifiedAccount = async () => {
-    if (isDeleting) return;
-    setIsDeleting(true);
-    setNotification(null);
-    try {
-      const res = await deleteUserAccountAndFirestore(user);
-      if (res.success) {
-        if (onAccountDeleted) {
-          onAccountDeleted();
-        } else {
-          await executeSignOut();
-        }
-      } else {
-        setNotification({
-          type: 'warn',
-          message:
-            res.error ||
-            (language === 'es'
-              ? 'Para eliminar esta cuenta, ve al menú superior de tu perfil → Ajustes → Eliminar Mi Cuenta.'
-              : 'To delete this account, open your profile menu → Settings → Delete My Account.'),
-        });
-      }
-    } catch {
-      setNotification({
-        type: 'warn',
-        message:
-          language === 'es'
-            ? 'No se pudo eliminar la cuenta en este momento.'
-            : 'Could not delete account right now.',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
   };
 
   return (
@@ -232,7 +233,7 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
             <span>{language === 'es' ? 'Confirmación de Correo Electrónico' : 'Email Confirmation'}</span>
           </div>
           <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight ${colors.cardTitle}`}>
-            {language === 'es' ? 'Revisa tu correo electrónico' : t('verificationPendingTitle')}
+            {language === 'es' ? 'Verificación de cuenta pendiente' : t('verificationPendingTitle')}
           </h2>
           <div className="inline-block px-3.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-mono font-semibold text-slate-800 dark:text-slate-200 mt-1">
             {user.email}
@@ -240,20 +241,54 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
         </div>
 
         <p className={`text-sm sm:text-base leading-relaxed max-w-md ${colors.cardSubtitle}`}>
-          {language === 'es'
-            ? 'Acabas de registrarte en Security Urban. Para completar el proceso de registro, abre el mensaje que enviamos a tu correo y haz clic en el botón «Verificar mi cuenta».'
+          {diagnostic.status === 'error'
+            ? language === 'es'
+              ? 'La solicitud de envío de correo a Firebase presentó un error. Revisa el diagnóstico inferior y pulsa "Reenviar enlace a mi correo" para intentarlo de nuevo.'
+              : 'The email verification request to Firebase encountered an error. Check the diagnostic below and click Resend.'
+            : diagnostic.status === 'accepted'
+            ? language === 'es'
+              ? 'Firebase aceptó la solicitud de envío del enlace de verificación. Revisa tu bandeja de entrada o carpeta de spam y haz clic en el enlace para activar tu cuenta.'
+              : 'Firebase accepted the verification link request. Check your inbox or spam folder and click the link to activate your account.'
+            : language === 'es'
+            ? 'Tu cuenta requiere verificación de correo electrónico en Firebase Authentication. Si aún no has solicitado o recibido el enlace, pulsa el botón de envío abajo.'
             : t('verificationPendingDesc')}
         </p>
 
-        {/* Live auto-detection status banner */}
-        <div className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-medium shadow-2xs">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
-          <span>
-            {language === 'es'
-              ? 'Después de verificar tu cuenta correctamente, serás redirigido automáticamente a la pantalla de inicio de sesión para ingresar con tus credenciales.'
-              : 'Once your account is verified, you will be automatically redirected to the sign-in screen to log in with your credentials.'}
-          </span>
-        </div>
+        {/* Real-time Firebase Dispatch Diagnostic Box */}
+        {diagnostic.status !== 'idle' && (
+          <div
+            className={`w-full p-3.5 rounded-2xl border text-left text-xs font-mono space-y-1 ${
+              diagnostic.status === 'error'
+                ? 'bg-red-100/90 dark:bg-red-950/70 border-red-500 text-red-900 dark:text-red-200'
+                : diagnostic.status === 'accepted'
+                ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-400 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
+                : 'bg-slate-100 dark:bg-slate-800/80 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between font-bold">
+              <span>
+                ESTADO FIREBASE:{' '}
+                {diagnostic.status === 'sending'
+                  ? 'EJECUTANDO sendEmailVerification()...'
+                  : diagnostic.status === 'accepted'
+                  ? 'SOLICITUD ACEPTADA POR FIREBASE ✔'
+                  : 'ERROR DEVUELTO POR FIREBASE ✖'}
+              </span>
+              <span>{diagnostic.timestamp}</span>
+            </div>
+            <div>Destinatario: {diagnostic.maskedEmail || user.email}</div>
+            {diagnostic.code && (
+              <div className="font-bold text-red-700 dark:text-red-300">
+                Código Firebase: {diagnostic.code}
+              </div>
+            )}
+            {diagnostic.rawMessage && (
+              <div className="break-words opacity-90">
+                Mensaje SDK: {diagnostic.rawMessage}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}
@@ -286,7 +321,7 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
           {isResending ? (
             <>
               <RotateCw className="w-4 h-4 animate-spin" />
-              <span>{language === 'es' ? 'Enviando enlace...' : 'Sending link...'}</span>
+              <span>{language === 'es' ? 'Enviando solicitud a Firebase...' : 'Sending request to Firebase...'}</span>
             </>
           ) : resendCooldown > 0 ? (
             <>
@@ -312,46 +347,41 @@ export const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({
             className={`mt-2 p-4 rounded-2xl flex items-start gap-3 text-sm leading-relaxed border-2 shadow-md animate-in fade-in slide-in-from-top-2 duration-150 ${
               notification.type === 'success'
                 ? 'bg-emerald-100 border-emerald-500 text-emerald-950 dark:bg-emerald-950/70 dark:border-emerald-600 dark:text-emerald-200'
+                : notification.type === 'error'
+                ? 'bg-red-100 border-red-500 text-red-950 dark:bg-red-950/80 dark:border-red-500 dark:text-red-200'
                 : 'bg-amber-100 border-amber-500 text-amber-950 dark:bg-amber-950/70 dark:border-amber-600 dark:text-amber-200'
             }`}
           >
             {notification.type === 'success' ? (
               <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <AlertCircle
+                className={`w-5 h-5 shrink-0 mt-0.5 ${
+                  notification.type === 'error'
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                }`}
+              />
             )}
-            <span className="font-semibold">{notification.message}</span>
+            <div className="space-y-1 min-w-0 flex-1">
+              <span className="font-semibold block">{notification.message}</span>
+              {notification.code && (
+                <span className="font-mono text-xs block opacity-90">
+                  Código: {notification.code} {notification.rawMessage ? `— ${notification.rawMessage}` : ''}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
-        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className={`py-2 px-3 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${colors.mutedText} hover:text-red-600`}
-          >
-            <LogOut className="w-4 h-4" />
-            <span>{t('signOut')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDeleteUnverifiedAccount}
-            disabled={isDeleting}
-            className="py-2 px-3 text-xs sm:text-sm font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer text-rose-600 dark:text-rose-400 hover:underline disabled:opacity-50"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>
-              {isDeleting
-                ? language === 'es'
-                  ? 'Eliminando cuenta...'
-                  : 'Deleting account...'
-                : language === 'es'
-                ? 'Cancelar registro y eliminar cuenta'
-                : 'Cancel registration & delete account'}
-            </span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className={`w-full py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer ${colors.mutedText} hover:text-red-600`}
+        >
+          <LogOut className="w-4 h-4" />
+          <span>{t('signOut')}</span>
+        </button>
       </div>
     </div>
   );

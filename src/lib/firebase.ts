@@ -7,6 +7,11 @@ import {
   executeSignUp,
   executeSendEmailVerification,
   executePasswordReset,
+  executeApplyActionCode,
+  executeVerifyPasswordResetCode,
+  executeConfirmPasswordReset,
+  getLastInitialVerificationError,
+  clearLastInitialVerificationError,
   executeSignOut,
   subscribeToAuth,
 } from '../services/firebaseAuth';
@@ -20,6 +25,11 @@ export {
   executeSignUp,
   executeSendEmailVerification,
   executePasswordReset,
+  executeApplyActionCode,
+  executeVerifyPasswordResetCode,
+  executeConfirmPasswordReset,
+  getLastInitialVerificationError,
+  clearLastInitialVerificationError,
   executeSignOut,
   subscribeToAuth,
 };
