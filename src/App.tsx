@@ -726,17 +726,6 @@ const MainScreen: React.FC = () => {
                 onSignOut={handleSignOut}
               />
 
-              {/* Quick Tactical Map modal trigger button */}
-              <button
-                type="button"
-                onClick={() => setIsTacticalMapOpen(true)}
-                className="hidden md:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm shadow-xs cursor-pointer transition-all shrink-0 active:scale-95 min-h-[38px]"
-                title={t('exploreMap')}
-              >
-                <Map className="w-4 h-4 shrink-0" />
-                <span className="hidden xl:inline">{t('exploreMap')}</span>
-              </button>
-
               {/* Language Selector (Hidden on ultra-small screens where it lives inside the mobile menu) */}
               <div
                 role="group"
@@ -1014,18 +1003,6 @@ const MainScreen: React.FC = () => {
                 </div>
 
                 <div className="pt-2.5 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsTacticalMapOpen(true);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm tracking-wide flex items-center justify-center gap-2 shadow-xs cursor-pointer min-h-[46px]"
-                  >
-                    <Map className="w-4 h-4" />
-                    <span>{t('exploreMap')}</span>
-                  </button>
-
                   <div className="grid grid-cols-3 gap-1.5 pt-0.5">
                     <button
                       type="button"

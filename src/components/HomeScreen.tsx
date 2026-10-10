@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Shield, 
   ShieldAlert, 
@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
-import { TacticalMapModal } from './TacticalMapModal';
 import { NavTabId } from './ModulePlaceholderView';
 import { SecurityUrbanLogo } from './SecurityUrbanLogo';
 
@@ -38,14 +37,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const { colors, theme } = useTheme();
   const { t, language } = useLanguage();
   const isDark = theme === 'dark';
-
-  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-  const [mapInitialFilter, setMapInitialFilter] = useState<'all' | 'routes' | 'alerts' | 'quadrants'>('all');
-
-  const handleOpenMap = (filter: 'all' | 'routes' | 'alerts' | 'quadrants' = 'all') => {
-    setMapInitialFilter(filter);
-    setIsMapModalOpen(true);
-  };
 
   // Extract clean display name
   const displayName = userName || (userEmail ? userEmail.split('@')[0] : 'Agente Comunal');
@@ -188,15 +179,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {t('quickAccessSubtitle')}
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => handleOpenMap('all')}
-          className="min-h-[40px] self-start sm:self-auto text-sm sm:text-base font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 transition cursor-pointer"
-        >
-          <span>{t('viewFullMap')}</span>
-          <ChevronRight className="w-4 h-4 shrink-0" />
-        </button>
       </div>
 
       {/* 4. Four Quick Access Cards Grid - Clean, Balanced Proportions */}
@@ -464,13 +446,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
         <span>{t('footerInitiative')}</span>
       </footer>
-
-      {/* Tactical Map Modal */}
-      <TacticalMapModal
-        isOpen={isMapModalOpen}
-        onClose={() => setIsMapModalOpen(false)}
-        initialFilter={mapInitialFilter}
-      />
     </div>
   );
 };

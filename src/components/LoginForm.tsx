@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight, Clock, UserPlus } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ShieldAlert, ArrowRight, Clock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { executeSignIn } from '../services/firebaseAuth';
@@ -32,17 +32,16 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [captchaError, setCaptchaError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isUserNotFound, setIsUserNotFound] = useState(false);
   const [isWrongPassword, setIsWrongPassword] = useState(false);
 
   const alertContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Auto-scroll to error message when it appears
   useEffect(() => {
-    if ((errorMessage || isUserNotFound) && alertContainerRef.current) {
+    if (errorMessage && alertContainerRef.current) {
       alertContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [errorMessage, isUserNotFound]);
+  }, [errorMessage]);
 
   // Failed attempts and lockout management
   const [failedAttempts, setFailedAttempts] = useState<number>(() => {
@@ -79,7 +78,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           sessionStorage.setItem(FAILED_ATTEMPTS_STORAGE_KEY, '0');
           setFailedAttempts(0);
           setErrorMessage(null);
-          setIsUserNotFound(false);
           console.log('[Security Urban :: UI] Bloqueo temporal de intentos fallidos finalizado.');
           return 0;
         }
@@ -93,7 +91,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    setIsUserNotFound(false);
     setIsWrongPassword(false);
 
     // Lockout check
@@ -126,17 +123,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           return;
         }
 
-        // Case 2: Unregistered email explicitly reported by Firebase Auth
-        if (result.error === 'USER_NOT_FOUND') {
-          setIsUserNotFound(true);
-          setErrorMessage(
-            language === 'es'
-              ? 'Este correo no está registrado. Debes crear una cuenta primero.'
-              : 'This email is not registered. You must create an account first.'
-          );
-          return;
-        }
-
         // Invalid email format
         if (result.error === 'INVALID_EMAIL') {
           setErrorMessage(
@@ -147,7 +133,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           return;
         }
 
-        // Case 3a: Network connectivity failure
+        // Network connectivity failure
         if (result.error === 'NETWORK_ERROR') {
           setErrorMessage(
             language === 'es'
@@ -157,7 +143,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           return;
         }
 
-        // Case 3b: Server, configuration, or service unavailability error
+        // Server, configuration, or service unavailability error
         if (result.error === 'SERVER_ERROR') {
           setErrorMessage(
             language === 'es'
@@ -177,7 +163,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           return;
         }
 
-        // Case 1: Wrong password / invalid credentials for existing account
+        // Wrong password / invalid credentials
         const nextAttempts = failedAttempts + 1;
         setFailedAttempts(nextAttempts);
         sessionStorage.setItem(FAILED_ATTEMPTS_STORAGE_KEY, nextAttempts.toString());
@@ -238,7 +224,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               setEmail(e.target.value);
               if (errorMessage) {
                 setErrorMessage(null);
-                setIsUserNotFound(false);
               }
             }}
             placeholder={t('emailPlaceholder')}
@@ -274,7 +259,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               setPassword(e.target.value);
               if (errorMessage) {
                 setErrorMessage(null);
-                setIsUserNotFound(false);
               }
             }}
             placeholder={t('passwordPlaceholder')}
@@ -333,7 +317,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         )}
       </button>
 
-      {/* PROMPT 3: Repositioned Alerts/Errors Directly Below the Submit Action */}
       {/* Lockout Warning Banner */}
       {isLocked && (
         <div
@@ -352,42 +335,19 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         </div>
       )}
 
-      {/* PROMPT 1: Specific Error Banner for User Not Found with Direct Register Link / Button */}
+      {/* Error Banner for Wrong Password / Login Failure */}
       {!isLocked && errorMessage && (
         <div
           ref={alertContainerRef}
           role="alert"
           aria-live="assertive"
-          className={`p-4 rounded-2xl border-2 text-sm flex items-start gap-3.5 shadow-md animate-in fade-in slide-in-from-top-2 duration-200 ${
-            isUserNotFound
-              ? 'bg-amber-50 border-amber-500 text-amber-950 dark:bg-amber-950/60 dark:border-amber-500 dark:text-amber-200'
-              : 'bg-red-100 border-red-400 text-red-900 dark:bg-red-950/70 dark:border-red-600 dark:text-red-200'
-          }`}
+          className="p-4 rounded-2xl border-2 text-sm flex items-start gap-3.5 shadow-md animate-in fade-in slide-in-from-top-2 duration-200 bg-red-100 border-red-400 text-red-900 dark:bg-red-950/70 dark:border-red-600 dark:text-red-200"
         >
-          <ShieldAlert
-            className={`w-5 h-5 shrink-0 mt-0.5 ${
-              isUserNotFound ? 'text-amber-600 dark:text-amber-400' : 'text-red-600'
-            }`}
-          />
+          <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
           <div className="space-y-2.5 flex-1">
             <span className="leading-snug block font-bold text-sm sm:text-base">{errorMessage}</span>
 
-            {/* Direct action button to Register when email is not registered */}
-            {isUserNotFound && (
-              <div className="pt-1 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onSwitchToRegister}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-md shadow-red-900/30 transition cursor-pointer active:scale-95"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>{language === 'es' ? 'Crear cuenta ahora' : 'Create account now'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {!isUserNotFound && isWrongPassword && failedAttempts > 0 && failedAttempts < MAX_FAILED_ATTEMPTS && (
+            {isWrongPassword && failedAttempts > 0 && failedAttempts < MAX_FAILED_ATTEMPTS && (
               <span className="text-xs font-mono font-medium opacity-90 block">
                 Intento fallido {failedAttempts} de {MAX_FAILED_ATTEMPTS}
               </span>

@@ -4,7 +4,6 @@ import {
   Auth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  fetchSignInMethodsForEmail,
   sendEmailVerification,
   sendPasswordResetEmail,
   applyActionCode,
@@ -251,31 +250,14 @@ export async function executeSignIn(
     const firebaseError = err as { code?: string; message?: string };
     const code = firebaseError.code || 'unknown';
 
-    // 1. Direct user-not-found code from Firebase Auth
-    if (code === 'auth/user-not-found') {
-      console.warn('[Firebase Auth] Aviso: Usuario no registrado (auth/user-not-found) para:', email.trim());
-      return { user: null, error: 'USER_NOT_FOUND' };
-    }
-
-    // 2. Modern Firebase returns auth/invalid-credential for both wrong password AND non-existent user
-    if (code === 'auth/invalid-credential') {
-      console.warn('[Firebase Auth] Aviso: auth/invalid-credential recibido. Verificando si el usuario existe para:', email.trim());
-      try {
-        const methods = await fetchSignInMethodsForEmail(auth, email.trim());
-        if (methods.length === 0) {
-          console.warn('[Firebase Auth] Correo sin métodos de acceso registrados (USER_NOT_FOUND):', email.trim());
-          return { user: null, error: 'USER_NOT_FOUND' };
-        }
-      } catch (checkErr) {
-        // If fetchSignInMethodsForEmail fails or is restricted, fallback to standard neutral credential error
-        console.warn('[Firebase Auth] Verificación de métodos complementaria ignorada:', checkErr);
-      }
-      return { user: null, error: 'INVALID_CREDENTIALS' };
-    }
-
-    // 3. Wrong password explicitly: Keep neutral as requested for security
-    if (code === 'auth/wrong-password') {
-      console.warn('[Firebase Auth] Aviso: Contraseña incorrecta para usuario existente:', email.trim());
+    // Wrong password / invalid credential
+    if (
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential' ||
+      code === 'auth/invalid-login-credentials' ||
+      code === 'auth/user-not-found'
+    ) {
+      console.warn('[Firebase Auth] Aviso: Contraseña incorrecta para:', email.trim(), `(${code})`);
       return { user: null, error: 'INVALID_CREDENTIALS' };
     }
 
