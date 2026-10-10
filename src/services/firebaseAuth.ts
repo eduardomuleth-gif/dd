@@ -161,7 +161,7 @@ export function formatFirebaseEmailError(code: string, rawMessage?: string): str
 }
 
 /**
- * ActionCodeSettings for email verification redirecting back to the Vercel production URL.
+ * ActionCodeSettings for email verification and password reset redirecting back to the Vercel production URL.
  */
 export const verificationActionCodeSettings: ActionCodeSettings = {
   url: 'https://securityurban.vercel.app',
@@ -170,17 +170,11 @@ export const verificationActionCodeSettings: ActionCodeSettings = {
 
 /**
  * Builds ActionCodeSettings pointing back to https://securityurban.vercel.app
- * for email verification links.
+ * so email verification and password reset links return directly to the login screen.
  */
 export function buildActionCodeSettings(_flow: 'verifyEmail' | 'resetPassword'): ActionCodeSettings {
   return verificationActionCodeSettings;
 }
-
-/**
- * Cross-tab synchronization channel to prevent duplicate tabs when returning from external auth flows
- */
-export const AUTH_SYNC_CHANNEL_NAME = 'security_urban_auth_sync';
-export const PASSWORD_RESET_PENDING_KEY = 'security_urban_password_reset_pending';
 
 // Initialize Firestore with long-polling fallback to prevent WebSocket drops in sandboxed iframe previews
 export const db: Firestore = (() => {
@@ -539,26 +533,19 @@ export async function executeSendEmailVerification(
 }
 
 /**
- * Execute Password Reset Email using standard Firebase hosted flow without forcing a new duplicate tab via continueUrl.
+ * Execute Password Reset Email using standard Firebase hosted flow redirecting to https://securityurban.vercel.app
  */
 export async function executePasswordReset(
   email: string
 ): Promise<{ success: boolean; error: string | null; code?: string }> {
-  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email.trim());
+  const cleanEmail = email.trim();
+  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', cleanEmail);
   try {
-    // Calling sendPasswordResetEmail without continueUrl prevents Firebase's hosted page
-    // from rendering a "Continue" button that opens a second duplicate tab of the app,
-    // while recording the pending reset in localStorage so any returning tab can sync with the existing tab.
-    await sendPasswordResetEmail(auth, email.trim());
-    try {
-      localStorage.setItem(
-        PASSWORD_RESET_PENDING_KEY,
-        JSON.stringify({ email: email.trim().toLowerCase(), timestamp: Date.now() })
-      );
-    } catch {
-      // Ignore storage errors in restricted contexts
-    }
-    console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${email.trim()}`, 'color: #10b981; font-weight: bold;');
+    await sendPasswordResetEmail(auth, cleanEmail, {
+      url: 'https://securityurban.vercel.app',
+      handleCodeInApp: false,
+    });
+    console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${cleanEmail}`, 'color: #10b981; font-weight: bold;');
     return { success: true, error: null };
   } catch (err: unknown) {
     const firebaseError = err as { code?: string; message?: string };
