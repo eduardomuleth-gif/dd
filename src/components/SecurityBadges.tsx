@@ -1,9 +1,9 @@
 import React from 'react';
-import { ShieldCheck, MapPin, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
-export const SecurityBadges: React.FC = () => {
+export const SecurityBadges: React.FC = React.memo(() => {
   const { t } = useLanguage();
   const { colors } = useTheme();
 
@@ -13,7 +13,7 @@ export const SecurityBadges: React.FC = () => {
       <span
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-xs transition-colors font-medium text-xs sm:text-sm ${colors.badgeOnlineBg} ${colors.badgeOnlineText} ${colors.badgeOnlineBorder}`}
       >
-        <span className="relative flex h-2.5 w-2.5">
+        <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
         </span>
@@ -23,9 +23,9 @@ export const SecurityBadges: React.FC = () => {
       <span
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-xs transition-colors font-medium text-xs sm:text-sm ${colors.badgeSecureBg} ${colors.badgeSecureText} ${colors.badgeSecureBorder}`}
       >
-        <Lock className="w-3.5 h-3.5 text-red-600 shrink-0" />
+        <Lock className="w-3.5 h-3.5 text-red-600 shrink-0" aria-hidden="true" />
         <span>{t('statusSecure')}</span>
       </span>
     </div>
   );
-};
+});

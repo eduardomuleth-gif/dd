@@ -207,17 +207,25 @@ export const TacticalMapModal: React.FC<TacticalMapModalProps> = ({
           </div>
 
           {/* Stylized Vector Map Graphic */}
-          <div className="relative w-full aspect-video sm:aspect-square sm:max-h-[340px] rounded-2xl border border-red-600/30 bg-slate-900 overflow-hidden flex items-center justify-center p-4 shadow-inner">
+          <div
+            role="img"
+            aria-label={
+              language === 'es'
+                ? `Mapa radar táctico de la Comuna 8. Sector seleccionado: ${selectedSector.name}`
+                : `Tactical radar map of Comuna 8. Selected sector: ${selectedSector.name}`
+            }
+            className="relative w-full aspect-[4/3] sm:aspect-square min-h-[220px] sm:max-h-[340px] rounded-2xl border border-red-600/30 bg-slate-900 overflow-hidden flex items-center justify-center p-4 shadow-inner"
+          >
             {/* Grid Lines */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#ef444415_1px,transparent_1px),linear-gradient(to_bottom,#ef444415_1px,transparent_1px)] bg-[size:28px_28px]" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#ef444415_1px,transparent_1px),linear-gradient(to_bottom,#ef444415_1px,transparent_1px)] bg-[size:28px_28px]" aria-hidden="true" />
 
-            {/* Radar Rings */}
-            <div className="absolute w-64 h-64 rounded-full border border-red-500/20" />
-            <div className="absolute w-44 h-44 rounded-full border border-red-500/30" />
-            <div className="absolute w-24 h-24 rounded-full border border-red-500/40" />
+            {/* Responsive Radar Rings (preserve 1:1 circular proportions at every breakpoint) */}
+            <div className="absolute w-48 h-48 sm:w-64 sm:h-64 rounded-full border border-red-500/20 pointer-events-none" aria-hidden="true" />
+            <div className="absolute w-32 h-32 sm:w-44 sm:h-44 rounded-full border border-red-500/30 pointer-events-none" aria-hidden="true" />
+            <div className="absolute w-16 h-16 sm:w-24 sm:h-24 rounded-full border border-red-500/40 pointer-events-none" aria-hidden="true" />
 
             {/* Crosshair */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden="true">
               <div className="w-full h-px bg-red-500/25" />
               <div className="h-full w-px bg-red-500/25 absolute" />
             </div>
@@ -238,6 +246,8 @@ export const TacticalMapModal: React.FC<TacticalMapModalProps> = ({
                   key={sector.id}
                   type="button"
                   onClick={() => setSelectedSector(sector)}
+                  aria-label={`${sector.name} (${sector.quadrantNumber})`}
+                  aria-pressed={isSelected}
                   style={{ top: coords.top, left: coords.left }}
                   className={`absolute -translate-x-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all cursor-pointer group z-10 ${
                     isSelected
@@ -248,7 +258,7 @@ export const TacticalMapModal: React.FC<TacticalMapModalProps> = ({
                   }`}
                   title={sector.name}
                 >
-                  <MapPin className="w-4 h-4" />
+                  <MapPin className="w-4 h-4 shrink-0" aria-hidden="true" />
                   <span className="absolute -top-1 -right-1 flex h-2 w-2">
                     <span
                       className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${

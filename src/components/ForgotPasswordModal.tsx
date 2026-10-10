@@ -25,6 +25,14 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
 
   const errorNoticeRef = useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    if (isOpen) {
+      setEmail(defaultEmail || '');
+      setIsSuccess(false);
+      setErrorNotice(null);
+    }
+  }, [isOpen, defaultEmail]);
+
   // Auto-scroll to error message when it appears
   useEffect(() => {
     if (errorNotice && errorNoticeRef.current) {
@@ -77,6 +85,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       onClose={handleReset}
       disableClose={isLoading}
       maxWidthClass="max-w-lg"
+      ariaLabel={t('forgotModalTitle')}
       cardClassName={`p-6 sm:p-8 overflow-y-auto ${colors.modalBg} ${colors.modalBorder} ${colors.modalText}`}
     >
       {/* Subtle accent light */}
@@ -94,7 +103,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
 
       <div className="flex items-center gap-3.5 mb-5 pr-8">
         <div className="w-12 h-12 rounded-2xl bg-red-100 border border-red-300 dark:bg-red-950/80 dark:border-red-600/40 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
-          <Mail className="w-6 h-6" />
+          <Mail className="w-6 h-6" aria-hidden="true" />
         </div>
         <div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
@@ -107,9 +116,9 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       </div>
 
       {isSuccess ? (
-        <div className="space-y-4 my-2 text-center">
+        <div role="status" aria-live="polite" className="space-y-4 my-2 text-center">
           <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 border border-emerald-300 dark:bg-emerald-950/80 dark:border-emerald-500/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="w-8 h-8" />
+            <CheckCircle2 className="w-8 h-8" aria-hidden="true" />
           </div>
           <p className="text-base font-semibold leading-relaxed">
             {t('resetEmailSent')}
@@ -136,7 +145,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               {t('emailLabel')}
             </label>
             <div className="relative">
-              <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${colors.inputIcon}`} />
+              <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${colors.inputIcon}`} aria-hidden="true" />
               <input
                 id="recovery-email-input"
                 type="email"
@@ -156,13 +165,14 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
             <button
               type="submit"
               disabled={isLoading}
+              aria-busy={isLoading}
               className="w-full py-3.5 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-sm sm:text-base tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-red-950/40 transition cursor-pointer"
             >
               {isLoading ? (
                 <span>{t('loading')}</span>
               ) : (
                 <>
-                  <Send className="w-5 h-5" />
+                  <Send className="w-5 h-5" aria-hidden="true" />
                   <span>{t('sendResetEmail')}</span>
                 </>
               )}
@@ -171,9 +181,11 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
             {errorNotice && (
               <div
                 ref={errorNoticeRef}
+                role="alert"
+                aria-live="assertive"
                 className="p-3.5 rounded-xl bg-amber-100 border-2 border-amber-400 text-amber-950 dark:bg-amber-950/60 dark:border-amber-600/60 dark:text-amber-200 flex items-start gap-2.5 text-sm font-semibold shadow-xs animate-in fade-in duration-150"
               >
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
                 <span>{errorNotice}</span>
               </div>
             )}

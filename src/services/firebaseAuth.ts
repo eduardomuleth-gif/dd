@@ -8,8 +8,6 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   applyActionCode,
-  verifyPasswordResetCode,
-  confirmPasswordReset,
   ActionCodeSettings,
   signOut,
   onAuthStateChanged,
@@ -163,7 +161,7 @@ export function formatFirebaseEmailError(code: string, rawMessage?: string): str
 }
 
 /**
- * ActionCodeSettings for email verification redirecting back to the Vercel production URL.
+ * ActionCodeSettings for email verification and password reset redirecting back to the Vercel production URL.
  */
 export const verificationActionCodeSettings: ActionCodeSettings = {
   url: 'https://securityurban.vercel.app',
@@ -171,22 +169,11 @@ export const verificationActionCodeSettings: ActionCodeSettings = {
 };
 
 /**
- * ActionCodeSettings for password reset redirecting to /reset-password on Vercel with handleCodeInApp: true.
+ * Builds ActionCodeSettings pointing back to https://securityurban.vercel.app
+ * so email verification and password reset links return directly to the login screen.
  */
-export const passwordResetActionCodeSettings: ActionCodeSettings = {
-  url: 'https://securityurban.vercel.app/reset-password',
-  handleCodeInApp: true,
-};
-
-/**
- * Builds ActionCodeSettings pointing back to the current Security Urban web origin
- * so email verification and password reset links return to a valid page.
- */
-export function buildActionCodeSettings(flow: 'verifyEmail' | 'resetPassword'): ActionCodeSettings {
-  if (flow === 'verifyEmail') {
-    return verificationActionCodeSettings;
-  }
-  return passwordResetActionCodeSettings;
+export function buildActionCodeSettings(_flow: 'verifyEmail' | 'resetPassword'): ActionCodeSettings {
+  return verificationActionCodeSettings;
 }
 
 // Initialize Firestore with long-polling fallback to prevent WebSocket drops in sandboxed iframe previews
@@ -546,16 +533,16 @@ export async function executeSendEmailVerification(
 }
 
 /**
- * Execute Password Reset Email
+ * Execute Password Reset Email using standard Firebase hosted flow redirecting to https://securityurban.vercel.app
  */
 export async function executePasswordReset(
   email: string
 ): Promise<{ success: boolean; error: string | null; code?: string }> {
   const actionCodeSettings: ActionCodeSettings = {
-    url: 'https://securityurban.vercel.app/reset-password',
-    handleCodeInApp: true,
+    url: 'https://securityurban.vercel.app',
+    handleCodeInApp: false,
   };
-  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email.trim(), 'con ActionCodeSettings:', actionCodeSettings);
+  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email.trim(), 'con actionCodeSettings:', actionCodeSettings);
   try {
     await sendPasswordResetEmail(auth, email.trim(), actionCodeSettings);
     console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${email.trim()}`, 'color: #10b981; font-weight: bold;');
@@ -595,47 +582,6 @@ export async function executeApplyActionCode(oobCode: string): Promise<{ success
       return { success: false, error: 'El enlace de verificación ya fue utilizado o no es válido.' };
     }
     return { success: false, error: firebaseError.message || 'No se pudo verificar el código.' };
-  }
-}
-
-/**
- * Verify Password Reset Code and return associated email
- */
-export async function executeVerifyPasswordResetCode(oobCode: string): Promise<{ email: string | null; error: string | null }> {
-  console.log('[Firebase Auth] Verificando código de restablecimiento de contraseña...');
-  try {
-    const email = await verifyPasswordResetCode(auth, oobCode);
-    console.log('[Firebase Auth] ✔ Código válido para la cuenta:', email);
-    return { email, error: null };
-  } catch (err: unknown) {
-    const firebaseError = err as { code?: string; message?: string };
-    console.error('[Firebase Auth] ✖ Error en verifyPasswordResetCode():', firebaseError.code, firebaseError.message);
-    if (firebaseError.code === 'auth/expired-action-code') {
-      return { email: null, error: 'El enlace para restablecer la contraseña ha expirado. Solicita uno nuevo.' };
-    }
-    return { email: null, error: 'El enlace de recuperación ya fue utilizado o no es válido.' };
-  }
-}
-
-/**
- * Confirm Password Reset with new password
- */
-export async function executeConfirmPasswordReset(oobCode: string, newPassword: string): Promise<{ success: boolean; error: string | null }> {
-  console.log('[Firebase Auth] Confirmando nueva contraseña con confirmPasswordReset()...');
-  try {
-    await confirmPasswordReset(auth, oobCode, newPassword);
-    console.log('%c[Firebase Auth] ✔ Contraseña actualizada exitosamente en Firebase Auth.', 'color: #10b981; font-weight: bold;');
-    return { success: true, error: null };
-  } catch (err: unknown) {
-    const firebaseError = err as { code?: string; message?: string };
-    console.error('[Firebase Auth] ✖ Error en confirmPasswordReset():', firebaseError.code, firebaseError.message);
-    if (firebaseError.code === 'auth/weak-password') {
-      return { success: false, error: 'La contraseña elegida es demasiado débil.' };
-    }
-    if (firebaseError.code === 'auth/expired-action-code' || firebaseError.code === 'auth/invalid-action-code') {
-      return { success: false, error: 'El código de seguridad expiró o ya fue utilizado. Solicita un nuevo correo.' };
-    }
-    return { success: false, error: firebaseError.message || 'No se pudo establecer la nueva contraseña.' };
   }
 }
 

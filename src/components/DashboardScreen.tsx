@@ -95,7 +95,7 @@ const SectorDonutGauge: React.FC<DonutChartProps> = ({
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-black font-['Rajdhani'] text-slate-900 dark:text-white leading-none">
+          <span className="text-lg font-black font-['Rajdhani'] tabular-nums text-slate-900 dark:text-white leading-none">
             {clamped}%
           </span>
         </div>
@@ -327,29 +327,30 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('home')}
-            className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+            className={`min-w-[44px] min-h-[44px] p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-center shrink-0 ${
               isDark
                 ? 'bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-300'
                 : 'bg-white border-slate-300 hover:bg-slate-100 text-slate-800'
             }`}
             title={t('back')}
+            aria-label={t('back')}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold tracking-widest text-red-600 dark:text-red-400 uppercase">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono font-bold tracking-wider text-red-600 dark:text-red-400 uppercase">
                 {t('dashboardSubheader')}
               </span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 FIRESTORE LIVE
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold font-['Rajdhani'] uppercase tracking-wide text-slate-900 dark:text-slate-100">
               {t('dashboardTitle')}
             </h1>
-            <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 font-medium">
+            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-normal">
               {t('dashboardSubtitle')}
             </p>
           </div>
@@ -363,7 +364,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           role="button"
           tabIndex={0}
           onClick={() => onNavigate('alerts')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('alerts')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('alerts');
+            }
+          }}
           className={`group rounded-2xl p-5 sm:p-6 border relative overflow-hidden backdrop-blur-md shadow-md hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer ${
             isDark
               ? 'bg-slate-950/80 border-slate-800 hover:border-amber-500/70'
@@ -371,10 +377,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           }`}
         >
           <div className="absolute top-0 inset-x-0 h-1 bg-amber-500 opacity-60 group-hover:opacity-100 transition-opacity" />
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-3xl sm:text-4xl font-black font-['Rajdhani'] text-amber-500 block">
+                <span className="text-3xl sm:text-4xl font-black font-['Rajdhani'] tabular-nums text-amber-500 block">
                   {activeAlertsCount}
                 </span>
                 {activeAlertsCount > 0 && (
@@ -392,7 +398,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   : t('metricActiveAlertsDesc')}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform shrink-0">
               <Bell className="w-6 h-6 stroke-[2]" />
             </div>
           </div>
@@ -403,7 +409,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           role="button"
           tabIndex={0}
           onClick={() => onNavigate('riskMap')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('riskMap')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('riskMap');
+            }
+          }}
           className={`group rounded-2xl p-5 sm:p-6 border relative overflow-hidden backdrop-blur-md shadow-md hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer ${
             isDark
               ? 'bg-slate-950/80 border-slate-800 hover:border-emerald-500/70'
@@ -411,10 +422,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           }`}
         >
           <div className="absolute top-0 inset-x-0 h-1 bg-emerald-500 opacity-60 group-hover:opacity-100 transition-opacity" />
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-3xl sm:text-4xl font-black font-['Rajdhani'] text-emerald-500 block">
+                <span className="text-3xl sm:text-4xl font-black font-['Rajdhani'] tabular-nums text-emerald-500 block">
                   {totalMonitoredSectors}
                 </span>
               </div>
@@ -427,7 +438,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   : `${totalMonitoredSectors} official Comuna 8 sectors`}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform shrink-0">
               <Shield className="w-6 h-6 stroke-[2]" />
             </div>
           </div>
@@ -438,7 +449,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           role="button"
           tabIndex={0}
           onClick={() => onNavigate('tacticalSupport')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('tacticalSupport')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('tacticalSupport');
+            }
+          }}
           className={`group rounded-2xl p-5 sm:p-6 border relative overflow-hidden backdrop-blur-md shadow-md hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer ${
             isDark
               ? 'bg-slate-950/80 border-slate-800 hover:border-cyan-500/70'
@@ -446,8 +462,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           }`}
         >
           <div className="absolute top-0 inset-x-0 h-1 bg-cyan-500 opacity-60 group-hover:opacity-100 transition-opacity" />
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-2xl sm:text-3xl font-black font-['Rajdhani'] text-cyan-600 dark:text-cyan-400 block">
                   {language === 'es' ? 'ACTIVO' : 'ACTIVE'}
@@ -461,7 +477,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 {t('metricSystemStatusDesc')}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform shrink-0">
               <Users className="w-6 h-6 stroke-[2]" />
             </div>
           </div>
@@ -476,10 +492,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           }`}
         >
           <div className="absolute top-0 inset-x-0 h-1 bg-red-500 opacity-60 group-hover:opacity-100 transition-opacity" />
-          <div className="flex items-center justify-between mb-2">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-3xl sm:text-4xl font-black font-['Rajdhani'] text-red-600 dark:text-red-500 block">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-3xl sm:text-4xl font-black font-['Rajdhani'] tabular-nums text-red-600 dark:text-red-500 block">
                   {myReportsCount}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
@@ -498,10 +514,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('myReports')}
-            className="w-full mt-3 py-2 px-3 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-600 dark:text-red-400 hover:text-white border border-red-500/20 hover:border-red-600 text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs group/btn"
+            className="w-full min-h-[40px] mt-3 py-2 px-3 rounded-lg bg-red-500/10 hover:bg-red-600 text-red-600 dark:text-red-400 hover:text-white border border-red-500/20 hover:border-red-600 text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs group/btn"
           >
             <span>{t('viewMyReportsBtn')}</span>
-            <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-0.5 transition-transform shrink-0" />
           </button>
         </div>
       </div>
@@ -511,25 +527,25 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         {/* Left Column: 7-Day Real Incident Trend + Statistical Sector Donut Dashboard (7 cols) */}
         <div className="lg:col-span-7 flex flex-col">
           <div
-            className={`w-full h-full rounded-3xl p-5 sm:p-7 border relative overflow-hidden backdrop-blur-md shadow-xl flex flex-col justify-between ${colors.cardBg} ${colors.cardBorder}`}
+            className={`w-full h-full rounded-2xl sm:rounded-3xl p-5 sm:p-7 border relative overflow-hidden backdrop-blur-md shadow-sm flex flex-col justify-between ${colors.cardBg} ${colors.cardBorder}`}
           >
-            <div className="absolute top-0 inset-x-0 h-[4px] bg-gradient-to-r from-red-600 via-rose-500 to-amber-500" />
+            <div className="absolute top-0 inset-x-0 h-[3px] bg-red-600" />
 
             {/* Header: Title + Coherent Alert Counter + Week Selector */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Activity className="w-4 h-4 text-red-500" />
-                  <h2 className={`text-base sm:text-lg font-extrabold tracking-tight font-['Rajdhani'] ${colors.cardTitle}`}>
+                  <Activity className="w-5 h-5 text-red-600 dark:text-red-500" />
+                  <h2 className={`text-lg font-bold tracking-tight font-['Rajdhani'] ${colors.cardTitle}`}>
                     {t('trendTitle')}
                   </h2>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25">
                     {language === 'es'
                       ? `${totalIncidentsInSelectedWeek} en estos 7 días (${activeAlertsCount} totales)`
                       : `${totalIncidentsInSelectedWeek} in 7 days (${activeAlertsCount} total)`}
                   </span>
                 </div>
-                <p className={`text-xs sm:text-sm ${colors.cardSubtitle}`}>
+                <p className={`text-sm mt-0.5 ${colors.cardSubtitle}`}>
                   {acceptedReports.length === 0
                     ? language === 'es'
                       ? 'Aún no hay alertas registradas (alimentado de reportes aprobados por el administrador)'
@@ -612,12 +628,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       <div className="text-center">
                         <span
                           className={`text-xs font-bold block ${
-                            isSelected ? 'text-red-600 dark:text-red-400' : 'text-slate-500'
+                            isSelected ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'
                           }`}
                         >
                           {item.day}
                         </span>
-                        <span className="text-[10px] font-mono text-slate-400 block">
+                        <span className="text-2xs font-mono text-slate-500 dark:text-slate-400 block">
                           {item.dateStr}
                         </span>
                       </div>
@@ -634,12 +650,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       <PieChart className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className={`text-sm sm:text-base font-extrabold font-['Rajdhani'] uppercase tracking-wide ${colors.cardTitle}`}>
+                      <h3 className={`text-lg font-bold font-['Rajdhani'] uppercase tracking-wide ${colors.cardTitle}`}>
                         {language === 'es'
                           ? 'Nivel de Riesgo y Seguridad por Sector'
                           : 'Sector Risk & Safety Level Dashboard'}
                       </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
                         {language === 'es'
                           ? 'Selecciona un sector para consultar sus métricas porcentuales'
                           : 'Select a sector to view its percentage metrics'}
@@ -648,7 +664,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   </div>
 
                   {/* Sector Selector Dropdown */}
-                  <div className="w-full sm:w-auto min-w-[230px]">
+                  <div className="w-full sm:w-auto sm:min-w-[230px]">
                     <label htmlFor="dashboard-sector-select" className="sr-only">
                       {language === 'es' ? 'Seleccionar sector' : 'Select sector'}
                     </label>
@@ -656,7 +672,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       id="dashboard-sector-select"
                       value={selectedSectorId}
                       onChange={(e) => setSelectedSectorId(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 shadow-xs cursor-pointer"
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 shadow-xs cursor-pointer"
                     >
                       {COMUNA_8_SECTORS.map((sec) => (
                         <option key={sec.id} value={sec.id}>
@@ -745,19 +761,19 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         {/* Right Column: Últimas Alertas Comunitarias (Real Admin-Approved User Reports Only) (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           <div
-            className={`w-full rounded-3xl p-5 sm:p-6 border relative overflow-hidden backdrop-blur-md shadow-xl ${colors.cardBg} ${colors.cardBorder}`}
+            className={`w-full rounded-2xl sm:rounded-3xl p-5 sm:p-6 border relative overflow-hidden backdrop-blur-md shadow-sm ${colors.cardBg} ${colors.cardBorder}`}
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Bell className="w-5 h-5 text-amber-500" />
-                <h2 className={`text-base sm:text-lg font-bold font-['Rajdhani'] uppercase tracking-wide ${colors.cardTitle}`}>
+                <h2 className={`text-lg font-bold font-['Rajdhani'] uppercase tracking-wide ${colors.cardTitle}`}>
                   {t('recentAlertsFeedTitle')}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('alerts')}
-                className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                className="text-sm font-semibold text-red-600 dark:text-red-400 hover:underline flex items-center gap-0.5 cursor-pointer"
               >
                 <span>{t('viewAllAlertsLink')}</span>
                 <ChevronRight className="w-4 h-4" />
@@ -831,11 +847,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
           {/* Quick Actions Card */}
           <div
-            className={`w-full rounded-3xl p-5 sm:p-6 border relative overflow-hidden backdrop-blur-md shadow-xl ${colors.cardBg} ${colors.cardBorder}`}
+            className={`w-full rounded-2xl sm:rounded-3xl p-5 sm:p-6 border relative overflow-hidden backdrop-blur-md shadow-sm ${colors.cardBg} ${colors.cardBorder}`}
           >
             <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-4 h-4 text-red-500" />
-              <h2 className={`text-base sm:text-lg font-bold font-['Rajdhani'] ${colors.cardTitle}`}>
+              <Sparkles className="w-4 h-4 text-red-600 dark:text-red-500" />
+              <h2 className={`text-lg font-bold font-['Rajdhani'] ${colors.cardTitle}`}>
                 {language === 'es' ? 'ACCIONES RÁPIDAS' : 'QUICK ACTIONS'}
               </h2>
             </div>
@@ -844,7 +860,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="w-full p-3.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs sm:text-sm tracking-wide flex items-center justify-between shadow-md shadow-red-950/30 transition cursor-pointer group"
+                className="w-full p-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm tracking-wide flex items-center justify-between shadow-sm transition cursor-pointer group"
               >
                 <div className="flex items-center gap-2.5">
                   <PlusCircle className="w-4 h-4 text-white" />
@@ -856,7 +872,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('myReports')}
-                className={`w-full p-3.5 rounded-xl border font-bold text-xs sm:text-sm tracking-wide flex items-center justify-between transition cursor-pointer group ${
+                className={`w-full p-3.5 rounded-xl border font-semibold text-sm tracking-wide flex items-center justify-between transition cursor-pointer group ${
                   isDark
                     ? 'border-slate-800 bg-slate-950/80 hover:border-slate-700 text-slate-200'
                     : 'border-slate-200 bg-white hover:border-slate-300 text-slate-800'
@@ -872,7 +888,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('riskMap')}
-                className={`w-full p-3.5 rounded-xl border font-bold text-xs sm:text-sm tracking-wide flex items-center justify-between transition cursor-pointer group ${
+                className={`w-full p-3.5 rounded-xl border font-semibold text-sm tracking-wide flex items-center justify-between transition cursor-pointer group ${
                   isDark
                     ? 'border-slate-800 bg-slate-950/80 hover:border-slate-700 text-slate-200'
                     : 'border-slate-200 bg-white hover:border-slate-300 text-slate-800'

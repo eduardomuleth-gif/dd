@@ -385,56 +385,60 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
       </div>
 
       {/* REQUIREMENT 2: RESUMEN SUPERIOR (METRIC CARDS EN TIEMPO REAL) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
         {/* Metric 1: Total Usuarios Registrados */}
-        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all ${
+        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all flex flex-col justify-between h-full ${
           isDark ? 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
         }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              {language === 'es' ? 'Total Registrados' : 'Total Registered'}
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <Users className="w-4 h-4" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                {language === 'es' ? 'Total Registrados' : 'Total Registered'}
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-slate-900 dark:text-slate-100">
+                {stats.total}
+              </span>
+              <span className="text-xs font-mono text-blue-600 dark:text-blue-400 font-semibold">
+                {language === 'es' ? 'en Firestore' : 'in Firestore'}
+              </span>
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-slate-900 dark:text-slate-100">
-              {stats.total}
-            </span>
-            <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-semibold">
-              {language === 'es' ? 'en Firestore' : 'in Firestore'}
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
+          <div className="mt-3 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
             <span>{stats.ciudadanos} {language === 'es' ? 'ciudadanos' : 'citizens'}</span>
             <span className="font-mono font-bold text-slate-700 dark:text-slate-300">100%</span>
           </div>
         </div>
 
         {/* Metric 2: Usuarios Activos */}
-        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all ${
+        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all flex flex-col justify-between h-full ${
           isDark ? 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
         }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-              {language === 'es' ? 'Usuarios Activos' : 'Active Users'}
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <UserCheck className="w-4 h-4" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                {language === 'es' ? 'Usuarios Activos' : 'Active Users'}
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <UserCheck className="w-4 h-4" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-emerald-600 dark:text-emerald-400">
+                {stats.activos}
+              </span>
+              <span className="text-xs font-mono text-emerald-700 dark:text-emerald-300 font-semibold">
+                {stats.total > 0 ? `${Math.round((stats.activos / stats.total) * 100)}% operativo` : '0%'}
+              </span>
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-emerald-600 dark:text-emerald-400">
-              {stats.activos}
-            </span>
-            <span className="text-[11px] font-mono text-emerald-700 dark:text-emerald-300 font-semibold">
-              {stats.total > 0 ? `${Math.round((stats.activos / stats.total) * 100)}% operativo` : '0%'}
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
+          <div className="mt-3 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
             <span>{language === 'es' ? 'Estado normal' : 'Normal status'}</span>
-            <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-600">
+            <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-600 dark:text-emerald-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               {language === 'es' ? 'Sin bloqueo' : 'Unblocked'}
             </span>
@@ -442,56 +446,60 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
         </div>
 
         {/* Metric 3: Nuevos esta semana */}
-        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all ${
+        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all flex flex-col justify-between h-full ${
           isDark ? 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
         }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-              {language === 'es' ? 'Nuevos Esta Semana' : 'New This Week'}
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                {language === 'es' ? 'Nuevos Esta Semana' : 'New This Week'}
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Calendar className="w-4 h-4" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-amber-600 dark:text-amber-400">
+                {stats.nuevosEstaSemana}
+              </span>
+              <span className="text-xs font-mono text-amber-700 dark:text-amber-300 font-semibold">
+                {language === 'es' ? 'últimos 7 días' : 'last 7 days'}
+              </span>
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-amber-600 dark:text-amber-400">
-              {stats.nuevosEstaSemana}
-            </span>
-            <span className="text-[11px] font-mono text-amber-700 dark:text-amber-300 font-semibold">
-              {language === 'es' ? 'últimos 7 días' : 'last 7 days'}
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
+          <div className="mt-3 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
             <span>{language === 'es' ? 'Tasa de registro' : 'Signup rate'}</span>
-            <span className="font-mono font-bold text-amber-600">
+            <span className="font-mono font-bold text-amber-700 dark:text-amber-400">
               +{stats.nuevosEstaSemana} {language === 'es' ? 'recientes' : 'recent'}
             </span>
           </div>
         </div>
 
         {/* Metric 4: Seguridad & Cuentas Suspendidas */}
-        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all ${
+        <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all flex flex-col justify-between h-full ${
           isDark ? 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'
         }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-              {language === 'es' ? 'Operadores & Suspendidos' : 'Staff & Suspended'}
-            </span>
-            <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-              <Shield className="w-4 h-4" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                {language === 'es' ? 'Operadores & Suspendidos' : 'Staff & Suspended'}
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <Shield className="w-4 h-4" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-rose-600 dark:text-rose-400">
+                {stats.operadores + stats.administradores}
+              </span>
+              <span className="text-xs font-mono text-rose-700 dark:text-rose-300 font-semibold">
+                {language === 'es' ? 'mandos' : 'staff'} • {stats.suspendidos} {language === 'es' ? 'suspendidos' : 'suspended'}
+              </span>
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black font-['Rajdhani'] tracking-tight text-rose-600 dark:text-rose-400">
-              {stats.operadores + stats.administradores}
-            </span>
-            <span className="text-[11px] font-mono text-rose-700 dark:text-rose-300 font-semibold">
-              {language === 'es' ? 'mandos' : 'staff'} • {stats.suspendidos} {language === 'es' ? 'suspendidos' : 'suspended'}
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
+          <div className="mt-3 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2">
             <span>{stats.administradores} {language === 'es' ? 'admins' : 'admins'}</span>
-            <span className={`font-mono font-bold ${stats.suspendidos > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+            <span className={`font-mono font-bold ${stats.suspendidos > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'}`}>
               {stats.suspendidos > 0 ? `⚠️ ${stats.suspendidos} sancionado(s)` : '0 bloqueos'}
             </span>
           </div>
@@ -505,23 +513,28 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
         <div className="flex flex-col md:flex-row items-center gap-3">
           {/* Search input */}
           <div className="relative w-full md:flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <label htmlFor="user-management-search-input" className="sr-only">
+              {language === 'es' ? 'Buscar usuarios por nombre, correo o sector' : 'Search users by name, email, or sector'}
+            </label>
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-slate-400 pointer-events-none" aria-hidden="true" />
             <input
+              id="user-management-search-input"
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={language === 'es' ? 'Buscar por nombre, correo electrónico o sector comunal...' : 'Search by name, email, or quadrant sector...'}
-              className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-sm border outline-none transition shadow-xs ${
+              className={`w-full min-h-[42px] pl-10 pr-9 py-2.5 rounded-xl text-sm border outline-none transition shadow-xs ${
                 isDark
-                  ? 'bg-slate-900/90 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-red-500'
-                  : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-red-600'
+                  ? 'bg-slate-900/90 border-slate-700 text-slate-100 placeholder-slate-400 focus:border-red-500'
+                  : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500 focus:border-red-600'
               }`}
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                aria-label={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -530,14 +543,16 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
 
           {/* Filter by Role */}
           <div className="flex items-center gap-2 w-full md:w-auto">
-            <span className="text-xs font-mono text-slate-400 hidden sm:inline">
-              <Filter className="w-3.5 h-3.5 inline mr-1" />
+            <label htmlFor="user-management-role-filter" className="text-xs font-mono text-slate-600 dark:text-slate-400 hidden sm:inline shrink-0">
+              <Filter className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
               Rol:
-            </span>
+            </label>
             <select
+              id="user-management-role-filter"
+              aria-label={language === 'es' ? 'Filtrar por rol' : 'Filter by role'}
               value={selectedRoleFilter}
               onChange={(e) => setSelectedRoleFilter(e.target.value)}
-              className={`w-full md:w-auto py-2.5 px-3 rounded-xl text-xs font-bold border outline-none cursor-pointer ${
+              className={`w-full md:w-auto min-h-[42px] py-2.5 px-3 rounded-xl text-xs font-bold border outline-none cursor-pointer ${
                 isDark
                   ? 'bg-slate-900 border-slate-700 text-slate-200'
                   : 'bg-slate-50 border-slate-300 text-slate-800'
@@ -552,14 +567,16 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
 
           {/* Filter by Status */}
           <div className="flex items-center gap-2 w-full md:w-auto">
-            <span className="text-xs font-mono text-slate-400 hidden sm:inline">
-              <SlidersHorizontal className="w-3.5 h-3.5 inline mr-1" />
+            <label htmlFor="user-management-status-filter" className="text-xs font-mono text-slate-600 dark:text-slate-400 hidden sm:inline shrink-0">
+              <SlidersHorizontal className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" />
               Estado:
-            </span>
+            </label>
             <select
+              id="user-management-status-filter"
+              aria-label={language === 'es' ? 'Filtrar por estado' : 'Filter by status'}
               value={selectedStatusFilter}
               onChange={(e) => setSelectedStatusFilter(e.target.value)}
-              className={`w-full md:w-auto py-2.5 px-3 rounded-xl text-xs font-bold border outline-none cursor-pointer ${
+              className={`w-full md:w-auto min-h-[42px] py-2.5 px-3 rounded-xl text-xs font-bold border outline-none cursor-pointer ${
                 isDark
                   ? 'bg-slate-900 border-slate-700 text-slate-200'
                   : 'bg-slate-50 border-slate-300 text-slate-800'
@@ -622,25 +639,188 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
         </div>
       )}
 
-      {/* REQUIREMENT 2: TABLA DE USUARIOS DIRECTAMENTE DE FIRESTORE */}
+      {/* REQUIREMENT 2: TABLA DE USUARIOS DIRECTAMENTE DE FIRESTORE (Desktop Table + Mobile Responsive Cards) */}
       <div className={`rounded-3xl border shadow-xl overflow-hidden backdrop-blur-xl ${
         isDark ? 'bg-slate-950/90 border-slate-800' : 'bg-white border-slate-200'
       }`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        {/* Mobile & Small Tablet Card Layout (< 768px) */}
+        <div className="md:hidden divide-y divide-slate-200 dark:divide-slate-800/80">
+          {isLoading ? (
+            <div className="py-12 px-4 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
+              <RefreshCw className="w-6 h-6 animate-spin text-red-500" />
+              <span className="font-mono text-xs">
+                {language === 'es' ? 'Consultando colección "usuarios" en Firestore...' : 'Querying "usuarios" collection in Firestore...'}
+              </span>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="py-12 px-4 text-center text-slate-400 flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+              <Users className="w-8 h-8 text-slate-400 mb-1" />
+              <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">
+                {language === 'es' ? 'No se encontraron usuarios' : 'No users found'}
+              </p>
+              <p className="text-xs text-slate-500">
+                {searchTerm
+                  ? language === 'es' ? 'Intenta modificar el término de búsqueda.' : 'Try adjusting the search query.'
+                  : language === 'es' ? 'Haz clic en "Población Comunal (Seed)" para sembrar usuarios de prueba.' : 'Click "Seed Population" to populate sample users.'}
+              </p>
+            </div>
+          ) : (
+            filteredUsers.map((user) => {
+              const isCurrentLoggedUser = user.uid === currentUserId;
+              const initial = user.nombre ? user.nombre.charAt(0).toUpperCase() : 'U';
+
+              return (
+                <div key={user.uid} className="p-4 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center text-sm shadow-xs border ${
+                          user.rol === 'administrador'
+                            ? 'bg-gradient-to-tr from-amber-600 to-red-600 text-white border-amber-400/50'
+                            : user.rol === 'operador'
+                            ? 'bg-gradient-to-tr from-blue-700 to-indigo-600 text-white border-blue-400/50'
+                            : 'bg-gradient-to-tr from-slate-700 to-slate-600 text-white border-slate-500/40'
+                        }`}>
+                          {initial}
+                        </div>
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 ${
+                            isDark ? 'border-slate-950' : 'border-white'
+                          } ${user.estado === 'activo' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                        />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100 truncate">
+                            {user.nombre}
+                          </span>
+                          {isCurrentLoggedUser && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-400 font-mono text-[9px] font-extrabold border border-red-300 dark:border-red-800">
+                              TÚ
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 break-all mt-0.5">
+                          {user.correo}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Badges row */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold font-mono uppercase border ${
+                      user.rol === 'administrador'
+                        ? 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/80 dark:text-red-300 dark:border-red-800'
+                        : user.rol === 'operador'
+                        ? 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/80 dark:text-blue-300 dark:border-blue-800'
+                        : 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700'
+                    }`}>
+                      <span>{translateRole(user.rol)}</span>
+                    </span>
+
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono uppercase border ${
+                      user.estado === 'activo'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800'
+                        : 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${user.estado === 'activo' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                      <span>{translateStatus(user.estado)}</span>
+                    </span>
+
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-red-500 shrink-0" />
+                      <span className="truncate max-w-[160px]">{user.sector}</span>
+                    </span>
+                  </div>
+
+                  {/* Actions row */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUserForRoleChange(user);
+                        setPendingRole(user.rol);
+                      }}
+                      className={`flex-1 min-h-[38px] px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        isDark
+                          ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+                          : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span>{language === 'es' ? 'Rol' : 'Role'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUserForStatusToggle(user)}
+                      className={`flex-1 min-h-[38px] px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        user.estado === 'activo'
+                          ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-300'
+                      }`}
+                    >
+                      {user.estado === 'activo' ? (
+                        <>
+                          <Lock className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>{language === 'es' ? 'Suspender' : 'Suspend'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Unlock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{language === 'es' ? 'Reactivar' : 'Reactivate'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUserForDetail(user)}
+                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 shrink-0" />
+                      <span>{language === 'es' ? 'Detalles' : 'Details'}</span>
+                    </button>
+
+                    {!isCurrentLoggedUser && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUserForDeletion(user)}
+                        className="min-h-[38px] min-w-[38px] p-2 rounded-xl border border-rose-300 dark:border-rose-900/70 bg-rose-100/80 dark:bg-rose-950/60 hover:bg-rose-600 hover:text-white text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center justify-center transition cursor-pointer"
+                        title={language === 'es' ? 'Eliminar usuario' : 'Delete user'}
+                        aria-label={language === 'es' ? 'Eliminar usuario' : 'Delete user'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Table Layout (>= 768px) */}
+        <div className="hidden md:block overflow-x-auto">
+          <table
+            aria-label={language === 'es' ? ' Directorio de usuarios registrados en Firestore' : 'Firestore registered users directory'}
+            className="w-full text-left border-collapse"
+          >
             <thead>
-              <tr className={`border-b text-[11px] font-mono font-extrabold uppercase tracking-wider ${
+              <tr className={`border-b text-xs font-mono font-extrabold uppercase tracking-wider ${
                 isDark
                   ? 'bg-slate-900/80 border-slate-800 text-slate-400'
                   : 'bg-slate-100/90 border-slate-200 text-slate-600'
               }`}>
-                <th className="py-4 px-4 sm:px-6">{language === 'es' ? 'Usuario' : 'User'}</th>
-                <th className="py-4 px-4">{language === 'es' ? 'Correo Electrónico' : 'Email'}</th>
-                <th className="py-4 px-4 hidden md:table-cell">{language === 'es' ? 'Sector / Barrio' : 'Quadrant'}</th>
-                <th className="py-4 px-4">{language === 'es' ? 'Fecha Registro' : 'Registered'}</th>
-                <th className="py-4 px-4">{language === 'es' ? 'Rol' : 'Role'}</th>
-                <th className="py-4 px-4">{language === 'es' ? 'Estado' : 'Status'}</th>
-                <th className="py-4 px-4 sm:px-6 text-right">{language === 'es' ? 'Acciones' : 'Actions'}</th>
+                <th scope="col" className="py-4 px-4 sm:px-6">{language === 'es' ? 'Usuario' : 'User'}</th>
+                <th scope="col" className="py-4 px-4">{language === 'es' ? 'Correo Electrónico' : 'Email'}</th>
+                <th scope="col" className="py-4 px-4 hidden md:table-cell">{language === 'es' ? 'Sector / Barrio' : 'Quadrant'}</th>
+                <th scope="col" className="py-4 px-4">{language === 'es' ? 'Fecha Registro' : 'Registered'}</th>
+                <th scope="col" className="py-4 px-4">{language === 'es' ? 'Rol' : 'Role'}</th>
+                <th scope="col" className="py-4 px-4">{language === 'es' ? 'Estado' : 'Status'}</th>
+                <th scope="col" className="py-4 px-4 sm:px-6 text-right">{language === 'es' ? 'Acciones' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">

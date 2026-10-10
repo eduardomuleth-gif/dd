@@ -92,171 +92,99 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </div>
 
-      {/* 2. Main Hero Section Card - Clean, Minimalist & Elegant Welcome */}
+      {/* 2. Main Hero Section Card - Clean, Balanced & Professional Welcome */}
       <section
         id="home-hero-card"
-        className={`w-full rounded-3xl p-6 sm:p-10 md:p-14 lg:p-16 shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18),0_0_25px_rgba(220,38,38,0.1)] dark:shadow-[0_30px_70px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(220,38,38,0.2)] backdrop-blur-md relative overflow-hidden border transition-all mb-8 ${colors.cardBg} ${colors.cardBorder}`}
+        className={`w-full rounded-3xl p-6 sm:p-10 md:p-12 lg:p-14 shadow-lg backdrop-blur-md relative overflow-hidden border transition-all mb-8 ${colors.cardBg} ${colors.cardBorder}`}
       >
-        {/* Distinct 5px Accent Top Bar with red-orange gradient */}
-        <div className="absolute top-0 inset-x-0 h-[5px] bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 shadow-sm shadow-red-500/25" />
+        {/* Subtle 3px Top Accent Bar */}
+        <div className="absolute top-0 inset-x-0 h-[3px] bg-red-600" />
 
-        {/* HUD Corner Decorators */}
-        <div className="absolute top-3 left-3 w-14 h-14 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
-          <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-            <path d="M3 20 V3 H20" strokeWidth="1.75" strokeLinecap="round" />
-            <line x1="8" y1="3" x2="3" y2="8" strokeWidth="1" strokeLinecap="round" />
-            <line x1="15" y1="3" x2="3" y2="15" strokeWidth="1" strokeLinecap="round" />
-            <circle cx="10" cy="10" r="1.5" fill="currentColor" stroke="none" />
-          </svg>
-        </div>
-
-        <div className="absolute top-3 right-3 w-14 h-14 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
-          <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-            <path d="M61 20 V3 H44" strokeWidth="1.75" strokeLinecap="round" />
-            <line x1="56" y1="3" x2="61" y2="8" strokeWidth="1" strokeLinecap="round" />
-            <line x1="49" y1="3" x2="61" y2="15" strokeWidth="1" strokeLinecap="round" />
-            <circle cx="54" cy="10" r="1.5" fill="currentColor" stroke="none" />
-          </svg>
-        </div>
-
-        <div className="absolute bottom-3 left-3 w-14 h-14 pointer-events-none opacity-[0.12] dark:opacity-[0.16] text-slate-800 dark:text-red-400">
-          <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-            <path d="M3 44 V61 H20" strokeWidth="1.75" strokeLinecap="round" />
-            <line x1="8" y1="61" x2="3" y2="56" strokeWidth="1" strokeLinecap="round" />
-            <circle cx="10" cy="54" r="1.5" fill="currentColor" stroke="none" />
-          </svg>
-        </div>
-
-        <div className="absolute bottom-3 right-3 w-14 h-14 pointer-events-none opacity-[0.12] dark:opacity-[0.16] text-slate-800 dark:text-red-400">
-          <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-            <path d="M61 44 V61 H44" strokeWidth="1.75" strokeLinecap="round" />
-            <line x1="56" y1="61" x2="61" y2="56" strokeWidth="1" strokeLinecap="round" />
-            <circle cx="54" cy="54" r="1.5" fill="currentColor" stroke="none" />
-          </svg>
-        </div>
-
-        {/* Ambient Glows */}
-        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-red-600/12 dark:bg-red-600/15" />
-        <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-amber-500/10 dark:bg-amber-500/12" />
-
-        {/* Purely Visual/Decorative HUD Lateral Elements (No operational text or numbers) */}
-        {/* Left Flank Subtle Vector Radar Silhouette */}
-        <div className="absolute -left-12 top-1/2 -translate-y-1/2 w-64 h-64 pointer-events-none opacity-[0.10] dark:opacity-[0.15] hidden md:block">
-          <svg viewBox="0 0 200 200" className="w-full h-full text-current stroke-current" fill="none">
-            <circle cx="100" cy="100" r="90" strokeWidth="1" strokeDasharray="4 4" />
-            <circle cx="100" cy="100" r="65" strokeWidth="0.75" />
-            <circle cx="100" cy="100" r="40" strokeWidth="1" strokeDasharray="2 3" />
-            <line x1="10" y1="100" x2="190" y2="100" strokeWidth="0.5" strokeDasharray="3 6" />
-            <line x1="100" y1="10" x2="100" y2="190" strokeWidth="0.5" strokeDasharray="3 6" />
-          </svg>
-        </div>
-
-        {/* Right Flank Subtle Vector Reticle Silhouette */}
-        <div className="absolute -right-12 top-1/2 -translate-y-1/2 w-64 h-64 pointer-events-none opacity-[0.10] dark:opacity-[0.15] hidden md:block">
-          <svg viewBox="0 0 200 200" className="w-full h-full text-current stroke-current" fill="none">
-            <circle cx="100" cy="100" r="85" strokeWidth="1" strokeDasharray="3 5" />
-            <circle cx="100" cy="100" r="55" strokeWidth="0.75" />
-            <circle cx="100" cy="100" r="25" strokeWidth="1" strokeDasharray="2 2" />
-            <path d="M 30 100 L 170 100" strokeWidth="0.5" />
-            <path d="M 100 30 L 100 170" strokeWidth="0.5" />
-          </svg>
-        </div>
+        {/* Soft Ambient Glows */}
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full blur-3xl pointer-events-none bg-red-600/[0.06] dark:bg-red-600/10" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full blur-3xl pointer-events-none bg-slate-400/10 dark:bg-slate-800/20" />
 
         {/* Clean, Centered Welcome Content */}
         <div className="relative z-10 max-w-3xl mx-auto flex flex-col items-center text-center">
-          {/* Central Security Illustration with Glow & Radar Rings */}
-          <div className="relative mb-6 flex items-center justify-center">
-            {/* Outer pulsating radial aura */}
-            <div className="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-tr from-red-600/25 to-amber-500/20 blur-xl animate-pulse pointer-events-none" />
-
-            {/* Radar Conic Wave Ring */}
-            <div className="absolute w-28 h-28 sm:w-36 sm:h-36 rounded-full border border-red-500/30 animate-[spin_20s_linear_infinite]" />
-            <div className="absolute w-22 h-22 sm:w-28 sm:h-28 rounded-full border border-dashed border-red-500/40" />
-
-            {/* Central Tactical Shield Emblem */}
-            <div className="relative w-18 h-18 sm:w-22 sm:h-22 rounded-3xl bg-gradient-to-br from-red-600 via-rose-600 to-amber-600 p-[2px] shadow-xl shadow-red-950/50">
-              <div className="w-full h-full rounded-[22px] bg-slate-950/90 flex flex-col items-center justify-center text-white relative overflow-hidden">
-                {/* Crosshairs inside badge */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                  <div className="w-full h-px bg-red-500" />
-                  <div className="h-full w-px bg-red-500 absolute" />
-                </div>
-                <SecurityUrbanLogo className="w-10 h-10 sm:w-12 sm:h-12 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.7)]" />
+          {/* Central Brand Shield Emblem */}
+          <div className="relative mb-5 flex items-center justify-center">
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-red-600 p-[2px] shadow-md">
+              <div className="w-full h-full rounded-[14px] bg-slate-950 flex flex-col items-center justify-center text-white relative overflow-hidden">
+                <SecurityUrbanLogo className="w-9 h-9 sm:w-11 sm:h-11 text-white" />
               </div>
             </div>
 
-            {/* Active Status Ping on Badge */}
-            <span className="absolute bottom-1 right-1 flex h-3.5 w-3.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-950"></span>
+            {/* Active Status Indicator */}
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5">
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white dark:border-slate-950" />
             </span>
           </div>
 
           {/* Personalized User Greeting Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold text-xs sm:text-sm tracking-wide mb-3 shadow-xs">
-            <UserCheck className="w-4 h-4 text-emerald-500" />
-            <span>{t('welcomeBack')}, <span className="font-extrabold text-red-600 dark:text-red-400 capitalize">{displayName}</span></span>
+          <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 text-emerald-800 dark:text-emerald-300 font-semibold text-sm mb-3 max-w-full">
+            <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="truncate max-w-[240px] sm:max-w-none">{t('welcomeBack')}, <span className="font-bold text-slate-900 dark:text-white capitalize">{displayName}</span></span>
           </div>
 
           {/* Subtitle / Tagline Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 font-bold text-xs tracking-wider uppercase mb-4 shadow-xs">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>{t('heroTagline')}</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 font-semibold text-xs sm:text-sm tracking-wide uppercase mb-3 max-w-full">
+            <Sparkles className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+            <span className="truncate">{t('heroTagline')}</span>
           </div>
 
-          {/* Main Title */}
-          <h1 className={`text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight font-['Rajdhani'] mb-4 ${colors.cardTitle}`}>
+          {/* Main Title (28-32px mobile, 32-40px desktop) */}
+          <h1 className={`text-[28px] sm:text-4xl lg:text-[40px] font-extrabold tracking-tight font-['Rajdhani'] mb-3 ${colors.cardTitle}`}>
             SECURITY URBAN
           </h1>
 
-          {/* Description */}
-          <p className={`text-sm sm:text-base md:text-lg max-w-2xl leading-relaxed mb-8 font-medium ${colors.cardSubtitle}`}>
+          {/* Description (16px comfortable paragraph) */}
+          <p className={`text-base max-w-[62ch] leading-relaxed mb-7 font-normal ${colors.cardSubtitle}`}>
             {t('heroDescription')}
           </p>
 
-          {/* Primary Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full sm:w-auto">
+          {/* Primary Action Buttons (14-16px control text) */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3.5 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => onNavigate('riskMap')}
-              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-bold text-sm sm:text-base tracking-wider uppercase flex items-center justify-center gap-3 shadow-lg shadow-red-950/40 dark:shadow-red-950/60 hover:shadow-red-600/30 transition-all cursor-pointer active:scale-[0.99] group"
+              className="w-full sm:w-auto min-h-[48px] px-6 sm:px-7 py-3.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-[0.99] group"
             >
-              <Navigation className="w-5 h-5 group-hover:rotate-45 transition-transform" />
+              <Navigation className="w-4 h-4 group-hover:rotate-45 transition-transform shrink-0" />
               <span>{t('exploreMap')}</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform shrink-0" />
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate('dashboard')}
-              className={`w-full sm:w-auto px-7 py-4 rounded-xl border text-xs sm:text-sm font-bold tracking-wider uppercase flex items-center justify-center gap-2 transition cursor-pointer shadow-xs ${
+              className={`w-full sm:w-auto min-h-[48px] px-6 sm:px-7 py-3.5 rounded-xl border text-sm sm:text-base font-semibold flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs ${
                 isDark
-                  ? 'border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-200'
+                  ? 'border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-100'
                   : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-800'
               }`}
             >
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>{t('goToDashboard')}</span>
             </button>
           </div>
 
-          {/* Authenticated User Session Line */}
+          {/* Authenticated User Session Line (14px auxiliary text) */}
           {userEmail && (
-            <div className="mt-6 text-xs font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>{t('sessionUser')}: <span className="font-semibold text-slate-700 dark:text-slate-300">{userEmail}</span></span>
+            <div className="mt-6 text-sm text-slate-500 dark:text-slate-400 flex flex-wrap items-center justify-center gap-2 max-w-full px-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="break-all sm:break-normal">{t('sessionUser')}: <span className="font-semibold text-slate-700 dark:text-slate-200">{userEmail}</span></span>
             </div>
           )}
         </div>
       </section>
 
-      {/* 3. Section Title for Quick Access Cards */}
-      <div className="w-full mb-4 px-1 sm:px-2 flex items-center justify-between">
+      {/* 3. Section Title for Quick Access Cards (24-30px section heading) */}
+      <div className="w-full mb-5 px-1 sm:px-2 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
         <div>
-          <h2 className={`text-xl sm:text-2xl font-bold tracking-tight ${colors.cardTitle}`}>
+          <h2 className={`text-2xl sm:text-[28px] font-bold tracking-tight ${colors.cardTitle}`}>
             {t('quickAccessTitle')}
           </h2>
-          <p className={`text-sm sm:text-base ${colors.cardSubtitle}`}>
+          <p className={`text-base mt-1 ${colors.cardSubtitle}`}>
             {t('quickAccessSubtitle')}
           </p>
         </div>
@@ -264,47 +192,51 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <button
           type="button"
           onClick={() => handleOpenMap('all')}
-          className="text-sm sm:text-base font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 transition cursor-pointer"
+          className="min-h-[40px] self-start sm:self-auto text-sm sm:text-base font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 transition cursor-pointer"
         >
           <span>{t('viewFullMap')}</span>
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-4 h-4 shrink-0" />
         </button>
       </div>
 
-      {/* 4. Four Quick Access Cards Grid - Fully Expanded across full container width */}
+      {/* 4. Four Quick Access Cards Grid - Clean, Balanced Proportions */}
       <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5 mb-8">
         {/* Card 1: Prevención -> Mapa de Riesgo */}
         <div
           role="button"
           tabIndex={0}
           onClick={() => onNavigate('riskMap')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('riskMap')}
-          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('riskMap');
+            }
+          }}
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between ${
             isDark
-              ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
-              : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
+              ? 'bg-slate-900/90 border-slate-800 hover:border-red-500/60'
+              : 'bg-white border-slate-200/90 hover:border-red-500/60'
           }`}
         >
-          {/* Top subtle bar */}
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600 to-amber-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+          <div>
+            {/* Icon Container */}
+            <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 flex items-center justify-center mb-4 group-hover:bg-red-600 group-hover:text-white transition-colors">
+              <ShieldAlert className="w-6 h-6 stroke-[2]" />
+            </div>
 
-          {/* Circular Icon Container */}
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-red-600/20 to-amber-500/10 border border-red-500/30 text-red-600 dark:text-red-400 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm">
-            <ShieldAlert className="w-6 h-6 stroke-[2]" />
+            <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
+              <span>{t('cardPreventionTitle')}</span>
+              <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
+            </h3>
+
+            <p className={`text-base leading-relaxed ${colors.cardSubtitle}`}>
+              {t('cardPreventionDesc')}
+            </p>
           </div>
 
-          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
-            <span>{t('cardPreventionTitle')}</span>
-            <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-          </h3>
-
-          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
-            {t('cardPreventionDesc')}
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-red-600 dark:text-red-400 font-bold">
-            <span>MOD-01 // PREVENCIÓN</span>
-            <span>{t('viewSectorArrow')}</span>
+          <div className="mt-5 pt-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-sm text-red-600 dark:text-red-400 font-semibold">
+            <span className="truncate">Prevención</span>
+            <span className="shrink-0">{t('viewSectorArrow')}</span>
           </div>
         </div>
 
@@ -313,33 +245,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           role="button"
           tabIndex={0}
           onClick={() => onNavigate('alerts')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('alerts')}
-          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('alerts');
+            }
+          }}
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between ${
             isDark
-              ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
-              : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
+              ? 'bg-slate-900/90 border-slate-800 hover:border-amber-500/60'
+              : 'bg-white border-slate-200/90 hover:border-amber-500/60'
           }`}
         >
-          {/* Top subtle bar */}
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600 to-amber-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+          <div>
+            {/* Icon Container */}
+            <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+              <Bell className="w-6 h-6 stroke-[2]" />
+            </div>
 
-          {/* Circular Icon Container */}
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-red-600/20 to-amber-500/10 border border-red-500/30 text-amber-500 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-amber-500 group-hover:text-black transition-all shadow-sm">
-            <Bell className="w-6 h-6 stroke-[2]" />
+            <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
+              <span>{t('cardAlertsTitle')}</span>
+              <ChevronRight className="w-4 h-4 text-amber-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
+            </h3>
+
+            <p className={`text-base leading-relaxed ${colors.cardSubtitle}`}>
+              {t('cardAlertsDesc')}
+            </p>
           </div>
 
-          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
-            <span>{t('cardAlertsTitle')}</span>
-            <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-          </h3>
-
-          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
-            {t('cardAlertsDesc')}
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-amber-500 font-bold">
-            <span>MOD-02 // ALERTAS</span>
-            <span>{t('viewReportsArrow')}</span>
+          <div className="mt-5 pt-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-sm text-amber-600 dark:text-amber-400 font-semibold">
+            <span className="truncate">Alertas verificadas</span>
+            <span className="shrink-0">{t('viewReportsArrow')}</span>
           </div>
         </div>
 
@@ -348,33 +284,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           role="button"
           tabIndex={0}
           onClick={() => onNavigate('safeRoutes')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('safeRoutes')}
-          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('safeRoutes');
+            }
+          }}
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between ${
             isDark
-              ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
-              : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
+              ? 'bg-slate-900/90 border-slate-800 hover:border-emerald-500/60'
+              : 'bg-white border-slate-200/90 hover:border-emerald-500/60'
           }`}
         >
-          {/* Top subtle bar */}
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600 to-amber-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+          <div>
+            {/* Icon Container */}
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              <Route className="w-6 h-6 stroke-[2]" />
+            </div>
 
-          {/* Circular Icon Container */}
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-red-600/20 to-amber-500/10 border border-red-500/30 text-emerald-500 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-sm">
-            <Route className="w-6 h-6 stroke-[2]" />
+            <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
+              <span>{t('cardRoutesTitle')}</span>
+              <ChevronRight className="w-4 h-4 text-emerald-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
+            </h3>
+
+            <p className={`text-base leading-relaxed ${colors.cardSubtitle}`}>
+              {t('cardRoutesDesc')}
+            </p>
           </div>
 
-          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
-            <span>{t('cardRoutesTitle')}</span>
-            <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-          </h3>
-
-          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
-            {t('cardRoutesDesc')}
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-emerald-500 font-bold">
-            <span>MOD-03 // CORREDORES</span>
-            <span>{t('planRouteArrow')}</span>
+          <div className="mt-5 pt-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-semibold">
+            <span className="truncate">Corredores</span>
+            <span className="shrink-0">{t('planRouteArrow')}</span>
           </div>
         </div>
 
@@ -383,61 +323,65 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           role="button"
           tabIndex={0}
           onClick={() => onNavigate('tacticalSupport')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('tacticalSupport')}
-          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden backdrop-blur-sm shadow-md hover:-translate-y-1 hover:shadow-xl ${
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onNavigate('tacticalSupport');
+            }
+          }}
+          className={`group rounded-2xl p-5 sm:p-6 border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between ${
             isDark
-              ? 'bg-slate-950/80 border-red-600/30 hover:border-red-500/80 hover:shadow-red-950/50'
-              : 'bg-white/95 border-red-600/30 hover:border-red-500/80 hover:shadow-slate-300/60'
+              ? 'bg-slate-900/90 border-slate-800 hover:border-blue-500/60'
+              : 'bg-white border-slate-200/90 hover:border-blue-500/60'
           }`}
         >
-          {/* Top subtle bar */}
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600 to-amber-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+          <div>
+            {/* Icon Container */}
+            <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <Users className="w-6 h-6 stroke-[2]" />
+            </div>
 
-          {/* Circular Icon Container */}
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-red-600/20 to-amber-500/10 border border-red-500/30 text-rose-500 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all shadow-sm">
-            <Users className="w-6 h-6 stroke-[2]" />
+            <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
+              <span>{t('cardCommunityTitle')}</span>
+              <ChevronRight className="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all shrink-0" />
+            </h3>
+
+            <p className={`text-base leading-relaxed ${colors.cardSubtitle}`}>
+              {t('cardCommunityDesc')}
+            </p>
           </div>
 
-          <h3 className={`text-lg sm:text-xl font-bold mb-2 flex items-center justify-between ${colors.cardTitle}`}>
-            <span>{t('cardCommunityTitle')}</span>
-            <ChevronRight className="w-4 h-4 text-red-600 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-          </h3>
-
-          <p className={`text-sm sm:text-base leading-relaxed ${colors.cardSubtitle}`}>
-            {t('cardCommunityDesc')}
-          </p>
-
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs sm:text-sm font-mono text-rose-500 font-bold">
-            <span>MOD-04 // RED VECINAL</span>
-            <span>{t('requestSupportArrow')}</span>
+          <div className="mt-5 pt-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-sm text-blue-600 dark:text-blue-400 font-semibold">
+            <span className="truncate">Red vecinal</span>
+            <span className="shrink-0">{t('requestSupportArrow')}</span>
           </div>
         </div>
       </div>
 
       {/* Incident Reporting & My Reports Community Banner */}
-      <div className={`w-full mb-8 p-5 sm:p-6 rounded-3xl border transition-all relative overflow-hidden backdrop-blur-md shadow-lg ${
+      <div className={`w-full mb-8 p-6 sm:p-7 rounded-2xl border transition-all relative overflow-hidden shadow-sm ${
         isDark
-          ? 'bg-gradient-to-r from-red-950/30 via-slate-900/90 to-amber-950/20 border-red-900/50'
-          : 'bg-gradient-to-r from-red-50/90 via-white to-amber-50/90 border-red-200 shadow-slate-200/50'
+          ? 'bg-slate-900/90 border-slate-800'
+          : 'bg-white border-slate-200/90'
       }`}>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-600 to-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-red-900/30">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+          <div className="flex items-start sm:items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
               <PlusCircle className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-black text-red-600 dark:text-red-400 uppercase tracking-widest">
-                  SEGURIDAD CIUDADANA // REPORTE PARTICIPATIVO
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                  Participación Ciudadana
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono text-[9px] font-bold">
-                  EN LÍNEA
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                  En línea
                 </span>
               </div>
-              <h4 className="text-base sm:text-lg font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">
                 {language === 'es' ? '¿Presenciaste un incidente en la Comuna 8?' : 'Witnessed an incident in Comuna 8?'}
-              </h4>
-              <p className="text-xs text-slate-700 dark:text-slate-400 max-w-xl font-medium mt-0.5">
+              </h3>
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl mt-1">
                 {language === 'es'
                   ? 'Registra novedades de seguridad, fallas de iluminación o emergencias viales. El reporte será verificado por administradores antes de su publicación.'
                   : 'Report security incidents, lighting failures, or road hazards. Reports are reviewed by administrators prior to public map dispatch.'}
@@ -445,26 +389,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
             <button
               type="button"
               onClick={() => onNavigate('myReports')}
-              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer whitespace-nowrap"
+              className="min-h-[44px] py-2.5 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer whitespace-nowrap"
             >
-              <PlusCircle className="w-4 h-4" />
+              <PlusCircle className="w-4 h-4 shrink-0" />
               <span>{language === 'es' ? 'Reportar Incidente' : 'Report Incident'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => onNavigate('myReports')}
-              className={`py-2.5 px-4 rounded-xl border text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap ${
+              className={`min-h-[44px] py-2.5 px-5 rounded-xl border text-sm font-semibold flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap ${
                 isDark 
-                  ? 'border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-200' 
-                  : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-xs'
+                  ? 'border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-200' 
+                  : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs'
               }`}
             >
-              <FileCheck2 className="w-4 h-4 text-amber-500" />
+              <FileCheck2 className="w-4 h-4 text-amber-500 shrink-0" />
               <span>{language === 'es' ? 'Mis Reportes' : 'My Reports'}</span>
             </button>
           </div>
@@ -473,29 +417,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* Admin Module Callout (Visible for Administrators) */}
       {userRole === 'administrador' && (
-        <div className={`w-full mb-8 p-5 sm:p-6 rounded-2xl border transition-all relative overflow-hidden backdrop-blur-md shadow-lg ${
+        <div className={`w-full mb-8 p-6 sm:p-7 rounded-2xl border transition-all relative overflow-hidden shadow-sm ${
           isDark
-            ? 'bg-gradient-to-r from-red-950/40 via-slate-950/80 to-amber-950/30 border-red-900/60'
-            : 'bg-gradient-to-r from-red-50/80 via-white to-amber-50/80 border-red-200 shadow-slate-200/50'
+            ? 'bg-slate-900/90 border-slate-800'
+            : 'bg-white border-slate-200/90'
         }`}>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-red-600/10 border border-red-500/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0 shadow-xs">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono font-black text-red-600 dark:text-red-400 uppercase tracking-widest">
-                    MÓDULO DE MANDO // FIRESTORE
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                    Administración
                   </span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-red-600 text-white font-mono text-[9px] font-bold">
-                    ADMIN
+                  <span className="px-2 py-0.5 rounded-md bg-red-600 text-white text-xs font-bold">
+                    Admin
                   </span>
                 </div>
-                <h4 className="text-base sm:text-lg font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                  {language === 'es' ? 'Gestión de Usuarios & Control de Accesos' : 'User Management & Access Control'}
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">
+                  {language === 'es' ? 'Gestión de Usuarios y Control de Accesos' : 'User Management & Access Control'}
+                </h3>
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 mt-0.5">
                   {language === 'es'
                     ? 'Monitorea usuarios registrados en tiempo real, asigna roles y gestiona suspensiones.'
                     : 'Monitor registered users in real-time, assign roles, and manage suspensions.'}
@@ -506,7 +450,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('userManagement')}
-              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+              className="min-h-[44px] py-2.5 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
             >
               <span>{language === 'es' ? 'Abrir Gestión' : 'Open Management'}</span>
               <ArrowRight className="w-4 h-4" />

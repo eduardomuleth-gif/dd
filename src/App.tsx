@@ -26,7 +26,6 @@ import { RegisterForm } from './components/RegisterForm';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { EmailVerificationView } from './components/EmailVerificationView';
 import { AuthActionHandlerView } from './components/AuthActionHandlerView';
-import { ResetPasswordView } from './components/ResetPasswordView';
 import { HomeScreen } from './components/HomeScreen';
 import { DashboardScreen } from './components/DashboardScreen';
 import { RiskMapScreen } from './components/RiskMapScreen';
@@ -66,32 +65,20 @@ const MainScreen: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTacticalMapOpen, setIsTacticalMapOpen] = useState(false);
 
-  // Detect /reset-password route
-  const [isResetPasswordRoute, setIsResetPasswordRoute] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const path = window.location.pathname.replace(/\/+$/, '');
-    const params = new URLSearchParams(window.location.search);
-    const mode = params.get('mode');
-    if (mode === 'verifyEmail') return false;
-    return path === '/reset-password' || mode === 'resetPassword';
-  });
-
-  // Firebase Email Action Code Parameters (?mode=verifyEmail|resetPassword&oobCode=...&apiKey=...)
+  // Firebase Email Action Code Parameters (?mode=verifyEmail&oobCode=...) or Return Flow (?authFlow=...)
   const [authActionParams, setAuthActionParams] = useState<{
     mode: string;
     oobCode: string;
-    apiKey?: string | null;
     continueUrl?: string | null;
   } | null>(() => {
     if (typeof window === 'undefined') return null;
     const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
     const oobCode = params.get('oobCode');
-    const mode = params.get('mode') || (window.location.pathname.includes('reset-password') ? 'resetPassword' : '');
-    if (oobCode) {
+    if (mode === 'verifyEmail' && oobCode) {
       return {
-        mode: mode || 'resetPassword',
+        mode,
         oobCode,
-        apiKey: params.get('apiKey'),
         continueUrl: params.get('continueUrl'),
       };
     }
@@ -104,24 +91,28 @@ const MainScreen: React.FC = () => {
     const mode = params.get('mode');
     const oobCode = params.get('oobCode');
     const authFlow = params.get('authFlow');
-    if (!oobCode && authFlow === 'verifyEmail') {
+    if (!oobCode && (authFlow === 'verifyEmail' || mode === 'verifyEmail')) {
       return '¡Tu correo electrónico ha sido confirmado! Ya puedes iniciar sesión para acceder a Security Urban.';
     }
-    if (!oobCode && authFlow === 'resetPassword') {
+    if (!oobCode && (authFlow === 'resetPassword' || mode === 'resetPassword')) {
       return 'Proceso de restablecimiento completado. Inicia sesión con tu nueva contraseña.';
-    }
-    if (!oobCode && mode === 'verifyEmail') {
-      return '¡Tu correo electrónico ha sido confirmado! Ya puedes iniciar sesión.';
     }
     return null;
   });
 
-  const clearUrlAuthParams = (resetPathToRoot = false) => {
+  const clearUrlAuthParams = () => {
     if (typeof window !== 'undefined' && window.history?.replaceState) {
-      const targetPath = resetPathToRoot ? '/' : window.location.pathname + window.location.hash;
-      window.history.replaceState({}, document.title, targetPath);
+      const cleanPath = window.location.pathname === '/reset-password' ? '/' : window.location.pathname;
+      const cleanUrl = cleanPath + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
     }
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/reset-password') {
+      clearUrlAuthParams();
+    }
+  }, []);
 
   useEffect(() => {
     if (authReturnNotice) {
@@ -138,13 +129,14 @@ const MainScreen: React.FC = () => {
     if (!headerEl) return;
 
     const updateHeight = () => {
-      setHeaderHeight(headerEl.offsetHeight);
+      const nextHeight = headerEl.offsetHeight;
+      setHeaderHeight((prev) => (prev === nextHeight ? prev : nextHeight));
     };
 
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
     observer.observe(headerEl);
-    window.addEventListener('resize', updateHeight);
+    window.addEventListener('resize', updateHeight, { passive: true });
 
     return () => {
       observer.disconnect();
@@ -154,6 +146,7 @@ const MainScreen: React.FC = () => {
 
   // Live simulation report toast & bell animation
   const [hasLiveAlertPulse, setHasLiveAlertPulse] = useState(false);
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [liveSimulatedToast, setLiveSimulatedToast] = useState<{
     id: string;
     titulo: string;
@@ -173,7 +166,10 @@ const MainScreen: React.FC = () => {
 
       // Trigger bell pulse animation for 8 seconds
       setHasLiveAlertPulse(true);
-      const pulseTimer = setTimeout(() => {
+      if (pulseTimerRef.current) {
+        clearTimeout(pulseTimerRef.current);
+      }
+      pulseTimerRef.current = setTimeout(() => {
         setHasLiveAlertPulse(false);
       }, 8000);
 
@@ -185,13 +181,14 @@ const MainScreen: React.FC = () => {
         sector: detail.sector,
         fechaCreacionFormateada: detail.fechaCreacionFormateada,
       });
-
-      return () => clearTimeout(pulseTimer);
     };
 
     window.addEventListener('security_urban_new_simulated_report', handleNewReport);
     return () => {
       window.removeEventListener('security_urban_new_simulated_report', handleNewReport);
+      if (pulseTimerRef.current) {
+        clearTimeout(pulseTimerRef.current);
+      }
     };
   }, []);
 
@@ -351,43 +348,56 @@ const MainScreen: React.FC = () => {
     );
   }
 
-  // 2. UNAUTHENTICATED OR EMAIL ACTION HANDLER OR /reset-password FLOW
-  if (!currentUser || authActionParams || isResetPasswordRoute) {
+  // 2. UNAUTHENTICATED OR EMAIL ACTION HANDLER FLOW
+  if (!currentUser || authActionParams) {
     return (
       <div className={`min-h-screen relative flex flex-col justify-between overflow-x-hidden selection:bg-red-600 selection:text-white pb-8 transition-colors ${colors.canvasBg} ${colors.canvasText}`}>
+        {/* Accessibility Skip Link */}
+        <a
+          href="#auth-main-card-container"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2.5 focus:rounded-xl focus:bg-red-600 focus:text-white focus:font-bold focus:text-xs focus:shadow-xl"
+        >
+          {language === 'es' ? 'Saltar al formulario principal' : 'Skip to main form'}
+        </a>
+
         {/* Visual Background: canvas + diagonal split panel + subtle circuit texture */}
         <BackgroundArtwork />
 
         {/* Minimal Unauthenticated Header: Brand + Language + Theme toggle only */}
-        <header className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
+        <header className="relative z-20 w-full max-w-7xl mx-auto px-3.5 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
           {/* Brand identity */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-red-600 border border-red-400 flex items-center justify-center text-white shadow-lg shadow-red-900/40 shrink-0">
               <SecurityUrbanLogo className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={`font-extrabold tracking-wider text-base sm:text-lg font-['Rajdhani'] ${colors.headerBrandText}`}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span className={`font-extrabold tracking-wider text-sm min-[360px]:text-base sm:text-lg font-['Rajdhani'] whitespace-nowrap ${colors.headerBrandText}`}>
                   SECURITY URBAN
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border ${colors.badgeLocationBg} ${colors.badgeLocationText} ${colors.badgeLocationBorder}`}>
+                <span className={`hidden min-[380px]:inline-block px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border whitespace-nowrap ${colors.badgeLocationBg} ${colors.badgeLocationText} ${colors.badgeLocationBorder}`}>
                   COMUNA 8
                 </span>
               </div>
-              <p className={`text-[11px] sm:text-xs font-medium hidden sm:block ${colors.headerSubText}`}>
+              <p className={`text-[11px] sm:text-xs font-medium hidden sm:block truncate ${colors.headerSubText}`}>
                 {t('appTagline')}
               </p>
             </div>
           </div>
 
           {/* Minimal Controls: Language switcher & Theme toggle */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Language Selector */}
-            <div className={`relative inline-flex items-center rounded-full p-1 text-xs border shadow-xs ${colors.headerBg} ${colors.headerBorder}`}>
+            <div
+              role="group"
+              aria-label={language === 'es' ? 'Selector de idioma' : 'Language selector'}
+              className={`relative inline-flex items-center rounded-full p-1 text-xs border shadow-xs ${colors.headerBg} ${colors.headerBorder}`}
+            >
               <button
                 type="button"
                 onClick={() => setLanguage('es')}
-                className={`px-2.5 py-1 rounded-full font-bold transition cursor-pointer ${
+                aria-pressed={language === 'es'}
+                className={`px-2.5 py-1.5 rounded-full font-bold transition cursor-pointer min-h-[32px] min-w-[36px] ${
                   language === 'es'
                     ? 'bg-red-600 text-white shadow-xs'
                     : colors.tabInactiveText
@@ -399,7 +409,8 @@ const MainScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setLanguage('en')}
-                className={`px-2.5 py-1 rounded-full font-bold transition cursor-pointer ${
+                aria-pressed={language === 'en'}
+                className={`px-2.5 py-1.5 rounded-full font-bold transition cursor-pointer min-h-[32px] min-w-[36px] ${
                   language === 'en'
                     ? 'bg-red-600 text-white shadow-xs'
                     : colors.tabInactiveText
@@ -414,7 +425,7 @@ const MainScreen: React.FC = () => {
             <button
               type="button"
               onClick={toggleTheme}
-              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600`}
+              className={`w-10 h-10 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs shrink-0 ${colors.headerBg} ${colors.headerBorder} hover:border-red-600`}
               aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
               title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
             >
@@ -428,83 +439,53 @@ const MainScreen: React.FC = () => {
         </header>
 
         {/* Center: Full-Screen Dedicated Login / Register / Email Action Handler Card */}
-        <main className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 flex flex-col items-center justify-center grow">
+        <main className="relative z-10 w-full max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-8 flex flex-col items-center justify-center grow">
           <div
             id="auth-main-card-container"
             className="w-full max-w-xl sm:max-w-2xl transition-all duration-300"
           >
             {/* Clean Security Badge Ribbon */}
-            <div className="mb-4 px-1">
+            <div className="mb-3.5 sm:mb-4 px-1">
               <SecurityBadges />
             </div>
 
-            {isResetPasswordRoute || authActionParams?.mode === 'resetPassword' ? (
-              <ResetPasswordView
-                initialOobCode={authActionParams?.oobCode}
-                onRedirectToLogin={(successMsg) => {
-                  clearUrlAuthParams(true);
-                  setIsResetPasswordRoute(false);
-                  setAuthActionParams(null);
-                  setActiveTab('login');
-                  if (successMsg) {
-                    setAuthReturnNotice(successMsg);
-                  }
-                }}
-              />
-            ) : authActionParams ? (
+            {authActionParams ? (
               <AuthActionHandlerView
                 mode={authActionParams.mode}
                 oobCode={authActionParams.oobCode}
                 continueUrl={authActionParams.continueUrl}
                 onEmailVerifiedSuccess={() => {
+                  setIsEmailVerified(true);
                   if (currentUser) {
-                    setIsEmailVerified(true);
                     setCurrentUser(auth.currentUser || currentUser);
                   }
                 }}
                 onCompleteToLogin={() => {
-                  clearUrlAuthParams(true);
+                  clearUrlAuthParams();
                   setAuthActionParams(null);
                   setActiveTab('login');
                 }}
               />
             ) : (
-              /* Container with rounded corners, pronounced depth shadow, and thin red border */
+              /* Clean, balanced Authentication Card with subtle elevation */
               <div
                 id="auth-card"
-                className={`rounded-3xl p-8 sm:p-12 md:p-14 shadow-[0_25px_60px_-15px_rgba(15,23,42,0.18),0_0_25px_rgba(220,38,38,0.1)] dark:shadow-[0_30px_70px_-15px_rgba(0,0,0,0.95),0_0_35px_rgba(220,38,38,0.2)] backdrop-blur-md relative overflow-hidden border transition-all ${colors.cardBg} ${colors.cardBorder}`}
+                className={`rounded-3xl p-5 min-[380px]:p-6 sm:p-10 md:p-11 shadow-xl backdrop-blur-md relative overflow-hidden border transition-all ${colors.cardBg} ${colors.cardBorder}`}
               >
-                {/* Distinct top accent bar (5px high) with red -> orange gradient */}
-                <div className="absolute top-0 inset-x-0 h-[5px] bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 shadow-sm shadow-red-500/25" />
-
-                {/* Geometric HUD security pattern in top-left corner */}
-                <div className="absolute top-3 left-3 w-16 h-16 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
-                  <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-                    <path d="M3 24 V3 H24" strokeWidth="1.75" strokeLinecap="round" />
-                    <line x1="8" y1="3" x2="3" y2="8" strokeWidth="1" strokeLinecap="round" />
-                    <line x1="15" y1="3" x2="3" y2="15" strokeWidth="1" strokeLinecap="round" />
-                    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-                  </svg>
-                </div>
-
-                {/* Geometric HUD security pattern in top-right corner */}
-                <div className="absolute top-3 right-3 w-16 h-16 pointer-events-none opacity-[0.14] dark:opacity-[0.18] text-slate-800 dark:text-red-400">
-                  <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" stroke="currentColor">
-                    <path d="M61 24 V3 H40" strokeWidth="1.75" strokeLinecap="round" />
-                    <line x1="56" y1="3" x2="61" y2="8" strokeWidth="1" strokeLinecap="round" />
-                    <line x1="49" y1="3" x2="61" y2="15" strokeWidth="1" strokeLinecap="round" />
-                    <circle cx="52" cy="12" r="1.5" fill="currentColor" stroke="none" />
-                  </svg>
-                </div>
+                {/* Subtle 3px top accent line */}
+                <div className="absolute top-0 inset-x-0 h-[3px] bg-red-600" />
 
                 {/* Return banner when coming back from Firebase hosted action page */}
                 {authReturnNotice && (
-                  <div className="mb-6 p-4 rounded-2xl bg-emerald-100 border-2 border-emerald-500 text-emerald-950 dark:bg-emerald-950/70 dark:border-emerald-600 dark:text-emerald-200 text-sm font-bold flex items-center justify-between gap-3 shadow-sm">
+                  <div
+                    role="status"
+                    className="mb-6 p-4 rounded-2xl bg-emerald-100 border border-emerald-500 text-emerald-950 dark:bg-emerald-950/70 dark:border-emerald-600 dark:text-emerald-200 text-sm font-bold flex items-center justify-between gap-3 shadow-xs"
+                  >
                     <span>{authReturnNotice}</span>
                     <button
                       type="button"
                       onClick={() => setAuthReturnNotice(null)}
-                      className="text-xs font-mono underline shrink-0 cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg text-xs font-mono underline shrink-0 cursor-pointer"
                     >
                       OK
                     </button>
@@ -512,8 +493,8 @@ const MainScreen: React.FC = () => {
                 )}
 
                 {/* Title Header */}
-                <div className="text-center space-y-2 mb-7">
-                  <h1 className={`text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-widest font-['Rajdhani'] uppercase ${colors.cardTitle}`}>
+                <div className="text-center space-y-2 mb-6 sm:mb-7">
+                  <h1 className={`text-[26px] sm:text-3xl md:text-4xl font-extrabold tracking-wide font-['Rajdhani'] uppercase ${colors.cardTitle}`}>
                     {activeTab === 'login' ? t('loginTitle') : t('registerTitle')}
                   </h1>
                   <p className={`text-sm sm:text-base font-medium ${colors.cardSubtitle}`}>
@@ -522,13 +503,19 @@ const MainScreen: React.FC = () => {
                 </div>
 
                 {/* Pill Segmented Tab Switcher */}
-                <div className={`grid grid-cols-2 p-1.5 rounded-full border shadow-inner ${colors.tabTrackBg} ${colors.tabTrackBorder}`}>
+                <div
+                  role="tablist"
+                  aria-label={language === 'es' ? 'Opciones de acceso' : 'Authentication options'}
+                  className={`grid grid-cols-2 p-1.5 rounded-2xl border ${colors.tabTrackBg} ${colors.tabTrackBorder}`}
+                >
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={activeTab === 'login'}
                     onClick={() => setActiveTab('login')}
-                    className={`py-3 text-sm sm:text-base font-bold rounded-full transition-all cursor-pointer ${
+                    className={`py-2.5 sm:py-3 px-3 text-sm sm:text-base font-bold rounded-xl transition-all cursor-pointer min-h-[44px] ${
                       activeTab === 'login'
-                        ? 'bg-red-600 text-white shadow-md shadow-red-950/30'
+                        ? 'bg-red-600 text-white shadow-sm'
                         : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
                     }`}
                   >
@@ -536,10 +523,12 @@ const MainScreen: React.FC = () => {
                   </button>
                   <button
                     type="button"
+                    role="tab"
+                    aria-selected={activeTab === 'register'}
                     onClick={() => setActiveTab('register')}
-                    className={`py-3 text-sm sm:text-base font-bold rounded-full transition-all cursor-pointer ${
+                    className={`py-2.5 sm:py-3 px-3 text-sm sm:text-base font-bold rounded-xl transition-all cursor-pointer min-h-[44px] ${
                       activeTab === 'register'
-                        ? 'bg-red-600 text-white shadow-md shadow-red-950/30'
+                        ? 'bg-red-600 text-white shadow-sm'
                         : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
                     }`}
                   >
@@ -547,23 +536,13 @@ const MainScreen: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Decorative separator with small security shield badge */}
-                <div className="relative my-6 sm:my-8 flex items-center justify-center">
-                  <div className="grow h-px bg-gradient-to-r from-transparent via-slate-300 to-slate-400 dark:via-slate-700 dark:to-slate-600" />
-                  <div className="mx-3.5 px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 shadow-xs flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-red-600 dark:text-red-400 fill-red-600/15" />
-                    <span className="text-[10px] font-mono tracking-widest uppercase font-bold text-slate-700 dark:text-slate-300">
-                      CANAL SEGURO
-                    </span>
-                  </div>
-                  <div className="grow h-px bg-gradient-to-l from-transparent via-slate-300 to-slate-400 dark:via-slate-700 dark:to-slate-600" />
-                </div>
+                {/* Clean subtle divider */}
+                <div className="my-6 h-px bg-slate-200 dark:bg-slate-800" />
 
                 {/* Active Tab Form */}
                 {activeTab === 'login' ? (
                   <LoginForm
                     onSuccess={() => {
-                      // Firebase onAuthStateChanged handles the transition automatically
                       setCurrentView('home');
                     }}
                     onOpenForgotPassword={handleOpenForgotPassword}
@@ -572,7 +551,6 @@ const MainScreen: React.FC = () => {
                 ) : (
                   <RegisterForm
                     onSuccess={() => {
-                      // Firebase onAuthStateChanged handles the transition automatically
                       setCurrentView('home');
                     }}
                     onSwitchToLogin={() => setActiveTab('login')}
@@ -582,8 +560,8 @@ const MainScreen: React.FC = () => {
             )}
 
             {/* Footer Project Tag */}
-            <div className={`mt-4 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 ${colors.mutedText}`}>
-              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+            <div className={`mt-4 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 px-2 ${colors.mutedText}`}>
+              <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
               <span>Iniciativa de Seguridad Comunitaria • Medellín 2026</span>
             </div>
           </div>
@@ -601,207 +579,169 @@ const MainScreen: React.FC = () => {
 
   // 3. AUTHENTICATED FLOW: FULL APPLICATION LAYOUT (Header with navigation + user profile + modules)
   return (
-    <div className={`min-h-screen relative flex flex-col justify-between overflow-x-hidden selection:bg-red-600 selection:text-white pb-8 transition-colors ${colors.canvasBg} ${colors.canvasText}`}>
+    <div className={`min-h-screen relative flex flex-col justify-between overflow-x-hidden selection:bg-red-600 selection:text-white pb-20 lg:pb-8 transition-colors ${colors.canvasBg} ${colors.canvasText}`}>
+      {/* Accessibility Skip Link */}
+      <a
+        href="#main-content-viewport"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2.5 focus:rounded-xl focus:bg-red-600 focus:text-white focus:font-bold focus:text-xs focus:shadow-xl"
+      >
+        {language === 'es' ? 'Saltar al contenido principal' : 'Skip to main content'}
+      </a>
+
       {/* Visual Background: canvas + diagonal split panel + subtle circuit texture */}
       <BackgroundArtwork />
+
+      {/* Mobile Menu Backdrop Overlay (closes menu on outside tap) */}
+      {isMobileMenuOpen && (
+        <div
+          aria-hidden="true"
+          onClick={() => setIsMobileMenuOpen(false)}
+          className="lg:hidden fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-xs transition-opacity"
+        />
+      )}
 
       {/* Top Header Bar for Authenticated Users - Fixed at top with dedicated height */}
       <header
         ref={headerRef}
         className="fixed top-0 left-0 right-0 z-50 w-full bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-white/10 shadow-md transition-colors"
       >
-        <div className="w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-3">
-          {/* Brand identity (clickable to go home) */}
-          <button
-            type="button"
-            onClick={() => {
-              setCurrentView('home');
-              setIsMobileMenuOpen(false);
-            }}
-            className="flex items-center gap-3 text-left cursor-pointer group shrink-0"
-            aria-label="Ir al inicio de Security Urban"
-          >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-red-600 border border-red-400 flex items-center justify-center text-white shadow-lg shadow-red-900/40 shrink-0 group-hover:scale-105 transition-transform">
-              <SecurityUrbanLogo className="w-6 h-6 sm:w-7 sm:h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={`font-extrabold tracking-wider text-base sm:text-lg font-['Rajdhani'] ${colors.headerBrandText}`}>
-                  SECURITY URBAN
-                </span>
-                <span className={`hidden xs:inline-block px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border ${colors.badgeLocationBg} ${colors.badgeLocationText} ${colors.badgeLocationBorder}`}>
-                  COMUNA 8
-                </span>
-              </div>
-              <p className={`text-[11px] sm:text-xs font-medium hidden md:block ${colors.headerSubText}`}>
-                {t('appTagline')}
-              </p>
-            </div>
-          </button>
-
-          {/* Right Header Controls: Status Badge, User Profile Menu, Language switcher, Theme toggle, Mobile Menu button */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            {/* Informative Status Badge (distinct from user profile menu; visible on extra wide screens) */}
-            <div className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 shadow-xs shrink-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{t('nodeBadge')}</span>
-            </div>
-
-            {/* Clearly Visible User Profile Menu (Avatar/initials + name + dropdown) */}
-            <UserProfileMenu
-              user={currentUser}
-              userRole={currentUserRole}
-              onViewProfile={handleViewProfile}
-              onOpenSettings={handleOpenSettings}
-              onNavigateToUsers={() => {
-                setCurrentView('userManagement');
+        <div className="w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            {/* Brand identity (clickable to go home) */}
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentView('home');
                 setIsMobileMenuOpen(false);
               }}
-              onSignOut={handleSignOut}
-            />
-
-            {/* Quick Tactical Map modal trigger button */}
-            <button
-              type="button"
-              onClick={() => setIsTacticalMapOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-bold text-xs tracking-wider uppercase shadow-xs cursor-pointer transition-all shrink-0 active:scale-95"
-              title={t('exploreMap')}
+              className="flex items-center gap-2.5 sm:gap-3 text-left cursor-pointer group min-w-0 shrink"
+              aria-label="Ir al inicio de Security Urban"
             >
-              <Map className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">{t('exploreMap')}</span>
-            </button>
-
-            {/* Language Selector */}
-            <div className={`relative inline-flex items-center rounded-full p-1 text-xs border shadow-xs ${colors.headerBg} ${colors.headerBorder} shrink-0`}>
-              <button
-                type="button"
-                onClick={() => setLanguage('es')}
-                className={`px-2.5 py-1 rounded-full font-bold transition cursor-pointer ${
-                  language === 'es'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : colors.tabInactiveText
-                }`}
-                aria-label="Cambiar a Español"
-              >
-                ES
-              </button>
-              <button
-                type="button"
-                onClick={() => setLanguage('en')}
-                className={`px-2.5 py-1 rounded-full font-bold transition cursor-pointer ${
-                  language === 'en'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : colors.tabInactiveText
-                }`}
-                aria-label="Switch to English"
-              >
-                EN
-              </button>
-            </div>
-
-            {/* Theme Selector (Dark / Light) */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600 shrink-0`}
-              aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-              title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-            >
-              {theme === 'dark' ? (
-                <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
-              ) : (
-                <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
-              )}
-            </button>
-
-            {/* Mobile menu toggle */}
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-              className={`lg:hidden w-9 h-9 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600 shrink-0`}
-              aria-label="Abrir menú de navegación"
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-5 h-5 text-red-600" />
-              ) : (
-                <Menu className="w-5 h-5 text-slate-700 dark:text-slate-200" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Full Authenticated Navigation Menu (Desktop: pill strip; Mobile: collapsible drawer) */}
-        <nav
-          aria-label="Navegación principal de Security Urban"
-          className="w-full"
-        >
-          {/* Desktop full navigation bar: centered, symmetrical, fixed with wrap support */}
-          <div className={`hidden lg:flex items-center justify-center p-1.5 sm:p-2 rounded-2xl border shadow-md shadow-red-950/5 dark:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.6),0_0_15px_rgba(220,38,38,0.15)] border-b-2 border-b-red-600/30 backdrop-blur-md transition-all ${colors.headerBg} ${colors.headerBorder}`}>
-            <div className="flex flex-wrap items-center justify-center gap-1 lg:gap-1.5 xl:gap-2.5 2xl:gap-3.5 w-full">
-              {navMenuItems.map((item) => {
-                const isActive = currentView === item.id;
-                const isAlertsItem = item.id === 'alerts';
-                const showLivePulse = isAlertsItem && hasLiveAlertPulse;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setCurrentView(item.id)}
-                    className={`px-2.5 py-1.5 lg:px-2.5 lg:py-1.5 xl:px-3.5 xl:py-2 2xl:px-4 2xl:py-2 rounded-xl font-bold text-[13px] 2xl:text-sm tracking-normal flex items-center gap-1.5 xl:gap-2 transition-all cursor-pointer whitespace-nowrap relative group shrink-0 ${
-                      isActive
-                        ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-950/40 ring-1 ring-red-400/40'
-                        : `${colors.tabInactiveText} hover:bg-slate-100/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white`
-                    }`}
-                  >
-                    {/* Subtle circular container for icon to reinforce visual hierarchy */}
-                    <span
-                      className={`w-5 h-5 xl:w-5.5 xl:h-5.5 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 relative ${
-                        isActive
-                          ? 'bg-white/20 text-white'
-                          : showLivePulse
-                          ? 'bg-red-500/25 text-red-500 dark:text-red-400 ring-2 ring-red-500 animate-pulse'
-                          : 'bg-slate-200/60 dark:bg-slate-800/80 text-red-600 dark:text-red-400 border border-slate-300/40 dark:border-slate-700/50'
-                      }`}
-                    >
-                      <span className={showLivePulse ? 'animate-bounce text-amber-300' : ''}>
-                        {item.icon}
-                      </span>
-                      {showLivePulse && (
-                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                      )}
-                    </span>
-                    <span>{item.label}</span>
-                    {item.badge && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 font-mono text-[9px] font-black tracking-wider shadow-2xs">
-                        {item.badge}
-                      </span>
-                    )}
-                    {showLivePulse && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white font-mono text-[9px] font-black tracking-wider animate-pulse shadow-xs">
-                        {language === 'es' ? 'NUEVA' : 'NEW'}
-                      </span>
-                    )}
-
-                    {/* Active highlight glow underline dot */}
-                    {isActive && (
-                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Mobile Collapsible Navigation Menu */}
-          {isMobileMenuOpen && (
-            <div className={`lg:hidden absolute top-full left-3 right-3 z-50 flex flex-col p-4 rounded-3xl border shadow-2xl shadow-red-950/30 backdrop-blur-xl mt-2 space-y-1.5 border-b-2 border-b-red-600/40 max-h-[calc(100vh-88px)] overflow-y-auto ${colors.headerBg} ${colors.headerBorder}`}>
-              <div className="text-[11px] font-mono font-bold text-red-600 dark:text-red-400 px-3 py-1 flex items-center justify-between">
-                <span>MENÚ DE SEGURIDAD // COMUNA 8</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-red-600 border border-red-400 flex items-center justify-center text-white shadow-lg shadow-red-900/40 shrink-0 group-hover:scale-105 transition-transform">
+                <SecurityUrbanLogo className="w-5 h-5 sm:w-7 sm:h-7" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={`font-extrabold tracking-wider text-sm min-[360px]:text-base sm:text-lg font-['Rajdhani'] truncate ${colors.headerBrandText}`}>
+                    SECURITY URBAN
+                  </span>
+                  <span className={`hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold border whitespace-nowrap shrink-0 ${colors.badgeLocationBg} ${colors.badgeLocationText} ${colors.badgeLocationBorder}`}>
+                    COMUNA 8
+                  </span>
+                </div>
+                <p className={`text-[11px] sm:text-xs font-medium hidden md:block truncate ${colors.headerSubText}`}>
+                  {t('appTagline')}
+                </p>
+              </div>
+            </button>
+
+            {/* Right Header Controls: Status Badge, User Profile Menu, Language switcher, Theme toggle, Mobile Menu button */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+              {/* Informative Status Badge (distinct from user profile menu; visible on extra wide screens) */}
+              <div className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-slate-700 dark:text-slate-300 shadow-xs shrink-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>{t('nodeBadge')}</span>
+              </div>
+
+              {/* Clearly Visible User Profile Menu (Avatar/initials + name + dropdown) */}
+              <UserProfileMenu
+                user={currentUser}
+                userRole={currentUserRole}
+                onViewProfile={handleViewProfile}
+                onOpenSettings={handleOpenSettings}
+                onNavigateToUsers={() => {
+                  setCurrentView('userManagement');
+                  setIsMobileMenuOpen(false);
+                }}
+                onSignOut={handleSignOut}
+              />
+
+              {/* Quick Tactical Map modal trigger button */}
+              <button
+                type="button"
+                onClick={() => setIsTacticalMapOpen(true)}
+                className="hidden md:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm shadow-xs cursor-pointer transition-all shrink-0 active:scale-95 min-h-[38px]"
+                title={t('exploreMap')}
+              >
+                <Map className="w-4 h-4 shrink-0" />
+                <span className="hidden xl:inline">{t('exploreMap')}</span>
+              </button>
+
+              {/* Language Selector (Hidden on ultra-small screens where it lives inside the mobile menu) */}
+              <div
+                role="group"
+                aria-label={language === 'es' ? 'Selector de idioma' : 'Language selector'}
+                className={`hidden sm:inline-flex relative items-center rounded-full p-1 text-xs border shadow-xs ${colors.headerBg} ${colors.headerBorder} shrink-0`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLanguage('es')}
+                  aria-pressed={language === 'es'}
+                  className={`px-2.5 py-1 rounded-full font-bold transition cursor-pointer min-h-[30px] ${
+                    language === 'es'
+                      ? 'bg-red-600 text-white shadow-xs'
+                      : colors.tabInactiveText
+                  }`}
+                  aria-label="Cambiar a Español"
+                >
+                  ES
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanguage('en')}
+                  aria-pressed={language === 'en'}
+                  className={`px-2.5 py-1 rounded-full font-bold transition cursor-pointer min-h-[30px] ${
+                    language === 'en'
+                      ? 'bg-red-600 text-white shadow-xs'
+                      : colors.tabInactiveText
+                  }`}
+                  aria-label="Switch to English"
+                >
+                  EN
+                </button>
+              </div>
+
+              {/* Theme Selector (Dark / Light) */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600 shrink-0`}
+                aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
+                )}
+              </button>
+
+              {/* Mobile menu toggle */}
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-nav-drawer"
+                className={`lg:hidden w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition cursor-pointer shadow-xs ${colors.headerBg} ${colors.headerBorder} hover:border-red-600 shrink-0`}
+                aria-label={isMobileMenuOpen ? 'Cerrar menú de navegación' : 'Abrir menú de navegación'}
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-5 h-5 text-red-600" />
+                ) : (
+                  <Menu className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Full Authenticated Navigation Menu (Desktop: clean pill bar; Mobile/Tablet: active location bar + collapsible drawer) */}
+          <nav
+            aria-label="Navegación principal de Security Urban"
+            className="w-full"
+          >
+            {/* Desktop full navigation bar: balanced, accessible, with clear active state */}
+            <div className={`hidden lg:flex items-center justify-between p-1.5 rounded-2xl border shadow-xs backdrop-blur-md transition-all ${colors.headerBg} ${colors.headerBorder}`}>
+              <div className="flex flex-wrap items-center justify-center gap-1 xl:gap-1.5 2xl:gap-2.5 w-full">
                 {navMenuItems.map((item) => {
                   const isActive = currentView === item.id;
                   const isAlertsItem = item.id === 'alerts';
@@ -811,98 +751,260 @@ const MainScreen: React.FC = () => {
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => {
-                        setCurrentView(item.id);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={`px-4 py-3 rounded-2xl font-bold text-xs tracking-wide flex items-center gap-3 transition-all cursor-pointer text-left ${
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => setCurrentView(item.id)}
+                      className={`px-3 py-2 xl:px-3.5 2xl:px-4 rounded-xl font-semibold text-xs xl:text-sm tracking-normal flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap relative group shrink-0 min-h-[40px] ${
                         isActive
-                          ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-950/30'
-                          : `${colors.tabInactiveText} hover:bg-slate-100 dark:hover:bg-slate-800`
+                          ? 'bg-red-600 text-white shadow-xs'
+                          : `${colors.tabInactiveText} hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white`
                       }`}
                     >
                       <span
-                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-transform relative ${
                           isActive
                             ? 'bg-white/20 text-white'
                             : showLivePulse
-                            ? 'bg-red-500/25 text-red-500 dark:text-red-400 ring-2 ring-red-500 animate-pulse'
-                            : 'bg-slate-200/60 dark:bg-slate-800/80 text-red-600 dark:text-red-400 border border-slate-300/40 dark:border-slate-700/50'
+                            ? 'bg-red-500/20 text-red-600 dark:text-red-400 ring-1 ring-red-500'
+                            : 'text-red-600 dark:text-red-400'
                         }`}
                       >
-                        <span className={showLivePulse ? 'animate-bounce text-amber-300' : ''}>
-                          {item.icon}
-                        </span>
+                        <span>{item.icon}</span>
+                        {showLivePulse && (
+                          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                        )}
                       </span>
                       <span>{item.label}</span>
                       {item.badge && (
-                        <span className="ml-auto px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 font-mono text-[9px] font-black tracking-wider">
+                        <span className={`px-1.5 py-0.5 rounded-md font-mono text-2xs font-bold tracking-wider ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30'
+                        }`}>
                           {item.badge}
                         </span>
                       )}
                       {showLivePulse && (
-                        <span className="ml-auto px-2 py-0.5 rounded-full bg-red-600 text-white font-mono text-[9px] font-black animate-pulse">
+                        <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white font-mono text-2xs font-bold tracking-wider shadow-2xs">
                           {language === 'es' ? 'NUEVA' : 'NEW'}
                         </span>
+                      )}
+
+                      {/* Active highlight indicator bar */}
+                      {isActive && (
+                        <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-amber-300" />
                       )}
                     </button>
                   );
                 })}
               </div>
+            </div>
 
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2 px-1">
+            {/* Contextual Location Recognition Bar (Mobile/Tablet always visible; Desktop visible on subviews like Perfil/Ajustes) */}
+            <div
+              aria-label={language === 'es' ? 'Ubicación actual en la aplicación' : 'Current location in app'}
+              className={`${
+                currentView === 'settings' || currentView === 'profile' ? 'flex' : 'flex lg:hidden'
+              } items-center justify-between gap-2 px-3 py-1.5 rounded-xl border text-xs ${
+                theme === 'dark'
+                  ? 'bg-slate-900/90 border-slate-800 text-slate-300'
+                  : 'bg-slate-100/90 border-slate-200/90 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 min-w-0 truncate">
                 <button
                   type="button"
                   onClick={() => {
-                    setIsTacticalMapOpen(true);
+                    setCurrentView('home');
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                  className="font-semibold text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer shrink-0 flex items-center gap-1"
                 >
-                  <Map className="w-4 h-4" />
-                  <span>{t('exploreMap')}</span>
+                  <HomeIcon className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                  <span>{t('navHome')}</span>
                 </button>
+                {currentView !== 'home' && (
+                  <>
+                    <span className="text-slate-400 dark:text-slate-600 select-none">/</span>
+                    <span
+                      aria-current="page"
+                      className="font-bold text-red-600 dark:text-red-400 truncate"
+                    >
+                      {currentView === 'settings'
+                        ? t('navSettings')
+                        : currentView === 'profile'
+                        ? t('viewMyProfile')
+                        : navMenuItems.find((i) => i.id === currentView)?.label || t('navHome')}
+                    </span>
+                  </>
+                )}
+              </div>
 
-                <div className="flex items-center gap-2 pt-1">
+              {currentView !== 'home' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentView('home');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="text-2xs font-mono font-bold text-red-600 dark:text-red-400 hover:underline shrink-0 cursor-pointer"
+                >
+                  {language === 'es' ? '← Volver al inicio' : '← Back to home'}
+                </button>
+              ) : (
+                <span className="text-2xs font-mono font-semibold text-emerald-700 dark:text-emerald-400 shrink-0 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>{language === 'es' ? 'Vista Principal' : 'Main View'}</span>
+                </span>
+              )}
+            </div>
+
+            {/* Mobile Collapsible Navigation Menu */}
+            {isMobileMenuOpen && (
+              <div
+                id="mobile-nav-drawer"
+                role="dialog"
+                aria-label={language === 'es' ? 'Menú de navegación móvil' : 'Mobile navigation menu'}
+                className={`lg:hidden absolute top-full left-2 right-2 sm:left-4 sm:right-4 z-50 flex flex-col p-3.5 sm:p-4 rounded-2xl border shadow-xl backdrop-blur-xl mt-2 space-y-2.5 max-h-[calc(100dvh-82px)] overflow-y-auto overscroll-contain ${colors.headerBg} ${colors.headerBorder}`}
+              >
+                <div className="text-xs font-mono font-bold text-red-600 dark:text-red-400 px-2 py-1 flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <span>{language === 'es' ? 'MENÚ DE NAVEGACIÓN • COMUNA 8' : 'NAVIGATION MENU • COMUNA 8'}</span>
+                  {/* Mobile language selector for <640px screens */}
+                  <div className="flex sm:hidden items-center gap-1 bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-full">
+                    <button
+                      type="button"
+                      onClick={() => setLanguage('es')}
+                      className={`px-2.5 py-1 rounded-full text-2xs font-bold min-h-[28px] cursor-pointer ${
+                        language === 'es' ? 'bg-red-600 text-white' : 'text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      ES
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLanguage('en')}
+                      className={`px-2.5 py-1 rounded-full text-2xs font-bold min-h-[28px] cursor-pointer ${
+                        language === 'en' ? 'bg-red-600 text-white' : 'text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      EN
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
+                  {navMenuItems.map((item) => {
+                    const isActive = currentView === item.id;
+                    const isAlertsItem = item.id === 'alerts';
+                    const showLivePulse = isAlertsItem && hasLiveAlertPulse;
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-current={isActive ? 'page' : undefined}
+                        onClick={() => {
+                          setCurrentView(item.id);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`px-3.5 py-3 rounded-xl font-semibold text-sm tracking-normal flex items-center gap-3 transition-all cursor-pointer text-left min-h-[48px] ${
+                          isActive
+                            ? 'bg-red-600 text-white shadow-xs'
+                            : `${colors.tabInactiveText} hover:bg-slate-100 dark:hover:bg-slate-800`
+                        }`}
+                      >
+                        <span
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : showLivePulse
+                              ? 'bg-red-500/20 text-red-600 dark:text-red-400 ring-1 ring-red-500'
+                              : 'bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          <span>{item.icon}</span>
+                        </span>
+                        <span className="truncate font-bold">{item.label}</span>
+                        {item.badge && (
+                          <span className={`ml-auto px-2 py-0.5 rounded-md font-mono text-2xs font-bold tracking-wider ${
+                            isActive
+                              ? 'bg-white/20 text-white'
+                              : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                        {showLivePulse && (
+                          <span className="ml-auto px-2 py-0.5 rounded-full bg-red-600 text-white font-mono text-2xs font-bold">
+                            {language === 'es' ? 'NUEVA' : 'NEW'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2.5 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={() => {
-                      handleViewProfile();
+                      setIsTacticalMapOpen(true);
+                      setIsMobileMenuOpen(false);
                     }}
-                    className="flex-1 py-2 px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 font-bold text-xs text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer"
+                    className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm tracking-wide flex items-center justify-center gap-2 shadow-xs cursor-pointer min-h-[46px]"
                   >
-                    <span>{t('viewMyProfile')}</span>
+                    <Map className="w-4 h-4" />
+                    <span>{t('exploreMap')}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleOpenSettings();
-                    }}
-                    className="flex-1 py-2 px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 font-bold text-xs text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <span>{t('navSettings')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSignOut();
-                    }}
-                    className="py-2 px-3 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/40 font-bold text-xs text-red-600 dark:text-red-400 flex items-center justify-center gap-1 cursor-pointer"
-                  >
-                    <span>{t('signOut')}</span>
-                  </button>
+
+                  <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleViewProfile();
+                      }}
+                      className={`py-2.5 px-2 rounded-xl border font-semibold text-xs flex items-center justify-center gap-1 cursor-pointer min-h-[44px] truncate ${
+                        currentView === 'profile'
+                          ? 'border-red-600 bg-red-600/10 text-red-600 dark:text-red-400'
+                          : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      <span className="truncate">{t('viewMyProfile')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleOpenSettings();
+                      }}
+                      className={`py-2.5 px-2 rounded-xl border font-semibold text-xs flex items-center justify-center gap-1 cursor-pointer min-h-[44px] truncate ${
+                        currentView === 'settings'
+                          ? 'border-red-600 bg-red-600/10 text-red-600 dark:text-red-400'
+                          : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      <span className="truncate">{t('navSettings')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSignOut();
+                      }}
+                      className="py-2.5 px-2 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/80 dark:bg-red-950/40 font-semibold text-xs text-red-700 dark:text-red-400 flex items-center justify-center gap-1 cursor-pointer min-h-[44px] truncate"
+                    >
+                      <span className="truncate">{t('signOut')}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </nav>
+            )}
+          </nav>
         </div>
       </header>
 
       {/* Main Content Viewport for Authenticated User - Padded below fixed top bar */}
       <main
-        style={{ paddingTop: headerHeight ? `${headerHeight + 24}px` : undefined }}
-        className={`relative w-full ${currentView === 'riskMap' ? 'max-w-[1720px]' : 'max-w-[1440px]'} mx-auto px-3 sm:px-6 lg:px-8 pt-24 sm:pt-28 lg:pt-38 pb-16 flex flex-col items-stretch justify-start grow`}
+        id="main-content-viewport"
+        style={{ paddingTop: headerHeight ? `${headerHeight + 20}px` : undefined }}
+        className={`relative w-full ${currentView === 'riskMap' ? 'max-w-[1720px]' : 'max-w-[1440px]'} mx-auto px-3 sm:px-6 lg:px-8 ${headerHeight ? '' : 'pt-20 sm:pt-24 lg:pt-36'} pb-6 sm:pb-12 flex flex-col items-stretch justify-start grow`}
       >
         {!currentUser.emailVerified && !isEmailVerified ? (
           <EmailVerificationView
@@ -988,6 +1090,64 @@ const MainScreen: React.FC = () => {
           />
         )}
       </main>
+
+      {/* Mobile & Tablet Bottom Quick-Access Navigation Bar (lg:hidden) */}
+      <nav
+        aria-label={language === 'es' ? 'Barra de navegación inferior móvil' : 'Mobile bottom navigation bar'}
+        className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl shadow-lg ${colors.headerBg} ${colors.headerBorder}`}
+      >
+        <div className="max-w-xl mx-auto px-1.5 py-1 grid grid-cols-6 gap-0.5">
+          {[
+            { id: 'home' as NavTabId, shortLabel: language === 'es' ? 'Inicio' : 'Home', icon: <HomeIcon className="w-4 h-4" /> },
+            { id: 'dashboard' as NavTabId, shortLabel: language === 'es' ? 'Panel' : 'Panel', icon: <Activity className="w-4 h-4" /> },
+            { id: 'riskMap' as NavTabId, shortLabel: language === 'es' ? 'Mapa' : 'Map', icon: <Map className="w-4 h-4" /> },
+            { id: 'safeRoutes' as NavTabId, shortLabel: language === 'es' ? 'Rutas' : 'Routes', icon: <Route className="w-4 h-4" /> },
+            { id: 'alerts' as NavTabId, shortLabel: language === 'es' ? 'Alertas' : 'Alerts', icon: <Bell className="w-4 h-4" /> },
+          ].map((tab) => {
+            const isActive = currentView === tab.id && !isMobileMenuOpen;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => {
+                  setCurrentView(tab.id);
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`min-h-[48px] py-1 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer relative ${
+                  isActive
+                    ? 'text-red-600 dark:text-red-400 font-bold bg-red-500/10'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
+                }`}
+              >
+                {tab.icon}
+                <span className="text-2xs leading-tight truncate max-w-full">{tab.shortLabel}</span>
+                {isActive && (
+                  <span className="absolute top-0.5 w-4 h-0.5 rounded-full bg-red-600 dark:bg-red-400" />
+                )}
+              </button>
+            );
+          })}
+
+          {/* More / Full Drawer Trigger */}
+          <button
+            type="button"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-nav-drawer"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className={`min-h-[48px] py-1 px-1 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer relative ${
+              isMobileMenuOpen || ['tacticalSupport', 'userManagement', 'myReports', 'settings', 'profile'].includes(currentView)
+                ? 'text-red-600 dark:text-red-400 font-bold bg-red-500/10'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
+            }`}
+          >
+            {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            <span className="text-2xs leading-tight truncate max-w-full">
+              {language === 'es' ? 'Más' : 'More'}
+            </span>
+          </button>
+        </div>
+      </nav>
 
       {/* Global Tactical Map Modal */}
       <TacticalMapModal

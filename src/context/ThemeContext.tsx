@@ -79,6 +79,14 @@ export interface ThemeColors {
   modalMuted: string;
   modalInputBg: string;
   modalInputBorder: string;
+
+  // Semantic Status Tokens (Success, Warning, Danger, Info) & Structural Dividers
+  divider: string;
+  surfaceSubtle: string;
+  semanticSuccessBadge: string;
+  semanticWarningBadge: string;
+  semanticDangerBadge: string;
+  semanticInfoBadge: string;
 }
 
 interface ThemeContextType {
@@ -133,82 +141,98 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return {
       // Page canvas
-      canvasBg: isDark ? 'bg-[#07090e]' : 'bg-slate-100',
+      canvasBg: isDark ? 'bg-[#0b0f19]' : 'bg-slate-50',
       canvasText: isDark ? 'text-slate-100' : 'text-slate-900',
 
-      // General theme text tokens
+      // General theme text tokens (WCAG AA contrast guaranteed)
       textPrimary: isDark ? 'text-slate-100' : 'text-slate-900',
       textSecondary: isDark ? 'text-slate-300' : 'text-slate-700',
       textMuted: isDark ? 'text-slate-400' : 'text-slate-600',
-      textSubtle: isDark ? 'text-slate-500' : 'text-slate-500',
+      textSubtle: isDark ? 'text-slate-400' : 'text-slate-600',
 
       // Header & Navigation
-      headerBg: isDark ? 'bg-slate-900/80' : 'bg-white/90',
-      headerBorder: isDark ? 'border-slate-700/60' : 'border-slate-300',
+      headerBg: isDark ? 'bg-slate-900/95' : 'bg-white/95',
+      headerBorder: isDark ? 'border-slate-800' : 'border-slate-200',
       headerBrandText: isDark ? 'text-white' : 'text-slate-900',
       headerSubText: isDark ? 'text-slate-400' : 'text-slate-600',
 
-      // Primary Card: In light mode, deep crisp white with distinct red border & shadow
-      cardBg: isDark ? 'bg-slate-950/90' : 'bg-white/95',
-      cardBorder: isDark ? 'border-red-600/40' : 'border-red-600/40',
+      // Primary Card: Clean, balanced surfaces and subtle structural borders
+      cardBg: isDark ? 'bg-slate-900/90' : 'bg-white',
+      cardBorder: isDark ? 'border-slate-800' : 'border-slate-200/90',
       cardTitle: isDark ? 'text-white' : 'text-slate-900',
-      cardSubtitle: isDark ? 'text-slate-400' : 'text-slate-600',
-      cardGlow: isDark ? 'bg-red-600/15' : 'bg-red-500/10',
+      cardSubtitle: isDark ? 'text-slate-300' : 'text-slate-600',
+      cardGlow: isDark ? 'bg-red-600/10' : 'bg-red-500/5',
 
       // Segmented Tabs
-      tabTrackBg: isDark ? 'bg-slate-900/90' : 'bg-slate-100',
-      tabTrackBorder: isDark ? 'border-slate-800' : 'border-slate-300',
-      tabInactiveText: isDark ? 'text-slate-400' : 'text-slate-700',
-      tabInactiveHover: isDark ? 'hover:text-white' : 'hover:text-slate-950',
+      tabTrackBg: isDark ? 'bg-slate-950/80' : 'bg-slate-100',
+      tabTrackBorder: isDark ? 'border-slate-800' : 'border-slate-200',
+      tabInactiveText: isDark ? 'text-slate-300' : 'text-slate-700',
+      tabInactiveHover: isDark ? 'hover:text-white' : 'hover:text-slate-900',
 
-      // Form Inputs & Labels: In light mode, dark high-contrast slate-800 text with slate-200 background
-      label: isDark ? 'text-slate-200' : 'text-slate-800 font-bold',
-      inputBg: isDark ? 'bg-slate-900/90' : 'bg-slate-50',
+      // Form Inputs & Labels
+      label: isDark ? 'text-slate-200 font-semibold' : 'text-slate-800 font-semibold',
+      inputBg: isDark ? 'bg-slate-950/80' : 'bg-white',
       inputBorder: isDark ? 'border-slate-700/80' : 'border-slate-300',
-      inputFocusBorder: 'focus:border-red-600 focus:ring-1 focus:ring-red-600',
+      inputFocusBorder: 'focus:border-red-600 focus:ring-2 focus:ring-red-600/20',
       inputText: isDark ? 'text-white' : 'text-slate-900',
       inputPlaceholder: isDark ? 'placeholder-slate-500' : 'placeholder-slate-400',
-      inputIcon: isDark ? 'text-slate-400' : 'text-slate-600',
-      inputEyeIcon: isDark ? 'text-slate-400' : 'text-slate-600',
+      inputIcon: isDark ? 'text-slate-400' : 'text-slate-500',
+      inputEyeIcon: isDark ? 'text-slate-400' : 'text-slate-500',
       inputEyeHover: isDark ? 'hover:text-slate-200' : 'hover:text-slate-900',
 
       // Secondary elements & Links
-      linkText: isDark ? 'text-red-400' : 'text-red-700',
-      linkHover: isDark ? 'hover:text-red-300' : 'hover:text-red-800',
+      linkText: isDark ? 'text-red-400' : 'text-red-600',
+      linkHover: isDark ? 'hover:text-red-300' : 'hover:text-red-700',
       mutedText: isDark ? 'text-slate-400' : 'text-slate-600',
-      checkboxText: isDark ? 'text-slate-300' : 'text-slate-800',
+      checkboxText: isDark ? 'text-slate-300' : 'text-slate-700',
       checkboxBg: isDark ? 'bg-slate-900' : 'bg-white',
-      checkboxBorder: isDark ? 'border-slate-700' : 'border-slate-400',
+      checkboxBorder: isDark ? 'border-slate-700' : 'border-slate-300',
 
       // Captcha Box
-      captchaBg: isDark ? 'bg-slate-900/70' : 'bg-slate-50',
-      captchaBorder: isDark ? 'border-slate-700/80' : 'border-slate-300',
-      captchaVerifiedBg: isDark ? 'bg-emerald-950/20' : 'bg-emerald-50/80',
-      captchaVerifiedBorder: isDark ? 'border-emerald-600/40' : 'border-emerald-600/60',
+      captchaBg: isDark ? 'bg-slate-950/60' : 'bg-slate-50',
+      captchaBorder: isDark ? 'border-slate-800' : 'border-slate-200',
+      captchaVerifiedBg: isDark ? 'bg-emerald-950/25' : 'bg-emerald-50/80',
+      captchaVerifiedBorder: isDark ? 'border-emerald-600/40' : 'border-emerald-500/50',
       captchaBoxBg: isDark ? 'bg-slate-800' : 'bg-white',
-      captchaBoxBorder: isDark ? 'border-slate-500' : 'border-slate-400',
+      captchaBoxBorder: isDark ? 'border-slate-600' : 'border-slate-300',
       captchaText: isDark ? 'text-slate-200' : 'text-slate-800',
       captchaVerifiedText: isDark ? 'text-emerald-400' : 'text-emerald-800',
       captchaSubText: isDark ? 'text-slate-400' : 'text-slate-600',
 
       // Badges & Pills
-      badgeLocationBg: isDark ? 'bg-red-950/50' : 'bg-red-100',
-      badgeLocationText: isDark ? 'text-red-200' : 'text-red-900 font-semibold',
-      badgeLocationBorder: isDark ? 'border-red-800/40' : 'border-red-300',
-      badgeOnlineBg: isDark ? 'bg-slate-900/70' : 'bg-emerald-50',
-      badgeOnlineText: isDark ? 'text-emerald-300' : 'text-emerald-900 font-semibold',
-      badgeOnlineBorder: isDark ? 'border-emerald-900/40' : 'border-emerald-300',
-      badgeSecureBg: isDark ? 'bg-slate-900/60' : 'bg-slate-200',
-      badgeSecureText: isDark ? 'text-slate-200' : 'text-slate-800 font-semibold',
-      badgeSecureBorder: isDark ? 'border-slate-700/50' : 'border-slate-300',
+      badgeLocationBg: isDark ? 'bg-red-950/40' : 'bg-red-50',
+      badgeLocationText: isDark ? 'text-red-300' : 'text-red-800 font-semibold',
+      badgeLocationBorder: isDark ? 'border-red-800/40' : 'border-red-200',
+      badgeOnlineBg: isDark ? 'bg-emerald-950/40' : 'bg-emerald-50',
+      badgeOnlineText: isDark ? 'text-emerald-300' : 'text-emerald-800 font-semibold',
+      badgeOnlineBorder: isDark ? 'border-emerald-800/40' : 'border-emerald-200',
+      badgeSecureBg: isDark ? 'bg-slate-800/70' : 'bg-slate-100',
+      badgeSecureText: isDark ? 'text-slate-300' : 'text-slate-700 font-semibold',
+      badgeSecureBorder: isDark ? 'border-slate-700/60' : 'border-slate-200',
 
       // Modals & Drawers
       modalBg: isDark ? 'bg-slate-900' : 'bg-white',
-      modalBorder: isDark ? 'border-red-600/40' : 'border-red-600/40',
+      modalBorder: isDark ? 'border-slate-800' : 'border-slate-200',
       modalText: isDark ? 'text-slate-100' : 'text-slate-900',
       modalMuted: isDark ? 'text-slate-400' : 'text-slate-600',
-      modalInputBg: isDark ? 'bg-slate-800/80' : 'bg-slate-50',
+      modalInputBg: isDark ? 'bg-slate-950' : 'bg-slate-50',
       modalInputBorder: isDark ? 'border-slate-700' : 'border-slate-300',
+
+      // Semantic Status Tokens & Structural Dividers
+      divider: isDark ? 'border-slate-800' : 'border-slate-200',
+      surfaceSubtle: isDark ? 'bg-slate-950/70' : 'bg-slate-50',
+      semanticSuccessBadge: isDark
+        ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/50'
+        : 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      semanticWarningBadge: isDark
+        ? 'bg-amber-950/60 text-amber-300 border-amber-700/50'
+        : 'bg-amber-50 text-amber-800 border-amber-200',
+      semanticDangerBadge: isDark
+        ? 'bg-red-950/60 text-red-300 border-red-700/50'
+        : 'bg-red-50 text-red-800 border-red-200',
+      semanticInfoBadge: isDark
+        ? 'bg-blue-950/60 text-blue-300 border-blue-700/50'
+        : 'bg-blue-50 text-blue-800 border-blue-200',
     };
   }, [theme]);
 

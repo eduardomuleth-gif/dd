@@ -320,6 +320,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       <button
         type="submit"
         disabled={isLoading || isLocked}
+        aria-busy={isLoading}
         className="w-full py-4 sm:py-4.5 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-sm sm:text-base tracking-wider uppercase flex items-center justify-center gap-2.5 shadow-lg shadow-red-950/40 dark:shadow-red-950/60 transition cursor-pointer active:scale-[0.99]"
       >
         {isLoading ? (
@@ -327,7 +328,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         ) : (
           <>
             <span>{t('loginButton')}</span>
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRight className="w-5 h-5" aria-hidden="true" />
           </>
         )}
       </button>
@@ -337,9 +338,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       {isLocked && (
         <div
           ref={alertContainerRef}
+          role="alert"
+          aria-live="assertive"
           className="p-4 rounded-2xl bg-red-100 border border-red-500 text-red-900 dark:bg-red-950/80 dark:border-red-500/80 dark:text-red-200 text-sm flex items-start gap-3 animate-pulse shadow-sm"
         >
-          <Clock className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <Clock className="w-5 h-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-1">
             <p className="font-bold text-sm sm:text-base">{t('tooManyAttempts')}</p>
             <p className="text-xs sm:text-sm font-medium">
@@ -353,6 +356,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       {!isLocked && errorMessage && (
         <div
           ref={alertContainerRef}
+          role="alert"
+          aria-live="assertive"
           className={`p-4 rounded-2xl border-2 text-sm flex items-start gap-3.5 shadow-md animate-in fade-in slide-in-from-top-2 duration-200 ${
             isUserNotFound
               ? 'bg-amber-50 border-amber-500 text-amber-950 dark:bg-amber-950/60 dark:border-amber-500 dark:text-amber-200'

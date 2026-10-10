@@ -79,6 +79,10 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
   const [rejectReason, setRejectReason] = useState<string>('');
   const [isProcessingAdminAction, setIsProcessingAdminAction] = useState<boolean>(false);
 
+  // Accessible Delete confirmation modal (replaces window.confirm)
+  const [reportToDelete, setReportToDelete] = useState<IncidentReport | null>(null);
+  const [isDeletingReport, setIsDeletingReport] = useState<boolean>(false);
+
   // Action status messages
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -204,25 +208,22 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     }
   };
 
-  // Delete report
-  const handleDelete = async (reportId: string) => {
-    const confirm = window.confirm(
-      language === 'es'
-        ? '¿Estás seguro de que deseas eliminar este reporte de forma permanente?'
-        : 'Are you sure you want to permanently delete this report?'
-    );
-    if (!confirm) return;
-
+  // Confirm Delete report via accessible modal
+  const handleConfirmDelete = async () => {
+    if (!reportToDelete) return;
+    setIsDeletingReport(true);
     try {
-      await deleteReport(reportId);
+      await deleteReport(reportToDelete.id);
       setFeedbackMsg({
         type: 'success',
         text: language === 'es' ? 'Reporte eliminado de Firestore.' : 'Report deleted.',
       });
+      setReportToDelete(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
     } finally {
+      setIsDeletingReport(false);
       setTimeout(() => setFeedbackMsg(null), 3000);
     }
   };
@@ -235,7 +236,8 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
           <button
             type="button"
             onClick={onNavigateHome}
-            className={`p-2.5 rounded-xl border transition cursor-pointer ${
+            aria-label={language === 'es' ? 'Volver al inicio' : 'Back to home'}
+            className={`min-h-[42px] min-w-[42px] p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-center ${
               isDark
                 ? 'border-slate-800 bg-slate-900/80 hover:bg-slate-800 text-slate-300'
                 : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700'
@@ -244,11 +246,11 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold tracking-widest text-red-600 dark:text-red-400 uppercase">
+            <div className="flex items-center flex-wrap gap-2">
+              <span className="text-xs font-mono font-bold tracking-widest text-red-600 dark:text-red-400 uppercase">
                 COLECCIÓN FIRESTORE // REPORTES
               </span>
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 ONSNAPSHOT REAL-TIME
               </span>
@@ -263,9 +265,9 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         <button
           type="button"
           onClick={() => setIsCreateModalOpen(true)}
-          className="px-5 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-950/40 transition cursor-pointer self-start sm:self-auto"
+          className="min-h-[42px] px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition cursor-pointer self-start sm:self-auto"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 shrink-0" />
           <span>{language === 'es' ? 'Reportar Incidente' : 'Report Incident'}</span>
         </button>
       </div>
@@ -273,68 +275,79 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
       {/* 2. Feedback Notification */}
       {feedbackMsg && (
         <div
-          className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between shadow-sm animate-fadeIn ${
+          role={feedbackMsg.type === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+          className={`p-3.5 rounded-2xl border text-xs sm:text-sm font-bold flex items-center justify-between shadow-xs animate-fadeIn ${
             feedbackMsg.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-              : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+              : 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-400'
           }`}
         >
           <div className="flex items-center gap-2">
             {feedbackMsg.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
             ) : (
-              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
             )}
             <span>{feedbackMsg.text}</span>
           </div>
           <button
             type="button"
             onClick={() => setFeedbackMsg(null)}
-            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            aria-label={language === 'es' ? 'Cerrar aviso' : 'Dismiss notice'}
+            className="p-1.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* 3. Role-based Mode Tabs */}
       {isAdmin && (
-        <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <div
+          role="tablist"
+          aria-label={language === 'es' ? 'Modo de visualización de reportes' : 'Report view mode'}
+          className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === 'my'}
             onClick={() => {
               setActiveTab('my');
               setStatusFilter('all');
             }}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+            className={`flex-1 min-h-[42px] py-2.5 px-4 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
               activeTab === 'my'
-                ? 'bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 shadow-sm'
+                ? 'bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span>{language === 'es' ? 'Mis Reportes Registrados' : 'My Registered Reports'}</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+            <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
               {userReports.length}
             </span>
           </button>
 
           <button
             type="button"
+            role="tab"
+            aria-selected={activeTab === 'adminReview'}
             onClick={() => {
               setActiveTab('adminReview');
               setStatusFilter('all');
             }}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+            className={`flex-1 min-h-[42px] py-2.5 px-4 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
               activeTab === 'adminReview'
-                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
+                ? 'bg-red-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            <ShieldAlert className="w-4 h-4" />
+            <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span>{language === 'es' ? 'Panel de Verificación Admin' : 'Admin Review Panel'}</span>
             {adminReports.filter((r) => r.estado === 'pendiente').length > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-400 text-black animate-pulse">
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-400 text-slate-950">
                 {adminReports.filter((r) => r.estado === 'pendiente').length} PENDIENTES
               </span>
             )}
@@ -351,8 +364,12 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Search Box */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <label htmlFor="my-reports-search-input" className="sr-only">
+              {language === 'es' ? 'Buscar reportes' : 'Search reports'}
+            </label>
+            <Search className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             <input
+              id="my-reports-search-input"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -361,22 +378,27 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                   ? 'Buscar por título exacto, categoría, sector o descripción...'
                   : 'Search by title, category, sector...'
               }
-              className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
+              className={`w-full min-h-[42px] pl-10 pr-4 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
                 isDark
-                  ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500'
-                  : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400'
+                  ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400'
+                  : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
               }`}
             />
           </div>
 
           {/* Status Filter Badges */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          <div
+            role="group"
+            aria-label={language === 'es' ? 'Filtrar reportes por estado' : 'Filter reports by status'}
+            className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0"
+          >
             <button
               type="button"
+              aria-pressed={statusFilter === 'all'}
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer whitespace-nowrap ${
+              className={`min-h-[38px] px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer whitespace-nowrap ${
                 statusFilter === 'all'
-                  ? 'bg-slate-700 text-white border-slate-700'
+                  ? 'bg-slate-800 text-white border-slate-800 dark:bg-slate-700 dark:border-slate-600'
                   : isDark
                   ? 'border-slate-800 text-slate-400 hover:text-slate-200'
                   : 'border-slate-200 text-slate-600 hover:text-slate-800'
@@ -387,46 +409,49 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
 
             <button
               type="button"
+              aria-pressed={statusFilter === 'pendiente'}
               onClick={() => setStatusFilter('pendiente')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              className={`min-h-[38px] px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 statusFilter === 'pendiente'
-                  ? 'bg-amber-500 text-black border-amber-500 shadow-sm'
+                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
                   : isDark
                   ? 'border-slate-800 text-amber-400 hover:bg-amber-500/10'
-                  : 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                  : 'border-amber-200 text-amber-800 hover:bg-amber-50'
               }`}
             >
-              <span>🟡</span>
+              <span aria-hidden="true">🟡</span>
               <span>{language === 'es' ? 'Pendientes' : 'Pending'}</span>
             </button>
 
             <button
               type="button"
+              aria-pressed={statusFilter === 'aceptado'}
               onClick={() => setStatusFilter('aceptado')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              className={`min-h-[38px] px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 statusFilter === 'aceptado'
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                   : isDark
                   ? 'border-slate-800 text-emerald-400 hover:bg-emerald-500/10'
-                  : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                  : 'border-emerald-200 text-emerald-800 hover:bg-emerald-50'
               }`}
             >
-              <span>🟢</span>
+              <span aria-hidden="true">🟢</span>
               <span>{language === 'es' ? 'Aceptados' : 'Accepted'}</span>
             </button>
 
             <button
               type="button"
+              aria-pressed={statusFilter === 'rechazado'}
               onClick={() => setStatusFilter('rechazado')}
-              className={`px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              className={`min-h-[38px] px-3 py-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 statusFilter === 'rechazado'
-                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
                   : isDark
                   ? 'border-slate-800 text-rose-400 hover:bg-rose-500/10'
-                  : 'border-rose-200 text-rose-700 hover:bg-rose-50'
+                  : 'border-rose-200 text-rose-800 hover:bg-rose-50'
               }`}
             >
-              <span>🔴</span>
+              <span aria-hidden="true">🔴</span>
               <span>{language === 'es' ? 'Rechazados' : 'Rejected'}</span>
             </button>
           </div>
@@ -605,15 +630,15 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                     </div>
 
                     {/* Descripción */}
-                    <p className="text-sm sm:text-base leading-relaxed text-slate-700 dark:text-slate-300 font-medium">
+                    <p className="text-sm sm:text-base leading-relaxed text-slate-700 dark:text-slate-300 font-medium break-words">
                       {report.descripcion}
                     </p>
 
                     {/* Meta info: Sector, Fecha, Autor */}
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                      <span className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-mono text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                      <span className="flex items-center gap-1.5 min-w-0">
                         <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                        <span>{report.sector} {report.direccion ? `• ${report.direccion}` : ''}</span>
+                        <span className="break-words">{report.sector} {report.direccion ? `• ${report.direccion}` : ''}</span>
                       </span>
 
                       <span className="flex items-center gap-1.5">
@@ -622,7 +647,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                       </span>
 
                       {activeTab === 'adminReview' && (
-                        <span className="flex items-center gap-1.5 text-slate-400">
+                        <span className="flex flex-wrap items-center gap-1 text-slate-400 break-all sm:break-normal">
                           <span>Autor: <strong className="text-slate-700 dark:text-slate-200">{report.autorNombre}</strong> ({report.autorEmail})</span>
                         </span>
                       )}
@@ -675,9 +700,10 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                     {(isOwner || isAdmin) && (
                       <button
                         type="button"
-                        onClick={() => handleDelete(report.id)}
-                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                        onClick={() => setReportToDelete(report)}
+                        className="min-h-[38px] min-w-[38px] p-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:text-slate-400 dark:hover:bg-rose-950/30 transition cursor-pointer flex items-center justify-center"
                         title={language === 'es' ? 'Eliminar reporte' : 'Delete report'}
+                        aria-label={language === 'es' ? 'Eliminar reporte' : 'Delete report'}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -696,6 +722,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         onClose={() => setRejectingReportId(null)}
         disableClose={isProcessingAdminAction}
         maxWidthClass="max-w-md"
+        ariaLabel={language === 'es' ? 'Rechazar Reporte Comunitario' : 'Reject Incident Report'}
         cardClassName={
           isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
         }
@@ -703,13 +730,14 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         {/* Fixed Header */}
         <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
           <h3 className="text-base sm:text-lg font-bold font-['Rajdhani'] uppercase tracking-wider flex items-center gap-2 text-rose-500">
-            <XCircle className="w-5 h-5 shrink-0" />
+            <XCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
             <span>{language === 'es' ? 'Rechazar Reporte Comunitario' : 'Reject Incident Report'}</span>
           </h3>
           <button
             type="button"
             onClick={() => setRejectingReportId(null)}
             disabled={isProcessingAdminAction}
+            aria-label={language === 'es' ? 'Cerrar ventana' : 'Close dialog'}
             className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -718,13 +746,17 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
 
         {/* Scrollable Body */}
         <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-3">
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+          <label
+            htmlFor="admin-reject-reason-textarea"
+            className="block text-xs text-slate-600 dark:text-slate-400 leading-relaxed"
+          >
             {language === 'es'
               ? 'Indica el motivo por el cual este reporte no fue aceptado (ej. falta de veracidad, información duplicada, datos insuficientes):'
               : 'State the reason why this report is rejected:'}
-          </p>
+          </label>
 
           <textarea
+            id="admin-reject-reason-textarea"
             rows={4}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
@@ -737,7 +769,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
 
         {/* Fixed Footer */}
         <div
-          className={`shrink-0 px-5 sm:px-6 py-3.5 border-t flex items-center justify-end gap-2.5 ${
+          className={`shrink-0 px-5 sm:px-6 py-3.5 border-t flex flex-wrap items-center justify-end gap-2.5 ${
             isDark ? 'border-slate-800 bg-slate-900/95' : 'border-slate-200 bg-slate-50/95'
           }`}
         >
@@ -745,7 +777,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
             type="button"
             onClick={() => setRejectingReportId(null)}
             disabled={isProcessingAdminAction}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase border cursor-pointer ${
+            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold uppercase border cursor-pointer ${
               isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
             }`}
           >
@@ -756,12 +788,83 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
             type="button"
             onClick={handleAdminRejectSubmit}
             disabled={isProcessingAdminAction}
-            className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+            className="min-h-[40px] px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
           >
             {isProcessingAdminAction ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
             <span>{language === 'es' ? 'Confirmar Rechazo' : 'Confirm Reject'}</span>
           </button>
         </div>
+      </ModalPortal>
+
+      {/* 6B. Accessible Delete Confirmation Modal */}
+      <ModalPortal
+        isOpen={Boolean(reportToDelete)}
+        onClose={() => setReportToDelete(null)}
+        disableClose={isDeletingReport}
+        maxWidthClass="max-w-md"
+        ariaLabel={language === 'es' ? 'Confirmar eliminación de reporte' : 'Confirm report deletion'}
+        cardClassName={
+          isDark ? 'bg-slate-950 border-rose-900/80 text-slate-100' : 'bg-white border-rose-300 text-slate-900'
+        }
+      >
+        {reportToDelete && (
+          <>
+            <div className="h-1.5 bg-rose-600 shrink-0" />
+            <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-base sm:text-lg truncate">
+                    {language === 'es' ? '¿Eliminar este reporte?' : 'Delete this report?'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {reportToDelete.titulo}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReportToDelete(null)}
+                disabled={isDeletingReport}
+                aria-label={language === 'es' ? 'Cerrar ventana' : 'Close dialog'}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                {language === 'es'
+                  ? 'Esta acción eliminará el reporte de forma permanente de la colección en Firestore. ¿Deseas continuar?'
+                  : 'This action will permanently delete the report from Firestore. Do you want to continue?'}
+              </p>
+            </div>
+
+            <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setReportToDelete(null)}
+                disabled={isDeletingReport}
+                className="min-h-[40px] px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingReport}
+                onClick={handleConfirmDelete}
+                className="min-h-[40px] px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingReport && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>{language === 'es' ? 'Eliminar Reporte' : 'Delete Report'}</span>
+              </button>
+            </div>
+          </>
+        )}
       </ModalPortal>
 
       {/* 7. Create Report Modal */}

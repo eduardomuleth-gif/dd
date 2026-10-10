@@ -37,6 +37,7 @@ import {
   Eye,
   Siren,
   Sparkles,
+  Layers,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -756,20 +757,20 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             </button>
           )}
 
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-red-600 to-rose-500 text-white flex items-center justify-center shadow-md shrink-0">
-            <ShieldAlert className="w-6 h-6 stroke-[2.2]" />
+          <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center shadow-sm shrink-0">
+            <ShieldAlert className="w-6 h-6 stroke-[2]" />
           </div>
 
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl sm:text-3xl font-black font-['Rajdhani'] tracking-wider uppercase text-slate-900 dark:text-white">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold font-['Rajdhani'] tracking-wide uppercase text-slate-900 dark:text-white">
                 Apoyo Táctico y Guía de Protección Ciudadana
               </h1>
-              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-red-600/15 border border-red-500/30 text-red-600 dark:text-red-400 font-bold">
+              <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-red-600/10 border border-red-500/25 text-red-600 dark:text-red-400 font-semibold">
                 MEDELLÍN • COMUNA 8
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed font-medium">
+            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 mt-1 leading-relaxed font-normal max-w-[68ch]">
               Directorio verificado de autoridades (Policía, emergencias, bomberos, ambulancias y líneas de atención), recomendaciones de movilidad y consejos prácticos de prevención.
             </p>
           </div>
@@ -780,16 +781,16 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             href="tel:123"
             id="btn-call-123"
             onClick={() => handleTriggerCall('Línea Única de Emergencias Medellín', '123')}
-            className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-red-950/30 transition cursor-pointer"
+            className="min-h-[44px] px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm flex items-center gap-2 shadow-sm transition cursor-pointer"
           >
-            <PhoneCall className="w-4 h-4 animate-bounce" />
+            <PhoneCall className="w-4 h-4" />
             <span>Llamar Línea 123</span>
           </a>
         </div>
       </div>
 
       {/* 2. LÍNEAS DE EMERGENCIA INMEDIATA 24/7 (4 Tarjetas Destacadas de Marcación Rápida) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
             id: 'quick-123',
@@ -798,7 +799,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             subtitle: 'Línea Única SIES-M 24/7',
             desc: 'Policía, Bomberos, Salud, Tránsito y Gestión del Riesgo (DAGRD).',
             icon: <Siren className="w-5 h-5 text-red-500" />,
-            badgeClass: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30',
+            badgeClass: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25',
             btnClass: 'bg-red-600 hover:bg-red-700 text-white',
           },
           {
@@ -808,7 +809,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             subtitle: 'Patrullas y Cuadrantes C8',
             desc: 'Vigilancia comunitaria, CAI Villa Hermosa, CAI Enciso y CAI Las Estancias.',
             icon: <Shield className="w-5 h-5 text-blue-500" />,
-            badgeClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30',
+            badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25',
             btnClass: 'bg-blue-600 hover:bg-blue-700 text-white',
           },
           {
@@ -818,7 +819,7 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             subtitle: 'Incendios, Rescate y DAGRD',
             desc: 'Incendios, rescate vehicular, fugas de gas y emergencias por lluvias.',
             icon: <Flame className="w-5 h-5 text-amber-500" />,
-            badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30',
+            badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25',
             btnClass: 'bg-amber-600 hover:bg-amber-700 text-white',
           },
           {
@@ -828,61 +829,62 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             subtitle: 'Urgencias Médicas APH / CRUE',
             desc: 'Atención prehospitalaria, traslados de urgencia, heridos y trauma.',
             icon: <Ambulance className="w-5 h-5 text-emerald-500" />,
-            badgeClass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
+            badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25',
             btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
           },
         ].map((q) => (
           <div
             key={q.id}
-            className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm flex flex-col justify-between gap-3 hover:border-slate-400 dark:hover:border-slate-700 transition"
+            className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm flex flex-col justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition"
           >
             <div>
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
                     {q.icon}
                   </div>
                   <div>
-                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                    <h2 className="text-lg font-bold font-['Rajdhani'] text-slate-900 dark:text-white leading-tight">
                       {q.title}
                     </h2>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                       {q.subtitle}
                     </span>
                   </div>
                 </div>
                 <span
-                  className={`text-lg font-black font-['Rajdhani'] px-2.5 py-0.5 rounded-xl border ${q.badgeClass}`}
+                  className={`text-lg font-extrabold font-['Rajdhani'] tabular-nums px-2.5 py-0.5 rounded-xl border ${q.badgeClass}`}
                 >
                   {q.number}
                 </span>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-2.5 leading-relaxed">
+              <p className="text-sm text-slate-600 dark:text-slate-300 mt-2.5 leading-relaxed">
                 {q.desc}
               </p>
             </div>
 
-            <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center gap-2 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
               <a
                 href={`tel:${q.number}`}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs ${q.btnClass}`}
+                className={`flex-1 min-h-[42px] py-2 px-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs ${q.btnClass}`}
               >
-                <Phone className="w-3.5 h-3.5" />
-                <span>Llamar al {q.number}</span>
+                <Phone className="w-4 h-4 shrink-0" />
+                <span className="tabular-nums">Llamar al {q.number}</span>
               </a>
               <button
                 type="button"
                 onClick={() => handleCopyPhone(q.id, q.number)}
-                className="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-mono font-bold flex items-center gap-1 transition cursor-pointer"
+                className="min-h-[42px] min-w-[42px] px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-mono font-semibold flex items-center justify-center gap-1 transition cursor-pointer"
                 title="Copiar número"
+                aria-label={`Copiar número ${q.number}`}
               >
                 {copiedId === q.id ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    <span className="text-[10px] text-emerald-500">Copiado</span>
+                    <span className="text-xs text-emerald-500">Copiado</span>
                   </>
                 ) : (
-                  <Copy className="w-3.5 h-3.5" />
+                  <Copy className="w-4 h-4" />
                 )}
               </button>
             </div>
@@ -960,25 +962,27 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
             {/* Category Filter Pills */}
             <div className="flex flex-wrap items-center gap-2">
               {[
-                { id: 'all', label: `Todas las entidades (${MEDELLIN_AUTHORITIES_DIRECTORY.length})` },
-                { id: 'police', label: '👮 Policía y CAIs Comuna 8' },
-                { id: 'emergency_fire', label: '🚒 Emergencias, Bomberos y DAGRD' },
-                { id: 'health_ambulance', label: '🚑 Ambulancias, Salud y Hospitales' },
-                { id: 'citizen_lines', label: '📞 Líneas de Atención en Medellín' },
+                { id: 'all', label: `Todas las entidades (${MEDELLIN_AUTHORITIES_DIRECTORY.length})`, icon: <Layers className="w-3.5 h-3.5 shrink-0" /> },
+                { id: 'police', label: 'Policía y CAIs Comuna 8', icon: <Shield className="w-3.5 h-3.5 shrink-0 text-blue-500" /> },
+                { id: 'emergency_fire', label: 'Emergencias, Bomberos y DAGRD', icon: <Flame className="w-3.5 h-3.5 shrink-0 text-amber-500" /> },
+                { id: 'health_ambulance', label: 'Ambulancias, Salud y Hospitales', icon: <Ambulance className="w-3.5 h-3.5 shrink-0 text-emerald-500" /> },
+                { id: 'citizen_lines', label: 'Líneas de Atención en Medellín', icon: <PhoneCall className="w-3.5 h-3.5 shrink-0 text-purple-500" /> },
               ].map((cat) => {
                 const isSelected = authorityCategory === cat.id;
                 return (
                   <button
                     key={cat.id}
                     type="button"
+                    aria-pressed={isSelected}
                     onClick={() => setAuthorityCategory(cat.id as AuthorityCategory)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer inline-flex items-center gap-1.5 ${
                       isSelected
                         ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 border-slate-900 dark:border-white shadow-xs'
                         : 'bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-400'
                     }`}
                   >
-                    {cat.label}
+                    <span aria-hidden="true">{cat.icon}</span>
+                    <span>{cat.label}</span>
                   </button>
                 );
               })}
@@ -1412,7 +1416,10 @@ export const TacticalSupportScreen: React.FC<TacticalSupportScreenProps> = ({
                     </button>
                   </div>
                   {selectedMapStation.address && (
-                    <p className="text-xs text-slate-300">📍 {selectedMapStation.address}</p>
+                    <p className="text-xs text-slate-300 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-red-400 shrink-0" aria-hidden="true" />
+                      <span>{selectedMapStation.address}</span>
+                    </p>
                   )}
                   <p className="text-[11px] text-slate-400 leading-snug">
                     {selectedMapStation.description}

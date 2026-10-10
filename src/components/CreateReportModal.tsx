@@ -198,13 +198,17 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
           {/* Row 1: Categoría y Nivel de Urgencia */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
+              <label
+                htmlFor="report-category-select"
+                className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
+              >
                 {language === 'es' ? '1. Categoría de Incidente *' : '1. Incident Category *'}
               </label>
               <select
+                id="report-category-select"
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value as IncidentCategory)}
-                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition cursor-pointer ${
+                className={`w-full min-h-[42px] px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition cursor-pointer ${
                   isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800'
                 }`}
               >
@@ -217,27 +221,36 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
+              <span
+                id="report-priority-group-label"
+                className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
+              >
                 {language === 'es' ? '2. Nivel de Urgencia / Prioridad *' : '2. Urgency Level *'}
-              </label>
-              <div className="grid grid-cols-4 gap-1.5">
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby="report-priority-group-label"
+                className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-1.5"
+              >
                 {(['baja', 'media', 'alta', 'critica'] as ReportPriority[]).map((prio) => (
                   <button
                     key={prio}
                     type="button"
+                    role="radio"
+                    aria-checked={nivelPrioridad === prio}
                     onClick={() => setNivelPrioridad(prio)}
-                    className={`py-2 px-1 rounded-xl text-[11px] font-bold font-mono uppercase border transition cursor-pointer text-center ${
+                    className={`min-h-[38px] py-2 px-2 rounded-xl text-xs font-bold font-mono uppercase border transition cursor-pointer text-center truncate ${
                       nivelPrioridad === prio
                         ? prio === 'critica'
-                          ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                          ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
                           : prio === 'alta'
-                          ? 'bg-amber-500 text-black border-amber-500 shadow-sm'
+                          ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
                           : prio === 'media'
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                          : 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                         : isDark
-                        ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-                        : 'bg-slate-100 border-slate-300 text-slate-600 hover:text-slate-800'
+                        ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                        : 'bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900'
                     }`}
                   >
                     {translatePriority(prio)}
@@ -249,11 +262,15 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
 
           {/* Row 2: Título o Asunto Breve */}
           <div>
-            <label className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
+            <label
+              htmlFor="report-title-input"
+              className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
+            >
               {language === 'es' ? '3. Título / Asunto Breve *' : '3. Short Title / Subject *'}
             </label>
             <div className="relative">
               <input
+                id="report-title-input"
                 type="text"
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
@@ -264,15 +281,19 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 }
                 maxLength={120}
                 required
-                className={`w-full pl-3.5 pr-14 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400'
+                aria-describedby="report-title-helper"
+                className={`w-full min-h-[42px] pl-3.5 pr-14 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
+                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
                 }`}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400 pointer-events-none">
+              <span
+                aria-hidden="true"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500 dark:text-slate-400 pointer-events-none"
+              >
                 {titulo.length}/120
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            <p id="report-title-helper" className="mt-1 text-xs text-slate-600 dark:text-slate-400">
               {language === 'es'
                 ? 'Este título se mantendrá estrictamente asociado a esta categoría y se sincronizará en tiempo real.'
                 : 'This title will remain strictly synced to this report and category in real time.'}
@@ -282,13 +303,17 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
           {/* Row 3: Sector de Residencia y Dirección */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
+              <label
+                htmlFor="report-sector-select"
+                className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
+              >
                 {language === 'es' ? '4. Sector de la Comuna 8 *' : '4. Comuna 8 Sector *'}
               </label>
               <select
+                id="report-sector-select"
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
-                className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition cursor-pointer ${
+                className={`w-full min-h-[42px] px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition cursor-pointer ${
                   isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800'
                 }`}
               >
@@ -300,31 +325,41 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
               </select>
 
               {sector === 'Otro' && (
-                <input
-                  type="text"
-                  value={customSector}
-                  onChange={(e) => setCustomSector(e.target.value)}
-                  placeholder={language === 'es' ? 'Escribe el nombre del barrio o sector' : 'Enter neighborhood name'}
-                  className={`mt-2 w-full px-3.5 py-2 rounded-xl border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800'
-                  }`}
-                />
+                <div className="mt-2">
+                  <label htmlFor="report-custom-sector-input" className="sr-only">
+                    {language === 'es' ? 'Nombre del barrio o sector' : 'Neighborhood or sector name'}
+                  </label>
+                  <input
+                    id="report-custom-sector-input"
+                    type="text"
+                    value={customSector}
+                    onChange={(e) => setCustomSector(e.target.value)}
+                    placeholder={language === 'es' ? 'Escribe el nombre del barrio o sector' : 'Enter neighborhood name'}
+                    className={`w-full min-h-[40px] px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
+                      isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800'
+                    }`}
+                  />
+                </div>
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
+              <label
+                htmlFor="report-address-input"
+                className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
+              >
                 {language === 'es' ? '5. Dirección o Punto de Referencia' : '5. Address / Landmark'}
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
                 <input
+                  id="report-address-input"
                   type="text"
                   value={direccion}
                   onChange={(e) => setDireccion(e.target.value)}
                   placeholder={language === 'es' ? 'Ej. Cra 40 # 56-20 cerca a la cancha' : 'E.g., Cra 40 # 56-20 near sports field'}
-                  className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400'
+                  className={`w-full min-h-[42px] pl-9 pr-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
+                    isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
                   }`}
                 />
               </div>
@@ -333,10 +368,14 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
 
           {/* Row 4: Descripción Detallada */}
           <div>
-            <label className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
+            <label
+              htmlFor="report-description-textarea"
+              className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
+            >
               {language === 'es' ? '6. Descripción Detallada del Suceso *' : '6. Detailed Description *'}
             </label>
             <textarea
+              id="report-description-textarea"
               rows={3}
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
@@ -347,7 +386,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
               }
               required
               className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition leading-relaxed ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-500' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400'
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
               }`}
             />
           </div>
@@ -356,14 +395,21 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
           {(errorMsg || successMsg) && (
             <div ref={alertContainerRef} className="pt-1">
               {errorMsg && (
-                <div className="p-3.5 rounded-xl bg-red-500/10 border-2 border-red-500/40 text-red-600 dark:text-red-400 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-sm animate-in fade-in duration-150">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <div
+                  role="alert"
+                  className="p-3.5 rounded-xl bg-red-500/10 border-2 border-red-500/40 text-red-700 dark:text-red-300 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xs animate-in fade-in duration-150"
+                >
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
                   <span>{errorMsg}</span>
                 </div>
               )}
               {successMsg && (
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-sm animate-in fade-in duration-150">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="p-3.5 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xs animate-in fade-in duration-150"
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                   <span>{successMsg}</span>
                 </div>
               )}
@@ -373,7 +419,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
 
         {/* Fixed Bottom Footer: Action Buttons always visible */}
         <div
-          className={`shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-t flex items-center justify-end gap-2.5 sm:gap-3 ${
+          className={`shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-t flex flex-wrap items-center justify-end gap-2.5 sm:gap-3 ${
             isDark
               ? 'border-slate-800 bg-slate-900/95'
               : 'border-slate-200 bg-slate-50/95'
@@ -383,7 +429,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition cursor-pointer ${
+            className={`min-h-[42px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition cursor-pointer ${
               isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
             }`}
           >
@@ -393,16 +439,16 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 sm:px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-950/40 transition cursor-pointer disabled:opacity-50"
+            className="min-h-[42px] px-5 sm:px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                 <span>{language === 'es' ? 'Enviando...' : 'Saving...'}</span>
               </>
             ) : (
               <>
-                <Send className="w-4 h-4" />
+                <Send className="w-4 h-4" aria-hidden="true" />
                 <span>{language === 'es' ? 'Registrar Reporte' : 'Submit Report'}</span>
               </>
             )}

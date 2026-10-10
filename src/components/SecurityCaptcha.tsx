@@ -19,12 +19,19 @@ export const SecurityCaptcha: React.FC<SecurityCaptchaProps> = ({
   const [isVerifying, setIsVerifying] = useState(false);
 
   const handleCheckboxClick = () => {
-    if (isVerified) return;
+    if (isVerified || isVerifying) return;
     setIsVerifying(true);
     setTimeout(() => {
       setIsVerifying(false);
       onVerify(true);
     }, 600);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      handleCheckboxClick();
+    }
   };
 
   return (
@@ -38,13 +45,19 @@ export const SecurityCaptcha: React.FC<SecurityCaptchaProps> = ({
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <label
-          htmlFor="security-captcha-checkbox"
-          className="flex items-center gap-3.5 cursor-pointer select-none grow"
+        <div
+          id="security-captcha-checkbox"
+          role="checkbox"
+          tabIndex={0}
+          aria-checked={isVerified}
+          aria-busy={isVerifying}
+          aria-invalid={error && !isVerified}
+          aria-label={isVerified ? t('captchaVerified') : t('captchaLabel')}
           onClick={handleCheckboxClick}
+          onKeyDown={handleKeyDown}
+          className="flex items-center gap-3.5 cursor-pointer select-none grow rounded-xl py-1 focus-visible:outline-2 focus-visible:outline-red-600"
         >
           <div
-            id="security-captcha-checkbox"
             className={`w-7 h-7 rounded-lg flex items-center justify-center border-2 transition-all shrink-0 ${
               isVerified
                 ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
@@ -54,9 +67,9 @@ export const SecurityCaptcha: React.FC<SecurityCaptchaProps> = ({
             }`}
           >
             {isVerifying ? (
-              <RotateCw className="w-4 h-4 text-red-600 animate-spin" />
+              <RotateCw className="w-4 h-4 text-red-600 animate-spin" aria-hidden="true" />
             ) : isVerified ? (
-              <Check className="w-5 h-5 stroke-[3] text-white" />
+              <Check className="w-5 h-5 stroke-[3] text-white" aria-hidden="true" />
             ) : null}
           </div>
           <span
@@ -66,19 +79,19 @@ export const SecurityCaptcha: React.FC<SecurityCaptchaProps> = ({
           >
             {isVerified ? t('captchaVerified') : t('captchaLabel')}
           </span>
-        </label>
+        </div>
 
         {/* Clean security badge */}
         <div className="flex items-center gap-1.5 shrink-0 pl-2">
-          <ShieldCheck className="w-5 h-5 text-red-600" />
-          <span className={`text-xs sm:text-sm font-semibold ${colors.captchaSubText}`}>
+          <ShieldCheck className="w-5 h-5 text-red-600 shrink-0" aria-hidden="true" />
+          <span className={`text-xs sm:text-sm font-semibold hidden min-[360px]:inline ${colors.captchaSubText}`}>
             Seguridad Activa
           </span>
         </div>
       </div>
 
       {error && !isVerified && (
-        <p className="text-xs sm:text-sm text-red-600 dark:text-red-400 mt-2 font-semibold">
+        <p role="alert" className="text-xs sm:text-sm text-red-600 dark:text-red-400 mt-2 font-semibold">
           {t('captchaRequired')}
         </p>
       )}

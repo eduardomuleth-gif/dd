@@ -342,15 +342,16 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       <button
         type="submit"
         disabled={isLoading}
+        aria-busy={isLoading}
         className="w-full py-4 sm:py-4.5 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold text-sm sm:text-base tracking-wider uppercase flex items-center justify-center gap-2.5 shadow-lg shadow-red-950/40 dark:shadow-red-950/60 transition cursor-pointer active:scale-[0.99]"
       >
         {isLoading ? (
           <span>{t('loading')}</span>
         ) : (
           <>
-            <ShieldCheck className="w-5 h-5" />
+            <ShieldCheck className="w-5 h-5" aria-hidden="true" />
             <span>{t('registerButton')}</span>
-            <ArrowRight className="w-5 h-5" />
+            <ArrowRight className="w-5 h-5" aria-hidden="true" />
           </>
         )}
       </button>
@@ -359,6 +360,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
       {errorMessage && (
         <div
           ref={alertContainerRef}
+          role="alert"
+          aria-live="assertive"
           className="p-4 rounded-2xl bg-red-100 border-2 border-red-500 text-red-900 dark:bg-red-950/80 dark:border-red-600 dark:text-red-200 text-sm sm:text-base flex flex-col gap-3 shadow-md animate-in fade-in slide-in-from-top-2 duration-200"
         >
           <div className="flex items-start gap-3">

@@ -303,10 +303,10 @@ export const MapUsabilityOverlay: React.FC<MapUsabilityOverlayProps> = ({
     <>
       {/* Subtle on-map notice: "Usa Ctrl + rueda para hacer zoom" */}
       <div
-        className={`absolute ${positionClasses} z-20 pointer-events-none select-none transition-all duration-300 max-w-[92%]`}
+        className={`absolute ${positionClasses} z-20 pointer-events-none select-none transition-all duration-300 max-w-[85%] sm:max-w-[92%]`}
       >
         <div
-          className={`px-3 py-1.5 rounded-full backdrop-blur-md border text-[11px] font-medium flex items-center gap-2 transition-all duration-300 ${
+          className={`px-2.5 sm:px-3 py-1.5 rounded-full backdrop-blur-md border text-[10px] sm:text-[11px] font-medium flex items-center justify-center gap-1.5 sm:gap-2 transition-all duration-300 ${
             isCtrlZooming
               ? 'bg-emerald-950/90 border-emerald-400/80 text-emerald-200 shadow-lg shadow-emerald-950/50 scale-105'
               : isHintHighlighted
@@ -323,38 +323,38 @@ export const MapUsabilityOverlay: React.FC<MapUsabilityOverlayProps> = ({
                 : 'text-cyan-400/80'
             }`}
           />
-          <span className="whitespace-nowrap font-semibold tracking-tight">
+          <span className="hidden sm:inline whitespace-nowrap font-semibold tracking-tight">
             Usa Ctrl + rueda para hacer zoom
           </span>
-          <span className="hidden sm:inline text-slate-400 text-[10px] font-mono">
-            (o Cmd en Mac)
+          <span className="sm:hidden whitespace-nowrap font-semibold tracking-tight">
+            Usa 2 dedos para mover el mapa
           </span>
-          <span className="sm:hidden text-slate-300 text-[10px] border-l border-white/20 pl-1.5">
-            2 dedos para mover
+          <span className="hidden md:inline text-slate-400 text-[10px] font-mono">
+            (o Cmd en Mac)
           </span>
         </div>
       </div>
 
       {/* Smooth Animated + / - Zoom Controls */}
-      <div className="absolute right-3.5 bottom-5 z-20 flex flex-col items-center gap-1.5 bg-slate-950/90 p-1.5 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl">
+      <div className="absolute right-2.5 sm:right-3.5 bottom-4 sm:bottom-5 z-20 flex flex-col items-center gap-1.5 bg-slate-950/90 p-1.5 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl">
         <button
           type="button"
           onClick={onZoomIn}
-          className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 text-white transition-all active:scale-95 shadow cursor-pointer"
+          className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 text-white transition-all active:scale-95 shadow cursor-pointer"
           title="Acercar zoom suave (+)"
           aria-label="Acercar zoom (+)"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
         </button>
 
-        <div className="px-1 py-0.5 text-[10px] font-mono font-bold text-cyan-300 select-none">
+        <div className="px-1 py-0.5 text-[10px] font-mono font-bold tabular-nums text-cyan-300 select-none">
           {zoomLevel.toFixed(1).replace(/\.0$/, '')}x
         </div>
 
         <button
           type="button"
           onClick={onZoomOut}
-          className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 text-white transition-all active:scale-95 shadow cursor-pointer"
+          className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 text-white transition-all active:scale-95 shadow cursor-pointer"
           title="Alejar zoom suave (-)"
           aria-label="Alejar zoom (-)"
         >
@@ -367,7 +367,7 @@ export const MapUsabilityOverlay: React.FC<MapUsabilityOverlayProps> = ({
             <button
               type="button"
               onClick={onResetCenter}
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 text-cyan-400 transition-all active:scale-95 shadow cursor-pointer"
+              className="w-10 h-10 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 text-cyan-400 transition-all active:scale-95 shadow cursor-pointer"
               title={resetTitle}
               aria-label={resetTitle}
             >

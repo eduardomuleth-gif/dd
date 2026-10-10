@@ -457,9 +457,9 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
       </div>
 
       {/* Google Maps-style Direct Address Input + Dropdown Trigger */}
-      <div className="relative flex items-center gap-2">
+      <div className="relative flex items-center gap-2 min-w-0">
         <div
-          className={`relative flex-1 flex items-center rounded-xl border transition-all bg-white dark:bg-slate-950 ${
+          className={`relative flex-1 min-w-0 flex items-center rounded-xl border transition-all bg-white dark:bg-slate-950 ${
             showSuggestions || isOpen
               ? 'border-red-500 ring-2 ring-red-500/20'
               : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600'
@@ -640,12 +640,13 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
           <div className="absolute top-full left-0 right-0 mt-2 z-[120] rounded-2xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0f172a] shadow-[0_20px_50px_rgba(15,23,42,0.35)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col max-h-[300px] sm:max-h-[340px]">
             {/* Sticky Search filter inside dropdown */}
             <div className="p-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 flex items-center gap-2 shrink-0">
-              <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+              <Search className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" aria-hidden="true" />
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Filtrar sector o ubicación de la lista"
                 placeholder="Filtrar sector o ubicación de la lista..."
                 className="w-full bg-transparent text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none py-0.5"
               />
@@ -653,6 +654,7 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
+                  aria-label="Limpiar filtro"
                   className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -665,19 +667,20 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
               <div className="flex flex-col gap-1.5">
                 <button
                   type="button"
+                  aria-expanded={sectorsExpanded}
                   onClick={() => setSectorsExpanded(!sectorsExpanded)}
                   className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-between transition cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
-                    <span>🏘️</span>
+                    <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" aria-hidden="true" />
                     <span className="font-['Rajdhani'] uppercase tracking-wider font-extrabold">
                       Sectores Comuna 8 ({filteredSectors.length})
                     </span>
                   </div>
                   {sectorsExpanded ? (
-                    <ChevronUp className="w-4 h-4" />
+                    <ChevronUp className="w-4 h-4 shrink-0" />
                   ) : (
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-4 h-4 shrink-0" />
                   )}
                 </button>
 
@@ -719,11 +722,12 @@ export const LocationPointSelector: React.FC<LocationPointSelectorProps> = ({
                 <div className="flex flex-col gap-1.5 pt-2.5">
                   <button
                     type="button"
+                    aria-expanded={placesExpanded}
                     onClick={() => setPlacesExpanded(!placesExpanded)}
                     className="w-full px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-between transition cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
-                      <span>🛡️</span>
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" aria-hidden="true" />
                       <span className="font-['Rajdhani'] uppercase tracking-wider font-extrabold">
                         Ubicaciones Seguras ({filteredPlaces.length})
                       </span>

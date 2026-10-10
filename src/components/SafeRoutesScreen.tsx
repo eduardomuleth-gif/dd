@@ -1679,46 +1679,46 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
             />
 
             {/* Travel Mode Selector & Trazar Ruta Button */}
-            <div className="relative z-10 flex flex-wrap items-center justify-between gap-2.5 pt-1">
-              <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+              <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 justify-between sm:justify-start">
                 <button
                   type="button"
                   id="mode-walking-btn"
                   onClick={() => setTravelMode('WALKING')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 sm:flex-initial min-h-[38px] px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     travelMode === 'WALKING'
                       ? 'bg-red-600 text-white shadow-xs'
                       : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Footprints className="w-3.5 h-3.5" />
-                  <span>{t('modeWalking')}</span>
+                  <Footprints className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{t('modeWalking')}</span>
                 </button>
                 <button
                   type="button"
                   id="mode-driving-btn"
                   onClick={() => setTravelMode('DRIVING')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 sm:flex-initial min-h-[38px] px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     travelMode === 'DRIVING'
                       ? 'bg-red-600 text-white shadow-xs'
                       : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Car className="w-3.5 h-3.5" />
-                  <span>{t('modeDriving')}</span>
+                  <Car className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{t('modeDriving')}</span>
                 </button>
                 <button
                   type="button"
                   id="mode-bicycling-btn"
                   onClick={() => setTravelMode('BICYCLING')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 sm:flex-initial min-h-[38px] px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                     travelMode === 'BICYCLING'
                       ? 'bg-red-600 text-white shadow-xs'
                       : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Bike className="w-3.5 h-3.5" />
-                  <span>{t('modeBicycling')}</span>
+                  <Bike className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{t('modeBicycling')}</span>
                 </button>
               </div>
 
@@ -1727,9 +1727,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                 id="btn-recalcular-ruta"
                 onClick={calculateDirections}
                 disabled={isCalculatingRoutes}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-50"
+                className="min-h-[42px] px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm disabled:opacity-50"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isCalculatingRoutes ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isCalculatingRoutes ? 'animate-spin' : ''}`} />
                 <span>{isCalculatingRoutes ? 'Trazando rutas...' : 'Trazar ruta en el mapa'}</span>
               </button>
             </div>
@@ -1783,11 +1783,16 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                       <div className="flex items-center justify-between gap-1.5">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span
-                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                            className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
                               isSafe ? 'bg-emerald-500 text-slate-950' : 'bg-cyan-500 text-slate-950'
                             }`}
+                            aria-hidden="true"
                           >
-                            {isSafe ? '🛡️' : '⚡'}
+                            {isSafe ? (
+                              <ShieldCheck className="w-3.5 h-3.5 stroke-[2.5]" />
+                            ) : (
+                              <Navigation className="w-3 h-3 stroke-[2.5]" />
+                            )}
                           </span>
                           <h4 className="text-xs font-bold text-theme-primary truncate">
                             {opt.title}
@@ -1805,8 +1810,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                         </span>
                       </div>
 
-                      <p className="text-[11px] font-mono text-theme-secondary truncate">
-                        🛣️ <strong className="text-theme-primary">{opt.summary}</strong>
+                      <p className="text-[11px] font-mono text-theme-secondary truncate flex items-center gap-1.5">
+                        <Route className="w-3.5 h-3.5 text-emerald-500 shrink-0" aria-hidden="true" />
+                        <strong className="text-theme-primary truncate">{opt.summary}</strong>
                       </p>
 
                       <div className="grid grid-cols-2 gap-1.5 py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-mono">
@@ -1964,21 +1970,24 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs">
-                            {place.category === 'police'
-                              ? '👮'
-                              : place.category === 'health'
-                              ? '🏥'
-                              : place.category === 'education'
-                              ? '🏫'
-                              : '🌳'}
+                          <span className="shrink-0" aria-hidden="true">
+                            {place.category === 'police' ? (
+                              <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                            ) : place.category === 'health' ? (
+                              <Building2 className="w-3.5 h-3.5 text-emerald-500" />
+                            ) : place.category === 'education' ? (
+                              <GraduationCap className="w-3.5 h-3.5 text-amber-500" />
+                            ) : (
+                              <Trees className="w-3.5 h-3.5 text-green-500" />
+                            )}
                           </span>
                           <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                             {place.name}
                           </p>
                         </div>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate mt-0.5">
-                          📍 {place.address}
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium truncate mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-red-500 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{place.address}</span>
                         </p>
                       </div>
 
@@ -2028,36 +2037,50 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
           {/* Google Maps Canvas */}
           <div ref={mapContainerRef} className="w-full h-full" />
 
+          {/* Loading Placeholder Overlay (Prevents layout shift while Google Maps initializes) */}
+          {!mapLoaded && !mapError && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center gap-2.5 text-white z-20 pointer-events-none"
+            >
+              <div className="w-8 h-8 rounded-full border-2 border-red-500 border-t-transparent animate-spin" aria-hidden="true" />
+              <span className="text-xs font-mono text-slate-300">
+                Cargando navegador de rutas seguras en Google Maps...
+              </span>
+            </div>
+          )}
+
           {/* Top Left Map Toolbar: Map Type (Vial / Satélite), Tráfico, Ver Categoría */}
-          <div className="absolute top-3.5 left-3.5 z-10 flex flex-wrap items-center gap-2">
+          <div className="absolute top-2.5 sm:top-3.5 left-2.5 sm:left-3.5 right-2.5 sm:right-auto z-10 flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={handleToggleMapType}
-              className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition"
+              className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-[11px] sm:text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition"
             >
-              <MapIcon className="w-3.5 h-3.5 text-cyan-400" />
+              <MapIcon className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
               <span>{mapTypeId === 'roadmap' ? 'Vista Satélite' : 'Vista Mapa Vial'}</span>
             </button>
 
             <button
               type="button"
               onClick={handleToggleTraffic}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] sm:text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition ${
                 showTraffic
                   ? 'bg-emerald-600 border-emerald-400 text-white'
                   : 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200'
               }`}
             >
-              <Car className="w-3.5 h-3.5" />
+              <Car className="w-3.5 h-3.5 shrink-0" />
               <span>Tráfico en vivo</span>
             </button>
 
             <button
               type="button"
               onClick={() => fitMapToCategoryPlaces(categoryPlaces)}
-              className="px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-500 border border-blue-400 text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition"
+              className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-500 border border-blue-400 text-[11px] sm:text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition"
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3.5 h-3.5 shrink-0" />
               <span>
                 Ver todos: {
                   safePlacesCategory === 'police'
@@ -2075,9 +2098,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
               <button
                 type="button"
                 onClick={() => renderAllRoutesOnMap(routeOptions, selectedRouteId, true)}
-                className="px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400 text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition"
+                className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 border border-emerald-400 text-[11px] sm:text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition"
               >
-                <Route className="w-3.5 h-3.5" />
+                <Route className="w-3.5 h-3.5 shrink-0" />
                 <span>Encuadrar ruta trazada</span>
               </button>
             )}
@@ -2085,18 +2108,20 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
 
           {/* Floating Interactive Card when a Location Pin is clicked on the Map or List */}
           {selectedPlaceInfo && !isTrackingActive && (
-            <div className="absolute bottom-14 left-3.5 right-3.5 sm:right-auto sm:w-96 z-20 p-3.5 rounded-2xl bg-slate-950/95 border-2 border-blue-500/80 text-white shadow-2xl backdrop-blur-md flex flex-col gap-2.5 animate-fadeIn">
+            <div className="absolute bottom-14 left-2.5 right-14 sm:left-3.5 sm:right-auto sm:w-96 z-20 p-3 sm:p-3.5 rounded-2xl bg-slate-950/95 border-2 border-blue-500/80 text-white shadow-2xl backdrop-blur-md flex flex-col gap-2.5 animate-fadeIn">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-lg">
-                    {selectedPlaceInfo.category === 'police'
-                      ? '👮'
-                      : selectedPlaceInfo.category === 'health'
-                      ? '🏥'
-                      : selectedPlaceInfo.category === 'education'
-                      ? '🏫'
-                      : '🌳'}
-                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0" aria-hidden="true">
+                    {selectedPlaceInfo.category === 'police' ? (
+                      <ShieldCheck className="w-4 h-4 text-blue-400" />
+                    ) : selectedPlaceInfo.category === 'health' ? (
+                      <Building2 className="w-4 h-4 text-emerald-400" />
+                    ) : selectedPlaceInfo.category === 'education' ? (
+                      <GraduationCap className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Trees className="w-4 h-4 text-green-400" />
+                    )}
+                  </div>
                   <div className="min-w-0">
                     <span className="text-[10px] font-mono uppercase font-bold text-blue-400 block">
                       {selectedPlaceInfo.categoryLabel}
@@ -2110,13 +2135,15 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
                   type="button"
                   onClick={() => setSelectedPlaceInfo(null)}
                   className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                  aria-label="Cerrar tarjeta de ubicación"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <p className="text-xs text-slate-300 font-medium">
-                📍 {selectedPlaceInfo.address}
+              <p className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-red-400 shrink-0" aria-hidden="true" />
+                <span>{selectedPlaceInfo.address}</span>
               </p>
 
               <div className="grid grid-cols-2 gap-2 pt-1">

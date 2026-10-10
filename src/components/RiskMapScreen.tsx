@@ -1017,9 +1017,9 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
         {/* Left Column: Interactive Map View, Sector Category Dropdowns & Controls (7 of 12 cols on Desktop) */}
         <div className="lg:col-span-7 flex flex-col gap-3.5 h-auto lg:h-[84vh] lg:min-h-[740px] lg:max-h-[960px]">
           {/* Toolbar Row 1: Google Places Autocomplete Search & View Mode / GPS Controls */}
-          <div className="bg-white dark:bg-slate-900/90 border border-slate-300 dark:border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 backdrop-blur-md shadow-sm shrink-0">
+          <div className="bg-white dark:bg-slate-900/90 border border-slate-300 dark:border-white/10 rounded-2xl p-3 flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-between gap-3 backdrop-blur-md shadow-sm shrink-0">
             {/* Google Places Autocomplete Search Input for Medellín */}
-            <div ref={searchContainerRef} className="relative flex-1 min-w-[240px]">
+            <div ref={searchContainerRef} className="relative w-full sm:flex-1 sm:min-w-[200px]">
               <Search className="w-4 h-4 text-cyan-600 dark:text-cyan-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={placesInputRef}
@@ -1035,14 +1035,15 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                     geocodeAddressFallback(placesSearchText);
                   }
                 }}
-                className="w-full bg-slate-50 dark:bg-slate-950/90 border border-slate-300 dark:border-white/15 rounded-xl pl-9 pr-8 py-2.5 text-sm text-theme-primary placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner"
+                className="w-full min-h-[42px] bg-slate-50 dark:bg-slate-950/90 border border-slate-300 dark:border-white/15 rounded-xl pl-9 pr-8 py-2.5 text-sm text-theme-primary placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors shadow-inner"
               />
               {placesSearchText && (
                 <button
                   type="button"
                   onClick={handleResetCenter}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white p-0.5 transition-colors cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5 transition-colors cursor-pointer"
                   title="Limpiar búsqueda"
+                  aria-label="Limpiar búsqueda"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1050,20 +1051,20 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
             </div>
 
             {/* Controls Group: View Mode Toggle & GPS */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2">
               {/* View Mode Toggle */}
               <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950/80 p-1 rounded-xl border border-slate-200 dark:border-white/10">
                 <button
                   id="btn-mode-heat"
                   type="button"
                   onClick={() => setViewMode('heat')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  className={`min-h-[36px] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'heat'
                       ? 'bg-rose-600 dark:bg-rose-900/90 text-white dark:text-rose-100 border border-rose-500/60 shadow-xs'
                       : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                 >
-                  <Flame className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                  <Flame className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
                   <span>{t('modeHeat')}</span>
                 </button>
 
@@ -1071,13 +1072,13 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                   id="btn-mode-markers"
                   type="button"
                   onClick={() => setViewMode('markers')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  className={`min-h-[36px] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'markers'
                       ? 'bg-amber-600 dark:bg-amber-900/90 text-white dark:text-amber-100 border border-amber-500/60 shadow-xs'
                       : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                 >
-                  <MapPin className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                  <MapPin className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
                   <span>{t('modeMarkers')}</span>
                 </button>
 
@@ -1085,14 +1086,14 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                   id="btn-mode-both"
                   type="button"
                   onClick={() => setViewMode('both')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  className={`min-h-[36px] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                     viewMode === 'both'
                       ? 'bg-indigo-600 dark:bg-indigo-900/90 text-white dark:text-indigo-100 border border-indigo-500/60 shadow-xs'
                       : 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white'
                   }`}
                   title="Mostrar termografía y pines simultáneamente"
                 >
-                  <Layers className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                  <Layers className="w-4 h-4 text-indigo-500 dark:text-indigo-400 shrink-0" />
                   <span className="hidden sm:inline">{t('modeHybrid')}</span>
                 </button>
               </div>
@@ -1103,13 +1104,13 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                 type="button"
                 onClick={handleGetCurrentLocation}
                 disabled={isLocating}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-cyan-400/50 bg-cyan-100 dark:bg-cyan-950/60 hover:bg-cyan-200 dark:hover:bg-cyan-900/60 text-cyan-900 dark:text-cyan-300 text-xs sm:text-sm font-bold transition-all disabled:opacity-50 shadow-xs cursor-pointer active:scale-95"
+                className="min-h-[40px] flex items-center gap-1.5 px-3 py-2 rounded-xl border border-cyan-400/50 bg-cyan-100 dark:bg-cyan-950/60 hover:bg-cyan-200 dark:hover:bg-cyan-900/60 text-cyan-900 dark:text-cyan-300 text-xs sm:text-sm font-bold transition-all disabled:opacity-50 shadow-xs cursor-pointer active:scale-95"
                 title="Centrar en mi ubicación en vivo (GPS)"
               >
                 {isLocating ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-cyan-600 dark:text-cyan-400" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-cyan-600 dark:text-cyan-400 shrink-0" />
                 ) : (
-                  <LocateFixed className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                  <LocateFixed className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
                 )}
                 <span className="hidden sm:inline font-bold">
                   {isLocating ? t('locatingGps') : t('centerGpsBtn')}
@@ -1256,6 +1257,20 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
           <div className="relative w-full h-[460px] sm:h-[520px] lg:h-auto lg:flex-1 lg:min-h-[380px] rounded-2xl overflow-hidden border border-slate-300 dark:border-white/15 bg-[#0c1017] shadow-lg">
             {/* Google Maps Mounted Div */}
             <div ref={mapContainerRef} className="w-full h-full" id="google-risk-map-canvas" />
+
+            {/* Loading Placeholder Overlay (Prevents layout shift while Google Maps initializes) */}
+            {!mapLoaded && !mapError && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="absolute inset-0 bg-[#0c1017] flex flex-col items-center justify-center gap-2.5 text-white z-20 pointer-events-none"
+              >
+                <div className="w-8 h-8 rounded-full border-2 border-red-500 border-t-transparent animate-spin" aria-hidden="true" />
+                <span className="text-xs font-mono text-slate-300">
+                  {language === 'es' ? 'Cargando cartografía preventiva de la Comuna 8...' : 'Loading Comuna 8 preventive map...'}
+                </span>
+              </div>
+            )}
 
             {/* Error Overlay if Map Fails */}
             {mapError && (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 interface SecurityUrbanLogoProps {
   className?: string;
@@ -10,28 +10,34 @@ interface SecurityUrbanLogoProps {
  * Security Urban Brand Identity Logo
  * Silhouette of a person holding a magnifying glass inspecting a tactical mini-map with location pin.
  */
-export const SecurityUrbanLogo: React.FC<SecurityUrbanLogoProps> = ({
+export const SecurityUrbanLogo: React.FC<SecurityUrbanLogoProps> = React.memo(({
   className = 'w-6 h-6',
   size,
   animated = false,
 }) => {
+  const uniqueId = useId().replace(/:/g, '');
+  const clipPathId = `urban-lens-clip-${uniqueId}`;
+  const glowGradId = `lens-glass-glow-${uniqueId}`;
+
   return (
     <svg
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`${className} ${animated ? 'transition-transform duration-300 group-hover:scale-105' : ''}`}
+      role="img"
+      focusable="false"
+      className={`shrink-0 select-none aspect-square ${className} ${animated ? 'transition-transform duration-300 group-hover:scale-105' : ''}`}
       style={size ? { width: size, height: size } : undefined}
       aria-label="Security Urban Logo"
     >
       <defs>
         {/* Lens Clip Path to ensure map streets stay strictly inside magnifying glass */}
-        <clipPath id="urban-lens-clip">
+        <clipPath id={clipPathId}>
           <circle cx="63" cy="42" r="20" />
         </clipPath>
         
         {/* Subtle lens tint gradient */}
-        <radialGradient id="lens-glass-glow" cx="60%" cy="35%" r="65%">
+        <radialGradient id={glowGradId} cx="60%" cy="35%" r="65%">
           <stop offset="0%" stopColor="#ffffff" stopOpacity="0.35" />
           <stop offset="60%" stopColor="#38bdf8" stopOpacity="0.15" />
           <stop offset="100%" stopColor="#0284c7" stopOpacity="0.3" />
@@ -60,9 +66,9 @@ export const SecurityUrbanLogo: React.FC<SecurityUrbanLogoProps> = ({
       </g>
 
       {/* 2. Magnifying Glass Interior (Tactical Mini-Map Grid) */}
-      <g clipPath="url(#urban-lens-clip)">
+      <g clipPath={`url(#${clipPathId})`}>
         {/* Glass lens background tint */}
-        <circle cx="63" cy="42" r="20" fill="url(#lens-glass-glow)" />
+        <circle cx="63" cy="42" r="20" fill={`url(#${glowGradId})`} />
 
         {/* Map Streets / Urban Grid lines */}
         <path
@@ -143,6 +149,6 @@ export const SecurityUrbanLogo: React.FC<SecurityUrbanLogoProps> = ({
       />
     </svg>
   );
-};
+});
 
 export default SecurityUrbanLogo;
