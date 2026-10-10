@@ -536,16 +536,16 @@ export async function executeSendEmailVerification(
  * Execute Password Reset Email using standard Firebase hosted flow redirecting to https://securityurban.vercel.app
  */
 export async function executePasswordReset(
-  email: string
+  rawEmail: string
 ): Promise<{ success: boolean; error: string | null; code?: string }> {
-  const cleanEmail = email.trim();
-  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', cleanEmail);
+  const email = rawEmail.trim();
+  console.log('[Firebase Auth] Disparando sendPasswordResetEmail() para:', email);
   try {
-    await sendPasswordResetEmail(auth, cleanEmail, {
+    await sendPasswordResetEmail(auth, email, {
       url: 'https://securityurban.vercel.app',
-      handleCodeInApp: false,
+      handleCodeInApp: false
     });
-    console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${cleanEmail}`, 'color: #10b981; font-weight: bold;');
+    console.log(`%c[Firebase Auth] ✔ Correo de recuperación de contraseña enviado exitosamente a: ${email}`, 'color: #10b981; font-weight: bold;');
     return { success: true, error: null };
   } catch (err: unknown) {
     const firebaseError = err as { code?: string; message?: string };
