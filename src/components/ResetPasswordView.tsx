@@ -21,6 +21,49 @@ interface ResetPasswordViewProps {
   onRedirectToLogin: (successMessage?: string) => void;
 }
 
+interface ExtractedResetUrlParams {
+  oobCode: string;
+  mode: string;
+  apiKey: string;
+}
+
+function extractUrlParamsFromLocation(fallbackOobCode?: string | null): ExtractedResetUrlParams {
+  if (typeof window === 'undefined') {
+    return { oobCode: fallbackOobCode || '', mode: 'resetPassword', apiKey: '' };
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  let oobCode = searchParams.get('oobCode') || fallbackOobCode || '';
+  let mode = searchParams.get('mode') || 'resetPassword';
+  let apiKey = searchParams.get('apiKey') || '';
+
+  // Also check hash query params if present (e.g. #/reset-password?oobCode=...)
+  if (!oobCode && window.location.hash.includes('?')) {
+    const hashQuery = window.location.hash.slice(window.location.hash.indexOf('?'));
+    const hashParams = new URLSearchParams(hashQuery);
+    oobCode = hashParams.get('oobCode') || oobCode;
+    mode = hashParams.get('mode') || mode;
+    apiKey = hashParams.get('apiKey') || apiKey;
+  }
+
+  // Also check nested continueUrl if present
+  if (!oobCode) {
+    const continueUrl = searchParams.get('continueUrl');
+    if (continueUrl) {
+      try {
+        const nestedUrl = new URL(continueUrl, window.location.origin);
+        oobCode = nestedUrl.searchParams.get('oobCode') || oobCode;
+        mode = nestedUrl.searchParams.get('mode') || mode;
+        apiKey = nestedUrl.searchParams.get('apiKey') || apiKey;
+      } catch {
+        // Ignore malformed continueUrl
+      }
+    }
+  }
+
+  return { oobCode, mode, apiKey };
+}
+
 export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({
   initialOobCode,
   onRedirectToLogin,
@@ -28,7 +71,10 @@ export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({
   const { colors } = useTheme();
   const { language } = useLanguage();
 
-  const [oobCode, setOobCode] = useState<string>('');
+  // Extract oobCode, mode, and apiKey directly and synchronously on load
+  const [urlParams, setUrlParams] = useState<ExtractedResetUrlParams>(() =>
+    extractUrlParamsFromLocation(initialOobCode)
+  );
   const [newPassword, setNewPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -36,41 +82,27 @@ export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
-  // Extract oobCode from URL query parameters (?oobCode=...) or continueUrl
   useEffect(() => {
-    if (initialOobCode) {
-      setOobCode(initialOobCode);
-      return;
-    }
-    if (typeof window === 'undefined') return;
-
-    const params = new URLSearchParams(window.location.search);
-    let extractedCode = params.get('oobCode') || '';
-
-    if (!extractedCode) {
-      const continueUrl = params.get('continueUrl');
-      if (continueUrl) {
-        try {
-          const nestedUrl = new URL(continueUrl);
-          extractedCode = nestedUrl.searchParams.get('oobCode') || '';
-        } catch {
-          // Ignore malformed continueUrl
-        }
-      }
-    }
-
-    setOobCode(extractedCode);
+    const extracted = extractUrlParamsFromLocation(initialOobCode);
+    setUrlParams(extracted);
+    console.log('[ResetPasswordView] Parámetros extraídos de la URL:', {
+      hasOobCode: Boolean(extracted.oobCode),
+      mode: extracted.mode,
+      hasApiKey: Boolean(extracted.apiKey),
+    });
   }, [initialOobCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!oobCode) {
+    const activeOobCode = urlParams.oobCode.trim();
+
+    if (!activeOobCode) {
       setErrorMessage(
         language === 'es'
-          ? 'No se encontró el parámetro oobCode en la URL. Abre nuevamente el enlace enviado a tu correo electrónico.'
-          : 'Missing oobCode parameter in URL. Please open the link from your email again.'
+          ? 'No se encontró el código de seguridad (oobCode) en la URL. Asegúrate de abrir el enlace directamente desde el correo de recuperación.'
+          : 'Security code (oobCode) not found in the URL. Please open the link directly from your recovery email.'
       );
       return;
     }
@@ -95,7 +127,9 @@ export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({
 
     setIsSubmitting(true);
     try {
-      await confirmPasswordReset(auth, oobCode, newPassword);
+      console.log('[ResetPasswordView] Ejecutando confirmPasswordReset(auth, oobCode, newPassword)...');
+      await confirmPasswordReset(auth, activeOobCode, newPassword);
+      console.log('[ResetPasswordView] ✔ Contraseña actualizada exitosamente en Firebase Auth.');
       setIsSuccess(true);
       setTimeout(() => {
         onRedirectToLogin(
@@ -103,11 +137,11 @@ export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({
             ? '¡Contraseña actualizada con éxito! Inicia sesión con tu nueva clave.'
             : 'Password updated successfully! Sign in with your new password.'
         );
-      }, 1200);
+      }, 1000);
     } catch (err: unknown) {
       const firebaseError = err as { code?: string; message?: string };
       const code = firebaseError?.code || 'auth/unknown-error';
-      console.error('[ResetPasswordView] Error en confirmPasswordReset():', code, firebaseError?.message);
+      console.error('[ResetPasswordView] ✖ Error en confirmPasswordReset():', code, firebaseError?.message);
 
       if (code === 'auth/expired-action-code') {
         setErrorMessage(
@@ -156,12 +190,12 @@ export const ResetPasswordView: React.FC<ResetPasswordViewProps> = ({
             SECURITY URBAN // RESTABLECER CONTRASEÑA
           </span>
           <h1 className={`text-2xl sm:text-3xl font-extrabold font-['Rajdhani'] uppercase tracking-wider ${colors.cardTitle}`}>
-            {language === 'es' ? 'Crear Nueva Contraseña' : 'Create New Password'}
+            {language === 'es' ? 'Nueva Contraseña' : 'New Password'}
           </h1>
           <p className={`text-sm ${colors.cardSubtitle}`}>
             {language === 'es'
-              ? 'Ingresa tu nueva contraseña y confírmala para actualizar tu clave de acceso.'
-              : 'Enter your new password and confirm it to update your credentials.'}
+              ? 'Ingresa tu nueva contraseña y confírmala para actualizar tu clave directamente.'
+              : 'Enter your new password and confirm it to update your credentials directly.'}
           </p>
         </div>
 

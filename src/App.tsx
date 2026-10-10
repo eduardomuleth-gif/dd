@@ -70,23 +70,28 @@ const MainScreen: React.FC = () => {
   const [isResetPasswordRoute, setIsResetPasswordRoute] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const path = window.location.pathname.replace(/\/+$/, '');
-    return path === '/reset-password';
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    if (mode === 'verifyEmail') return false;
+    return path === '/reset-password' || mode === 'resetPassword';
   });
 
-  // Firebase Email Action Code Parameters (?mode=verifyEmail|resetPassword&oobCode=...) or Return Flow (?authFlow=...)
+  // Firebase Email Action Code Parameters (?mode=verifyEmail|resetPassword&oobCode=...&apiKey=...)
   const [authActionParams, setAuthActionParams] = useState<{
     mode: string;
     oobCode: string;
+    apiKey?: string | null;
     continueUrl?: string | null;
   } | null>(() => {
     if (typeof window === 'undefined') return null;
     const params = new URLSearchParams(window.location.search);
-    const mode = params.get('mode');
     const oobCode = params.get('oobCode');
-    if (mode && oobCode) {
+    const mode = params.get('mode') || (window.location.pathname.includes('reset-password') ? 'resetPassword' : '');
+    if (oobCode) {
       return {
-        mode,
+        mode: mode || 'resetPassword',
         oobCode,
+        apiKey: params.get('apiKey'),
         continueUrl: params.get('continueUrl'),
       };
     }
