@@ -634,6 +634,34 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                       {report.descripcion}
                     </p>
 
+                    {/* Evidencia Audiovisual Adjunta */}
+                    {report.mediaUrl && (
+                      <div className={`rounded-xl overflow-hidden border max-w-md ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-100'}`}>
+                        {report.mediaType === 'video' ? (
+                          <video
+                            src={report.mediaUrl}
+                            controls
+                            preload="metadata"
+                            className="w-full max-h-52 object-cover bg-black"
+                          />
+                        ) : (
+                          <a
+                            href={report.mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block overflow-hidden"
+                          >
+                            <img
+                              src={report.mediaUrl}
+                              alt={report.titulo}
+                              loading="lazy"
+                              className="w-full max-h-52 object-cover hover:scale-105 transition-transform duration-300"
+                            />
+                          </a>
+                        )}
+                      </div>
+                    )}
+
                     {/* Meta info: Sector, Fecha, Autor */}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-mono text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                       <span className="flex items-center gap-1.5 min-w-0">

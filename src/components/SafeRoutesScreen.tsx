@@ -403,6 +403,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   const routeWaypointsMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const placesLibRef = useRef<any>(null);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const markersByPlaceIdRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map());
   const userLiveMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const watchPositionIdRef = useRef<number | null>(null);
   const trafficLayerRef = useRef<google.maps.TrafficLayer | null>(null);
@@ -430,6 +431,8 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   const [realPlaces, setRealPlaces] = useState<RealSafePlace[]>(VERIFIED_SAFE_PLACES_DEFAULT);
   const [isLoadingPlaces, setIsLoadingPlaces] = useState<boolean>(false);
   const [selectedPlaceInfo, setSelectedPlaceInfo] = useState<RealSafePlace | null>(null);
+  // Controls whether all markers of the category are rendered vs. strictly the selected location
+  const [showAllCategoryMarkers, setShowAllCategoryMarkers] = useState<boolean>(false);
   const shouldFitCategoryBoundsRef = useRef<boolean>(false);
 
   // Calculated Routes (supports 1, 2, 3+ route options)
@@ -572,6 +575,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
         m.map = null;
       });
       markersRef.current = [];
+      markersByPlaceIdRef.current.clear();
 
       // Curated verified places for this exact category
       const baseCategoryPlaces = VERIFIED_SAFE_PLACES_DEFAULT.filter((p) => p.category === cat);
@@ -671,7 +675,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
         `;
 
         const marker = new AdvancedMarkerElement({
-          map: mapInstanceRef.current,
+          map: null,
           position: place.location,
           title: `${place.name} (${place.categoryLabel})`,
           content: pinElement,
@@ -680,6 +684,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
 
         marker.addListener('click', () => {
           setSelectedPlaceInfo(place);
+          setShowAllCategoryMarkers(false);
           mapInstanceRef.current?.panTo(place.location);
           if ((mapInstanceRef.current?.getZoom() || 14) < 15) {
             mapInstanceRef.current?.setZoom(16);
@@ -687,6 +692,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
         });
 
         markersRef.current.push(marker);
+        markersByPlaceIdRef.current.set(place.id, marker);
       });
 
       if (fitViewport && finalCategoryPlaces.length > 0) {
@@ -697,6 +703,42 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
     },
     [fitMapToCategoryPlaces]
   );
+
+  // Synchronize category marker visibility:
+  // When a specific location is selected (or assigned as Origin/Destination), deactivate mass rendering
+  // of all other markers in that category so only the selected point remains visible on the map.
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+
+    const hasSpecificSelection =
+      !showAllCategoryMarkers &&
+      (Boolean(selectedPlaceInfo) ||
+        originType.startsWith('place-') ||
+        destinationType.startsWith('place-'));
+
+    markersByPlaceIdRef.current.forEach((marker, placeId) => {
+      if (hasSpecificSelection) {
+        const isKeepVisible =
+          selectedPlaceInfo?.id === placeId ||
+          originType === placeId ||
+          destinationType === placeId;
+        marker.map = isKeepVisible ? map : null;
+      } else if (showAllCategoryMarkers) {
+        marker.map = map;
+      } else {
+        marker.map = null;
+      }
+    });
+  }, [
+    mapLoaded,
+    showAllCategoryMarkers,
+    selectedPlaceInfo,
+    originType,
+    destinationType,
+    realPlaces,
+    safePlacesCategory,
+  ]);
 
   // Load markers when map is ready or category changes
   useEffect(() => {
@@ -709,9 +751,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   // Handle user clicking a category button in "Elegir ubicaciones"
   const handleSelectCategory = (cat: SafeLocationCategory) => {
     setSelectedPlaceInfo(null);
+    setShowAllCategoryMarkers(true);
     shouldFitCategoryBoundsRef.current = true;
     if (cat === safePlacesCategory) {
-      // Even if clicking the already active category, frame all its points on the map
       const currentCatPlaces = realPlaces.filter((p) => p.category === cat);
       fitMapToCategoryPlaces(currentCatPlaces);
     } else {
@@ -719,9 +761,11 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
     }
   };
 
-  // Focus a specific place on the map when clicked in "Elegir ubicaciones"
+  // Focus a specific place on the map when clicked in "Elegir ubicaciones":
+  // Deactivates mass rendering of all other markers in the category
   const handleFocusPlaceOnMap = (place: RealSafePlace) => {
     setSelectedPlaceInfo(place);
+    setShowAllCategoryMarkers(false);
     if (mapInstanceRef.current) {
       mapInstanceRef.current.panTo(place.location);
       mapInstanceRef.current.setZoom(16);
@@ -1548,7 +1592,8 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
     }
   };
 
-  // Set a location from "Elegir ubicaciones" or map marker as Origin or Destination
+  // Set a location from "Elegir ubicaciones" or map marker as Origin or Destination:
+  // Hides all other markers of that category so only the chosen Origin/Destination point remains visible
   const handleSetPlaceAs = (place: RealSafePlace, target: 'origin' | 'destination') => {
     if (target === 'origin') {
       setOriginType(place.id);
@@ -1560,6 +1605,7 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
       setDestinationResolvedCoord(place.location);
     }
     setSelectedPlaceInfo(place);
+    setShowAllCategoryMarkers(false);
   };
 
   return (
@@ -1637,6 +1683,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
               onChange={(val) => {
                 setOriginType(val);
                 if (val !== 'otro') setOriginResolvedCoord(undefined);
+                if (val.startsWith('place-')) {
+                  setShowAllCategoryMarkers(false);
+                }
               }}
               isOrigin={true}
               sectors={COMUNA_8_SECTORS}
@@ -1662,6 +1711,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
               onChange={(val) => {
                 setDestinationType(val);
                 if (val !== 'otro') setDestinationResolvedCoord(undefined);
+                if (val.startsWith('place-')) {
+                  setShowAllCategoryMarkers(false);
+                }
               }}
               isOrigin={false}
               sectors={COMUNA_8_SECTORS}
@@ -1877,7 +1929,10 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
 
               <button
                 type="button"
-                onClick={() => fitMapToCategoryPlaces(categoryPlaces)}
+                onClick={() => {
+                  setShowAllCategoryMarkers(true);
+                  fitMapToCategoryPlaces(categoryPlaces);
+                }}
                 className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1 transition cursor-pointer shrink-0"
                 title="Enfocar todos los puntos de esta categoría en el mapa"
               >
@@ -2077,7 +2132,10 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
 
             <button
               type="button"
-              onClick={() => fitMapToCategoryPlaces(categoryPlaces)}
+              onClick={() => {
+                setShowAllCategoryMarkers(true);
+                fitMapToCategoryPlaces(categoryPlaces);
+              }}
               className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-blue-600/90 hover:bg-blue-500 border border-blue-400 text-[11px] sm:text-xs font-bold text-white shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-md transition"
             >
               <Eye className="w-3.5 h-3.5 shrink-0" />

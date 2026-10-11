@@ -23,6 +23,7 @@ export const INCIDENT_CATEGORIES: IncidentCategory[] = [
 
 export type ReportStatus = 'pendiente' | 'aceptado' | 'rechazado';
 export type ReportPriority = 'baja' | 'media' | 'alta' | 'critica';
+export type ReportMediaType = 'image' | 'video';
 
 export interface IncidentReport {
   id: string;
@@ -46,6 +47,9 @@ export interface IncidentReport {
   revisadoPor?: string;
   motivoRechazo?: string;
   origen?: 'simulacion' | 'usuario' | string;
+  mediaUrl?: string;
+  mediaType?: ReportMediaType;
+  mediaName?: string;
 }
 
 export interface CreateReportInput {
@@ -59,4 +63,21 @@ export interface CreateReportInput {
     lng: number;
   };
   nivelPrioridad: ReportPriority;
+  mediaFile?: File | null;
+  mediaUrl?: string;
+  mediaType?: ReportMediaType;
+  mediaName?: string;
 }
+
+export interface DynamicSectorRiskResult {
+  riskPercentage: number;
+  safetyPercentage: number;
+  stabilityPercentage: number;
+  weightedScore: number;
+  sectorAlertsCount: number;
+  criticalOrHighCount: number;
+  riskLevel: 'high' | 'moderate' | 'low';
+  riskLabel: string;
+  riskColorHex: string;
+}
+

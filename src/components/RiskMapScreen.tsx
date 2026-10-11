@@ -17,6 +17,7 @@ import {
   ExternalLink, 
   X, 
   ChevronRight, 
+  ChevronDown,
   Compass,
   AlertCircle,
   Eye,
@@ -229,6 +230,42 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(14);
   const [communityAcceptedReports, setCommunityAcceptedReports] = useState<IncidentReport[]>([]);
+  const [openCategoryDropdown, setOpenCategoryDropdown] = useState<'high' | 'moderate' | 'central' | null>(null);
+  const [dropdownOpenUpward, setDropdownOpenUpward] = useState<boolean>(false);
+  const categoryDropdownsContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close category dropdown on click outside or Escape
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        categoryDropdownsContainerRef.current &&
+        !categoryDropdownsContainerRef.current.contains(event.target as Node)
+      ) {
+        setOpenCategoryDropdown(null);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenCategoryDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const handleToggleCategoryDropdown = useCallback(
+    (cat: 'high' | 'moderate' | 'central', e: React.MouseEvent<HTMLButtonElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setDropdownOpenUpward(spaceBelow < 270 && rect.top > 280);
+      setOpenCategoryDropdown((prev) => (prev === cat ? null : cat));
+    },
+    []
+  );
 
   // Subscribe to real approved community alerts from Firestore
   useEffect(() => {
@@ -1011,7 +1048,7 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
           <span className="font-bold text-amber-900 dark:text-amber-300">{t('disclaimerTitle')}</span>{' '}
           {t('disclaimerText')}{' '}
           <a
-            href="https://www.medellin.gov.co/es/secretaria-seguridad-convivencia/sisc/"
+            href="https://www.medellin.gov.co/sisc/"
             target="_blank"
             rel="noopener noreferrer"
             className="text-amber-800 dark:text-amber-300 font-bold underline hover:text-amber-950 dark:hover:text-amber-200 inline-flex items-center gap-1"
@@ -1130,13 +1167,19 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
             </div>
           </div>
 
-          {/* Toolbar Row 2: "Centrar en Comuna 8 (Villa Hermosa)" Button + Sector Category Dropdowns (Mayor, Intermedio, Bajo (base)) */}
-          <div className="bg-white dark:bg-slate-900/95 border border-slate-300 dark:border-white/15 rounded-2xl p-3 flex flex-col xl:flex-row xl:items-center gap-2.5 backdrop-blur-md shadow-sm shrink-0">
+          {/* Toolbar Row 2: "Centrar en Comuna 8 (Villa Hermosa)" Button + Sector Category Dropdowns (Mayor, Intermedio, Bajo (base)) with Boundary Constraints */}
+          <div
+            ref={categoryDropdownsContainerRef}
+            className="relative z-40 bg-white dark:bg-slate-900/95 border border-slate-300 dark:border-white/15 rounded-2xl p-3 flex flex-col xl:flex-row xl:items-center gap-2.5 backdrop-blur-md shadow-sm shrink-0 overflow-visible"
+          >
             {/* Button: Centrar en Comuna 8 (Villa Hermosa) */}
             <button
               id="btn-recenter-comuna8"
               type="button"
-              onClick={handleResetCenter}
+              onClick={() => {
+                setOpenCategoryDropdown(null);
+                handleResetCenter();
+              }}
               className="px-3.5 py-2.5 rounded-xl border border-cyan-400/50 bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/80 dark:hover:bg-cyan-900/80 text-cyan-900 dark:text-cyan-200 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99] shrink-0"
               title={
                 language === 'es'
@@ -1152,115 +1195,158 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
               </span>
             </button>
 
-            {/* 3 Category Dropdowns Side by Side: Mayor, Intermedio, Bajo (base) */}
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {/* Categoría 1: Mayor */}
-              <div
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
-                  selectedSector?.level === 'high'
-                    ? 'bg-rose-50 dark:bg-rose-950/70 border-rose-400 dark:border-rose-500/80 ring-2 ring-rose-500/20'
-                    : 'bg-rose-50/50 dark:bg-slate-950/80 border-rose-200 dark:border-rose-500/30'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                  <label
-                    htmlFor="select-sector-high"
-                    className="text-xs font-extrabold uppercase tracking-wide text-rose-800 dark:text-rose-300 cursor-pointer"
-                  >
-                    {language === 'es' ? 'Mayor' : 'High'}
-                  </label>
-                </div>
-                <select
-                  id="select-sector-high"
-                  value={selectedSector?.level === 'high' ? selectedSector.id : ''}
-                  onChange={(e) => handleSelectSectorById(e.target.value)}
-                  className="w-full min-w-0 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-500/40 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-rose-500 cursor-pointer truncate"
-                >
-                  <option value="">
-                    {language === 'es'
-                      ? `Sectores (${highRiskSectors.length})...`
-                      : `Sectors (${highRiskSectors.length})...`}
-                  </option>
-                  {highRiskSectors.map((sector) => (
-                    <option key={sector.id} value={sector.id}>
-                      {sector.name} ({sector.quadrant})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* 3 Category Dropdowns Side by Side with Smart Boundary Alignment & Scrollable Lists */}
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2 relative">
+              {[
+                {
+                  id: 'high' as const,
+                  titleEs: 'Mayor',
+                  titleEn: 'High',
+                  sectors: highRiskSectors,
+                  dotClass: 'bg-rose-500',
+                  activeWrapClass:
+                    'bg-rose-50 dark:bg-rose-950/70 border-rose-400 dark:border-rose-500/80 ring-2 ring-rose-500/20',
+                  idleWrapClass:
+                    'bg-rose-50/50 dark:bg-slate-950/80 border-rose-200 dark:border-rose-500/30 hover:border-rose-400',
+                  labelClass: 'text-rose-800 dark:text-rose-300',
+                  menuBorderClass: 'border-rose-300 dark:border-rose-500/50',
+                  activeItemClass: 'bg-rose-600 text-white',
+                  // First dropdown aligns to left edge
+                  alignmentClass: 'left-0',
+                },
+                {
+                  id: 'moderate' as const,
+                  titleEs: 'Intermedio',
+                  titleEn: 'Moderate',
+                  sectors: moderateRiskSectors,
+                  dotClass: 'bg-amber-500',
+                  activeWrapClass:
+                    'bg-amber-50 dark:bg-amber-950/70 border-amber-400 dark:border-amber-500/80 ring-2 ring-amber-500/20',
+                  idleWrapClass:
+                    'bg-amber-50/50 dark:bg-slate-950/80 border-amber-200 dark:border-amber-500/30 hover:border-amber-400',
+                  labelClass: 'text-amber-900 dark:text-amber-300',
+                  menuBorderClass: 'border-amber-300 dark:border-amber-500/50',
+                  activeItemClass: 'bg-amber-500 text-slate-950',
+                  // Middle dropdown aligns centered on desktop and constrained to container on mobile
+                  alignmentClass: 'left-0 sm:left-1/2 sm:-translate-x-1/2',
+                },
+                {
+                  id: 'central' as const,
+                  titleEs: 'Bajo (base)',
+                  titleEn: 'Low (base)',
+                  sectors: lowRiskSectors,
+                  dotClass: 'bg-emerald-500',
+                  activeWrapClass:
+                    'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-400 dark:border-emerald-500/80 ring-2 ring-emerald-500/20',
+                  idleWrapClass:
+                    'bg-emerald-50/50 dark:bg-slate-950/80 border-emerald-200 dark:border-emerald-500/30 hover:border-emerald-400',
+                  labelClass: 'text-emerald-900 dark:text-emerald-300',
+                  menuBorderClass: 'border-emerald-300 dark:border-emerald-500/50',
+                  activeItemClass: 'bg-emerald-600 text-white',
+                  // Rightmost dropdown strictly aligns to right edge (right-0) to prevent right-side overflow
+                  alignmentClass: 'right-0',
+                },
+              ].map((catGroup) => {
+                const isCatSelected = selectedSector?.level === catGroup.id;
+                const isOpen = openCategoryDropdown === catGroup.id;
+                const currentText = isCatSelected && selectedSector
+                  ? selectedSector.name
+                  : language === 'es'
+                  ? `Sectores (${catGroup.sectors.length})`
+                  : `Sectors (${catGroup.sectors.length})`;
 
-              {/* Categoría 2: Intermedio */}
-              <div
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
-                  selectedSector?.level === 'moderate'
-                    ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-400 dark:border-amber-500/80 ring-2 ring-amber-500/20'
-                    : 'bg-amber-50/50 dark:bg-slate-950/80 border-amber-200 dark:border-amber-500/30'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-                  <label
-                    htmlFor="select-sector-moderate"
-                    className="text-xs font-extrabold uppercase tracking-wide text-amber-900 dark:text-amber-300 cursor-pointer"
-                  >
-                    {language === 'es' ? 'Intermedio' : 'Moderate'}
-                  </label>
-                </div>
-                <select
-                  id="select-sector-moderate"
-                  value={selectedSector?.level === 'moderate' ? selectedSector.id : ''}
-                  onChange={(e) => handleSelectSectorById(e.target.value)}
-                  className="w-full min-w-0 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/40 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-amber-500 cursor-pointer truncate"
-                >
-                  <option value="">
-                    {language === 'es'
-                      ? `Sectores (${moderateRiskSectors.length})...`
-                      : `Sectors (${moderateRiskSectors.length})...`}
-                  </option>
-                  {moderateRiskSectors.map((sector) => (
-                    <option key={sector.id} value={sector.id}>
-                      {sector.name} ({sector.quadrant})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                return (
+                  <div key={catGroup.id} className="relative min-w-0">
+                    <button
+                      type="button"
+                      id={`select-sector-${catGroup.id === 'central' ? 'low' : catGroup.id}`}
+                      aria-haspopup="listbox"
+                      aria-expanded={isOpen}
+                      onClick={(e) => handleToggleCategoryDropdown(catGroup.id, e)}
+                      className={`w-full min-h-[40px] flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                        isCatSelected || isOpen ? catGroup.activeWrapClass : catGroup.idleWrapClass
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${catGroup.dotClass}`} />
+                        <span
+                          className={`text-xs font-extrabold uppercase tracking-wide shrink-0 ${catGroup.labelClass}`}
+                        >
+                          {language === 'es' ? catGroup.titleEs : catGroup.titleEn}:
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                          {currentText}
+                        </span>
+                      </div>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-300 shrink-0 transition-transform duration-200 ${
+                          isOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
 
-              {/* Categoría 3: Bajo (base) */}
-              <div
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
-                  selectedSector?.level === 'central'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-400 dark:border-emerald-500/80 ring-2 ring-emerald-500/20'
-                    : 'bg-emerald-50/50 dark:bg-slate-950/80 border-emerald-200 dark:border-emerald-500/30'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  <label
-                    htmlFor="select-sector-low"
-                    className="text-xs font-extrabold uppercase tracking-wide text-emerald-900 dark:text-emerald-300 cursor-pointer whitespace-nowrap"
-                  >
-                    {language === 'es' ? 'Bajo (base)' : 'Low (base)'}
-                  </label>
-                </div>
-                <select
-                  id="select-sector-low"
-                  value={selectedSector?.level === 'central' ? selectedSector.id : ''}
-                  onChange={(e) => handleSelectSectorById(e.target.value)}
-                  className="w-full min-w-0 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/40 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-emerald-500 cursor-pointer truncate"
-                >
-                  <option value="">
-                    {language === 'es'
-                      ? `Sectores (${lowRiskSectors.length})...`
-                      : `Sectors (${lowRiskSectors.length})...`}
-                  </option>
-                  {lowRiskSectors.map((sector) => (
-                    <option key={sector.id} value={sector.id}>
-                      {sector.name} ({sector.quadrant})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    {/* Boundary-Constrained Dropdown List with Internal Scroll (max-h-60 overflow-y-auto) */}
+                    {isOpen && (
+                      <div
+                        role="listbox"
+                        aria-label={language === 'es' ? catGroup.titleEs : catGroup.titleEn}
+                        className={`absolute ${catGroup.alignmentClass} ${
+                          dropdownOpenUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                        } z-50 w-full sm:w-64 max-w-[calc(100vw-2rem)] rounded-xl border ${
+                          catGroup.menuBorderClass
+                        } bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in duration-150`}
+                      >
+                        <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between text-[11px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                          <span className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${catGroup.dotClass}`} />
+                            <span>
+                              {language === 'es'
+                                ? `Categoría ${catGroup.titleEs}`
+                                : `${catGroup.titleEn} Category`}
+                            </span>
+                          </span>
+                          <span>{catGroup.sectors.length} sectores</span>
+                        </div>
+
+                        <ul className="max-h-60 overflow-y-auto overscroll-contain divide-y divide-slate-100 dark:divide-slate-800/70 p-1">
+                          {catGroup.sectors.map((sec) => {
+                            const isSelected = selectedSector?.id === sec.id;
+                            return (
+                              <li key={sec.id}>
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={isSelected}
+                                  onClick={() => {
+                                    handleSelectSectorById(sec.id);
+                                    setOpenCategoryDropdown(null);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 rounded-lg text-xs transition flex items-center justify-between gap-2 cursor-pointer ${
+                                    isSelected
+                                      ? `${catGroup.activeItemClass} font-extrabold shadow-xs`
+                                      : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold'
+                                  }`}
+                                >
+                                  <span className="truncate">{sec.name}</span>
+                                  <span
+                                    className={`text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded ${
+                                      isSelected
+                                        ? 'bg-black/20 text-current'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                                    }`}
+                                  >
+                                    {sec.quadrant}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

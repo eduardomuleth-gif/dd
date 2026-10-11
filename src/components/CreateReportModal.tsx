@@ -5,14 +5,22 @@ import {
   Send,
   Loader2,
   MapPin,
-  FileText,
   Clock,
-  ShieldCheck,
   CheckCircle2,
+  Upload,
+  Image as ImageIcon,
+  Video,
+  Trash2,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
-import { INCIDENT_CATEGORIES, IncidentCategory, ReportPriority, CreateReportInput } from '../types/report';
+import {
+  INCIDENT_CATEGORIES,
+  IncidentCategory,
+  ReportPriority,
+  CreateReportInput,
+  ReportMediaType,
+} from '../types/report';
 import { createIncidentReport } from '../services/reportService';
 import { ModalPortal } from './ModalPortal';
 
@@ -38,8 +46,20 @@ const COMUNA_8_SECTORS = [
   'La Ladera',
   'Los Mangos',
   'Boston',
+  'San Miguel',
+  'La Mansión',
+  'Caicedo',
+  'Batallón Girardot',
   'Otro',
 ];
+
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB max before compression
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   isOpen,
@@ -47,8 +67,8 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   onReportCreated,
   defaultSector,
 }) => {
-  const { theme, colors } = useTheme();
-  const { language, t, translateCategory, translatePriority } = useLanguage();
+  const { theme } = useTheme();
+  const { language, translateCategory, translatePriority } = useLanguage();
   const isDark = theme === 'dark';
 
   // Form state
@@ -60,11 +80,30 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   const [descripcion, setDescripcion] = useState<string>('');
   const [nivelPrioridad, setNivelPrioridad] = useState<ReportPriority>('media');
 
+  // Mandatory multimedia state (image or video)
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<ReportMediaType>('image');
+  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
+
+  // Submission & upload progress state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadStageText, setUploadStageText] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const alertContainerRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Clean up object URL on unmount or file change
+  useEffect(() => {
+    return () => {
+      if (mediaPreviewUrl) {
+        URL.revokeObjectURL(mediaPreviewUrl);
+      }
+    };
+  }, [mediaPreviewUrl]);
 
   // Auto-scroll to alert messages when they appear
   useEffect(() => {
@@ -75,30 +114,97 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
 
   if (!isOpen) return null;
 
+  const validateAndSelectFile = (file: File | undefined | null) => {
+    setErrorMsg(null);
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+
+    if (!isImage && !isVideo) {
+      setErrorMsg(
+        language === 'es'
+          ? 'Formato no válido. Debes adjuntar obligatoriamente una imagen (JPG, PNG, WEBP) o un video (MP4, WEBM, MOV).'
+          : 'Invalid format. Please attach a valid image (JPG, PNG, WEBP) or video (MP4, WEBM, MOV).'
+      );
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setErrorMsg(
+        language === 'es'
+          ? 'El archivo supera el límite máximo permitido de 25 MB. Selecciona un archivo más liviano.'
+          : 'File exceeds the 25 MB maximum size limit.'
+      );
+      return;
+    }
+
+    if (mediaPreviewUrl) {
+      URL.revokeObjectURL(mediaPreviewUrl);
+    }
+
+    const preview = URL.createObjectURL(file);
+    setMediaFile(file);
+    setMediaPreviewUrl(preview);
+    setMediaType(isVideo ? 'video' : 'image');
+  };
+
+  const handleRemoveMedia = () => {
+    if (mediaPreviewUrl) {
+      URL.revokeObjectURL(mediaPreviewUrl);
+    }
+    setMediaFile(null);
+    setMediaPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const isFormValid =
+    titulo.trim().length >= 4 &&
+    descripcion.trim().length > 0 &&
+    Boolean(mediaFile);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    // Validation
     const cleanTitle = titulo.trim();
-    if (!cleanTitle) {
-      setErrorMsg(language === 'es' ? 'Ingresa un título o asunto breve para el reporte.' : 'Please enter a brief title for the report.');
+    if (!cleanTitle || cleanTitle.length < 4) {
+      setErrorMsg(
+        language === 'es'
+          ? 'El título debe tener al menos 4 caracteres.'
+          : 'Title must be at least 4 characters long.'
+      );
       return;
     }
 
-    if (cleanTitle.length < 4) {
-      setErrorMsg(language === 'es' ? 'El título debe tener al menos 4 caracteres.' : 'Title must be at least 4 characters long.');
-      return;
-    }
-
-    const finalSector = sector === 'Otro' ? (customSector.trim() || 'Comuna 8') : sector;
+    const finalSector = sector === 'Otro' ? customSector.trim() || 'Comuna 8' : sector;
     const cleanDescription = descripcion.trim();
     if (!cleanDescription) {
-      setErrorMsg(language === 'es' ? 'Por favor describe lo sucedido en el campo de descripción.' : 'Please describe the incident.');
+      setErrorMsg(
+        language === 'es'
+          ? 'Por favor describe lo sucedido en el campo de descripción.'
+          : 'Please describe the incident.'
+      );
+      return;
+    }
+
+    // Mandatory multimedia validation
+    if (!mediaFile) {
+      setErrorMsg(
+        language === 'es'
+          ? 'Es obligatorio adjuntar una imagen o video de evidencia para enviar el reporte.'
+          : 'Attaching an evidence image or video is mandatory to submit the report.'
+      );
       return;
     }
 
     setIsSubmitting(true);
+    setUploadProgress(5);
+    setUploadStageText(
+      language === 'es' ? 'Preparando evidencia multimedia...' : 'Preparing media evidence...'
+    );
 
     try {
       const input: CreateReportInput = {
@@ -108,29 +214,40 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
         sector: finalSector,
         direccion: direccion.trim(),
         nivelPrioridad,
+        mediaFile,
+        mediaType,
+        mediaName: mediaFile.name,
       };
 
-      await createIncidentReport(input);
+      await createIncidentReport(input, (pct, stage) => {
+        setUploadProgress(pct);
+        setUploadStageText(stage);
+      });
 
+      setUploadProgress(100);
       setSuccessMsg(
         language === 'es'
-          ? '✔ Reporte enviado con éxito con estado PENDIENTE. Será revisado por un administrador antes de su publicación comunitaria.'
-          : '✔ Report submitted with PENDING status. An administrator will review it before public broadcast.'
+          ? '✔ Reporte y evidencia multimedia enviados con éxito (estado PENDIENTE de revisión).'
+          : '✔ Report and media evidence submitted successfully (PENDING status).'
       );
 
       setTimeout(() => {
         setSuccessMsg(null);
-        // Reset form
         setTitulo('');
         setDescripcion('');
         setDireccion('');
         setCustomSector('');
+        handleRemoveMedia();
+        setUploadProgress(0);
+        setUploadStageText('');
         onClose();
         if (onReportCreated) onReportCreated();
-      }, 1500);
+      }, 1100);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setErrorMsg(msg);
+      setUploadProgress(0);
+      setUploadStageText('');
     } finally {
       setIsSubmitting(false);
     }
@@ -159,8 +276,9 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
               <span className="text-[10px] font-mono font-bold tracking-widest text-red-600 dark:text-red-400 uppercase truncate">
                 SISTEMA DE MONITOREO // COMUNA 8
               </span>
-              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
-                REVISIÓN ADMIN
+              <span className="text-slate-400">·</span>
+              <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">
+                EVIDENCIA OBLIGATORIA
               </span>
             </div>
             <h2 className="text-base sm:text-xl font-black font-['Rajdhani'] uppercase tracking-wide truncate">
@@ -180,18 +298,18 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
         </button>
       </div>
 
-      {/* Form Container: Scrollable Middle Body + Fixed Bottom Action Bar */}
+      {/* Form Container */}
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {/* Scrollable Content Area */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4">
-          {/* Verification Notice Banner (Inside scrollable area right at the top so it is never cut off) */}
+          {/* Verification Notice Banner */}
           <div className="p-3 sm:p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 sm:gap-3 text-xs text-amber-800 dark:text-amber-300">
             <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
             <p className="leading-relaxed">
-              <strong>{language === 'es' ? 'Política de Verificación:' : 'Verification Notice:'}</strong>{' '}
+              <strong>{language === 'es' ? 'Verificación y Evidencia:' : 'Verification & Evidence:'}</strong>{' '}
               {language === 'es'
-                ? 'Por seguridad comunitaria, tu reporte se registrará con estado 🟡 PENDIENTE. No será visible en el mapa público ni en alertas generales hasta que un administrador lo verifique.'
-                : 'For community safety, your report starts as 🟡 PENDING and will only be publicly broadcast once verified by an admin.'}
+                ? 'Es obligatorio adjuntar una foto o video real del suceso. El archivo se comprime automáticamente antes de enviarse para garantizar una carga rápida.'
+                : 'Attaching a photo or video of the event is mandatory. Media is compressed client-side for fast upload.'}
             </p>
           </div>
 
@@ -209,7 +327,9 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value as IncidentCategory)}
                 className={`w-full min-h-[42px] px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition cursor-pointer ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800'
+                  isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-100'
+                    : 'bg-slate-50 border-slate-300 text-slate-800'
                 }`}
               >
                 {INCIDENT_CATEGORIES.map((cat) => (
@@ -225,7 +345,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 id="report-priority-group-label"
                 className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
               >
-                {language === 'es' ? '2. Nivel de Urgencia / Prioridad *' : '2. Urgency Level *'}
+                {language === 'es' ? '2. Nivel de Urgencia / Gravedad *' : '2. Urgency / Severity *'}
               </span>
               <div
                 role="radiogroup"
@@ -281,9 +401,10 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 }
                 maxLength={120}
                 required
-                aria-describedby="report-title-helper"
                 className={`w-full min-h-[42px] pl-3.5 pr-14 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
+                  isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400'
+                    : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
                 }`}
               />
               <span
@@ -293,14 +414,9 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 {titulo.length}/120
               </span>
             </div>
-            <p id="report-title-helper" className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              {language === 'es'
-                ? 'Este título se mantendrá estrictamente asociado a esta categoría y se sincronizará en tiempo real.'
-                : 'This title will remain strictly synced to this report and category in real time.'}
-            </p>
           </div>
 
-          {/* Row 3: Sector de Residencia y Dirección */}
+          {/* Row 3: Sector de la Comuna 8 y Dirección */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label
@@ -314,7 +430,9 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
                 className={`w-full min-h-[42px] px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition cursor-pointer ${
-                  isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800'
+                  isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-100'
+                    : 'bg-slate-50 border-slate-300 text-slate-800'
                 }`}
               >
                 {COMUNA_8_SECTORS.map((sec) => (
@@ -326,17 +444,20 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
 
               {sector === 'Otro' && (
                 <div className="mt-2">
-                  <label htmlFor="report-custom-sector-input" className="sr-only">
-                    {language === 'es' ? 'Nombre del barrio o sector' : 'Neighborhood or sector name'}
-                  </label>
                   <input
                     id="report-custom-sector-input"
                     type="text"
                     value={customSector}
                     onChange={(e) => setCustomSector(e.target.value)}
-                    placeholder={language === 'es' ? 'Escribe el nombre del barrio o sector' : 'Enter neighborhood name'}
+                    placeholder={
+                      language === 'es'
+                        ? 'Escribe el nombre del barrio o sector'
+                        : 'Enter neighborhood name'
+                    }
                     className={`w-full min-h-[40px] px-3.5 py-2 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 ${
-                      isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-800'
+                      isDark
+                        ? 'bg-slate-800 border-slate-700 text-slate-100'
+                        : 'bg-slate-50 border-slate-300 text-slate-800'
                     }`}
                   />
                 </div>
@@ -351,15 +472,24 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 {language === 'es' ? '5. Dirección o Punto de Referencia' : '5. Address / Landmark'}
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+                <MapPin
+                  className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                  aria-hidden="true"
+                />
                 <input
                   id="report-address-input"
                   type="text"
                   value={direccion}
                   onChange={(e) => setDireccion(e.target.value)}
-                  placeholder={language === 'es' ? 'Ej. Cra 40 # 56-20 cerca a la cancha' : 'E.g., Cra 40 # 56-20 near sports field'}
+                  placeholder={
+                    language === 'es'
+                      ? 'Ej. Cra 40 # 56-20 cerca a la cancha'
+                      : 'E.g., Cra 40 # 56-20 near sports field'
+                  }
                   className={`w-full min-h-[42px] pl-9 pr-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition ${
-                    isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
+                    isDark
+                      ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400'
+                      : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
                   }`}
                 />
               </div>
@@ -381,15 +511,187 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
               onChange={(e) => setDescripcion(e.target.value)}
               placeholder={
                 language === 'es'
-                  ? 'Detalla qué ocurrió, vestimenta de personas involucradas, vehículos o situación de riesgo que las autoridades y líderes deban conocer...'
-                  : 'Detail what happened, description of individuals or vehicles involved, or safety risk for authorities...'
+                  ? 'Detalla qué ocurrió, vestimenta de personas involucradas, vehículos o situación de riesgo...'
+                  : 'Detail what happened, description of individuals or vehicles involved...'
               }
               required
               className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500/40 transition leading-relaxed ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400' : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
+                isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-100 placeholder-slate-400'
+                  : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-500'
               }`}
             />
           </div>
+
+          {/* Row 5: MANDATORY MULTIMEDIA ATTACHMENT (Imagen o Video) */}
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label
+                htmlFor="report-media-file-input"
+                className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300"
+              >
+                {language === 'es'
+                  ? '7. Evidencia Audiovisual Obligatoria (Imagen o Video) *'
+                  : '7. Mandatory Audiovisual Evidence (Image or Video) *'}
+              </label>
+              <span
+                className={`text-[11px] font-mono font-bold ${
+                  mediaFile
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-rose-600 dark:text-rose-400'
+                }`}
+              >
+                {mediaFile
+                  ? language === 'es'
+                    ? '✔ Archivo adjunto'
+                    : '✔ File attached'
+                  : language === 'es'
+                  ? '* Requerido para enviar'
+                  : '* Required to submit'}
+              </span>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              id="report-media-file-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+              onChange={(e) => validateAndSelectFile(e.target.files?.[0])}
+              className="sr-only"
+            />
+
+            {!mediaFile ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingOver(true);
+                }}
+                onDragLeave={() => setIsDraggingOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingOver(false);
+                  validateAndSelectFile(e.dataTransfer.files?.[0]);
+                }}
+                className={`w-full p-5 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${
+                  isDraggingOver
+                    ? 'border-red-500 bg-red-500/10'
+                    : isDark
+                    ? 'border-slate-700 hover:border-red-500/60 bg-slate-800/50 hover:bg-slate-800'
+                    : 'border-slate-300 hover:border-red-500/60 bg-slate-50 hover:bg-slate-100/70'
+                }`}
+              >
+                <div className="w-11 h-11 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-500 flex items-center justify-center">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100">
+                    {language === 'es'
+                      ? 'Haz clic aquí o arrastra una fotografía o video del incidente'
+                      : 'Click here or drag & drop a photo or video of the incident'}
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                    {language === 'es'
+                      ? 'Soporta JPG, PNG, WEBP, MP4, WEBM (Compresión automática rápida)'
+                      : 'Supports JPG, PNG, WEBP, MP4, WEBM (Automatic fast client compression)'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div
+                className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 ${
+                  isDark
+                    ? 'bg-slate-800/90 border-emerald-500/40'
+                    : 'bg-emerald-50/60 border-emerald-300'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+                  {mediaPreviewUrl && mediaType === 'image' ? (
+                    <img
+                      src={mediaPreviewUrl}
+                      alt="Vista previa de evidencia"
+                      className="w-16 h-16 rounded-xl object-cover border border-emerald-500/40 shrink-0"
+                    />
+                  ) : mediaPreviewUrl && mediaType === 'video' ? (
+                    <video
+                      src={mediaPreviewUrl}
+                      className="w-20 h-16 rounded-xl object-cover border border-emerald-500/40 shrink-0 bg-black"
+                      muted
+                      playsInline
+                    />
+                  ) : null}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                      {mediaType === 'video' ? (
+                        <Video className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span className="truncate">{mediaFile.name}</span>
+                    </div>
+                    <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                      {formatBytes(mediaFile.size)} ·{' '}
+                      {mediaType === 'image'
+                        ? language === 'es'
+                          ? 'Optimización inteligente lista'
+                          : 'Smart compression ready'
+                        : language === 'es'
+                        ? 'Video verificado'
+                        : 'Verified video'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSubmitting}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition cursor-pointer"
+                  >
+                    {language === 'es' ? 'Cambiar' : 'Change'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveMedia}
+                    disabled={isSubmitting}
+                    className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-500/15 transition cursor-pointer"
+                    title={language === 'es' ? 'Quitar archivo' : 'Remove file'}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Upload & Compression Progress Indicator */}
+          {isSubmitting && (
+            <div className="p-3.5 rounded-xl bg-cyan-950/30 border border-cyan-500/40 space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono font-bold text-cyan-600 dark:text-cyan-300">
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  <span>{uploadStageText || 'Procesando reporte...'}</span>
+                </span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Feedback alert positioned inside scrollable area with auto-scroll */}
           {(errorMsg || successMsg) && (
@@ -399,7 +701,10 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                   role="alert"
                   className="p-3.5 rounded-xl bg-red-500/10 border-2 border-red-500/40 text-red-700 dark:text-red-300 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xs animate-in fade-in duration-150"
                 >
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
+                  <AlertTriangle
+                    className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400"
+                    aria-hidden="true"
+                  />
                   <span>{errorMsg}</span>
                 </div>
               )}
@@ -409,7 +714,10 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                   aria-live="polite"
                   className="p-3.5 rounded-xl bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xs animate-in fade-in duration-150"
                 >
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                  <CheckCircle2
+                    className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                    aria-hidden="true"
+                  />
                   <span>{successMsg}</span>
                 </div>
               )}
@@ -419,40 +727,65 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
 
         {/* Fixed Bottom Footer: Action Buttons always visible */}
         <div
-          className={`shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-t flex flex-wrap items-center justify-end gap-2.5 sm:gap-3 ${
+          className={`shrink-0 px-4 sm:px-6 py-3.5 sm:py-4 border-t flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 ${
             isDark
               ? 'border-slate-800 bg-slate-900/95'
               : 'border-slate-200 bg-slate-50/95'
           }`}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className={`min-h-[42px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition cursor-pointer ${
-              isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
-            }`}
-          >
-            {language === 'es' ? 'Cancelar' : 'Cancel'}
-          </button>
+          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+            {!mediaFile
+              ? language === 'es'
+                ? '⚠️ Adjunta una imagen o video para habilitar el envío'
+                : '⚠️ Attach an image or video to enable submission'
+              : language === 'es'
+              ? '✔ Evidencia lista para envío seguro'
+              : '✔ Evidence ready for secure submission'}
+          </span>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="min-h-[42px] px-5 sm:px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                <span>{language === 'es' ? 'Enviando...' : 'Saving...'}</span>
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" aria-hidden="true" />
-                <span>{language === 'es' ? 'Registrar Reporte' : 'Submit Report'}</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2.5 ml-auto">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className={`min-h-[42px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition cursor-pointer ${
+                isDark
+                  ? 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                  : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
+              }`}
+            >
+              {language === 'es' ? 'Cancelar' : 'Cancel'}
+            </button>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !isFormValid}
+              title={
+                !mediaFile
+                  ? language === 'es'
+                    ? 'Debes adjuntar una imagen o video obligatorio'
+                    : 'You must attach an image or video'
+                  : undefined
+              }
+              className="min-h-[42px] px-5 sm:px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  <span>
+                    {language === 'es'
+                      ? `Enviando (${uploadProgress}%)...`
+                      : `Uploading (${uploadProgress}%)...`}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  <span>{language === 'es' ? 'Enviar Reporte' : 'Submit Report'}</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </ModalPortal>

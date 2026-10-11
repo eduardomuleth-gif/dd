@@ -9,6 +9,7 @@ import {
   onSnapshot,
   query,
   orderBy,
+  limit,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -150,7 +151,7 @@ export function subscribeToFirestoreUsers(
 ): () => void {
   console.log('[Security Urban :: UserService] Suscribiéndose en tiempo real a colección "usuarios"...');
   const usersRef = collection(db, USERS_COLLECTION);
-  const q = query(usersRef);
+  const q = query(usersRef, limit(100));
 
   return onSnapshot(
     q,
@@ -185,7 +186,7 @@ export function subscribeToFirestoreUsers(
 export async function fetchFirestoreUsers(): Promise<{ users: FirestoreUser[]; stats: UserStats }> {
   try {
     const usersRef = collection(db, USERS_COLLECTION);
-    const snapshot = await getDocs(usersRef);
+    const snapshot = await getDocs(query(usersRef, limit(100)));
     const users: FirestoreUser[] = [];
 
     snapshot.forEach((docSnap) => {

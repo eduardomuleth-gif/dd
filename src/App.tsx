@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { User } from 'firebase/auth';
 import { 
   Shield, 
@@ -27,17 +27,36 @@ import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { EmailVerificationView } from './components/EmailVerificationView';
 import { AuthActionHandlerView } from './components/AuthActionHandlerView';
 import { HomeScreen } from './components/HomeScreen';
-import { DashboardScreen } from './components/DashboardScreen';
-import { RiskMapScreen } from './components/RiskMapScreen';
-import { SafeRoutesScreen } from './components/SafeRoutesScreen';
-import { TacticalSupportScreen } from './components/TacticalSupportScreen';
-import { UserManagementScreen } from './components/UserManagementScreen';
-import { SettingsScreen } from './components/SettingsScreen';
-import { MyReportsScreen } from './components/MyReportsScreen';
-import { AlertsScreen } from './components/AlertsScreen';
 import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderView';
-import { TacticalMapModal } from './components/TacticalMapModal';
 import { UserProfileMenu } from './components/UserProfileMenu';
+
+const DashboardScreen = lazy(() =>
+  import('./components/DashboardScreen').then((m) => ({ default: m.DashboardScreen }))
+);
+const RiskMapScreen = lazy(() =>
+  import('./components/RiskMapScreen').then((m) => ({ default: m.RiskMapScreen }))
+);
+const SafeRoutesScreen = lazy(() =>
+  import('./components/SafeRoutesScreen').then((m) => ({ default: m.SafeRoutesScreen }))
+);
+const TacticalSupportScreen = lazy(() =>
+  import('./components/TacticalSupportScreen').then((m) => ({ default: m.TacticalSupportScreen }))
+);
+const UserManagementScreen = lazy(() =>
+  import('./components/UserManagementScreen').then((m) => ({ default: m.UserManagementScreen }))
+);
+const SettingsScreen = lazy(() =>
+  import('./components/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
+const MyReportsScreen = lazy(() =>
+  import('./components/MyReportsScreen').then((m) => ({ default: m.MyReportsScreen }))
+);
+const AlertsScreen = lazy(() =>
+  import('./components/AlertsScreen').then((m) => ({ default: m.AlertsScreen }))
+);
+const TacticalMapModal = lazy(() =>
+  import('./components/TacticalMapModal').then((m) => ({ default: m.TacticalMapModal }))
+);
 import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
 import {
   subscribeToAuth,
@@ -1053,6 +1072,16 @@ const MainScreen: React.FC = () => {
         style={{ paddingTop: headerHeight ? `${headerHeight + 20}px` : undefined }}
         className={`relative w-full ${currentView === 'riskMap' ? 'max-w-[1720px]' : 'max-w-[1440px]'} mx-auto px-3 sm:px-6 lg:px-8 ${headerHeight ? '' : 'pt-20 sm:pt-24 lg:pt-36'} pb-6 sm:pb-12 flex flex-col items-stretch justify-start grow`}
       >
+        <Suspense
+          fallback={
+            <div className="w-full py-20 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
+              <span className="text-xs font-mono uppercase tracking-widest text-slate-400">
+                {language === 'es' ? 'Cargando módulo...' : 'Loading module...'}
+              </span>
+            </div>
+          }
+        >
         {!currentUser.emailVerified && !isEmailVerified ? (
           <EmailVerificationView
             user={currentUser}
@@ -1136,6 +1165,7 @@ const MainScreen: React.FC = () => {
             onOpenTacticalMap={() => setIsTacticalMapOpen(true)}
           />
         )}
+        </Suspense>
       </main>
 
       {/* Mobile & Tablet Bottom Quick-Access Navigation Bar (lg:hidden) */}
@@ -1197,11 +1227,15 @@ const MainScreen: React.FC = () => {
       </nav>
 
       {/* Global Tactical Map Modal */}
-      <TacticalMapModal
-        isOpen={isTacticalMapOpen}
-        onClose={() => setIsTacticalMapOpen(false)}
-        initialFilter="all"
-      />
+      {isTacticalMapOpen && (
+        <Suspense fallback={null}>
+          <TacticalMapModal
+            isOpen={isTacticalMapOpen}
+            onClose={() => setIsTacticalMapOpen(false)}
+            initialFilter="all"
+          />
+        </Suspense>
+      )}
 
       {/* Floating Live Activity Toast Notification (Demo Simulation Mode) */}
       {liveSimulatedToast && (

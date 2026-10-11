@@ -206,7 +206,7 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
 
           <p className="text-sm sm:text-base max-w-md leading-relaxed mb-6 text-theme-muted font-medium">
             {language === 'es'
-              ? 'Solo se muestran los reportes realizados por usuarios y aprobados previamente por el administrador.'
+              ? 'No se registran alertas comunitarias activas en este momento.'
               : t('noAlertsFoundDesc')}
           </p>
 
@@ -258,6 +258,33 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
                 <p className="text-sm sm:text-base text-theme-secondary leading-relaxed mb-4 font-medium break-words">
                   {report.descripcion}
                 </p>
+
+                {report.mediaUrl && (
+                  <div className={`mb-4 rounded-xl overflow-hidden border ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-100'}`}>
+                    {report.mediaType === 'video' ? (
+                      <video
+                        src={report.mediaUrl}
+                        controls
+                        preload="metadata"
+                        className="w-full h-40 object-cover bg-black"
+                      />
+                    ) : (
+                      <a
+                        href={report.mediaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block overflow-hidden"
+                      >
+                        <img
+                          src={report.mediaUrl}
+                          alt={report.titulo}
+                          loading="lazy"
+                          className="w-full h-40 object-cover hover:scale-105 transition-transform duration-300"
+                        />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-mono pt-3 border-t border-slate-200 dark:border-slate-800 mt-auto">
