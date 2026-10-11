@@ -22,6 +22,7 @@ interface AlertsScreenProps {
   onNavigateHome: () => void;
   onNavigateMyReports?: () => void;
   onNavigateRiskMap?: () => void;
+  currentUserRole?: string;
 }
 
 export const AlertsScreen: React.FC<AlertsScreenProps> = ({
@@ -37,22 +38,32 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [feedbackNotice, setFeedbackNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Real-time onSnapshot subscription to verified/accepted reports only
+  // Real-time onSnapshot subscription to verified/accepted reports only with timeout safeguard
   useEffect(() => {
     setIsLoading(true);
+    const loadingTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+
     const unsubscribe = subscribeToPublicAcceptedReports(
       (reports) => {
+        clearTimeout(loadingTimer);
         setAcceptedReports(reports);
         setIsLoading(false);
       },
       (err) => {
+        clearTimeout(loadingTimer);
         console.warn('[Security Urban :: AlertsScreen] Error consultando alertas públicas:', err);
         setIsLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(loadingTimer);
+      unsubscribe();
+    };
   }, []);
 
   const filteredReports = acceptedReports.filter((r) => {
@@ -115,6 +126,28 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Feedback notification banner */}
+      {feedbackNotice && (
+        <div
+          role={feedbackNotice.type === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+          className={`p-3.5 rounded-2xl border text-xs sm:text-sm font-bold flex items-center justify-between shadow-xs ${
+            feedbackNotice.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+              : 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-400'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {feedbackNotice.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+            )}
+            <span>{feedbackNotice.text}</span>
+          </div>
+        </div>
+      )}
 
       {/* Info notice on verification */}
       <div
@@ -307,6 +340,23 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
       <CreateReportModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        onReportCreated={() => {
+          setFeedbackNotice({
+            type: 'success',
+            text:
+              language === 'es'
+                ? '✔ Reporte y evidencia del suceso registrados exitosamente.'
+                : 'Report and incident evidence submitted successfully.',
+          });
+          setTimeout(() => setFeedbackNotice(null), 4000);
+        }}
+        onReportError={(errMsg) => {
+          setFeedbackNotice({
+            type: 'error',
+            text: errMsg,
+          });
+          setTimeout(() => setFeedbackNotice(null), 4500);
+        }}
       />
     </div>
   );

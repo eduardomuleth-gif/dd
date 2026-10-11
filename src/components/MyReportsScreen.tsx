@@ -30,6 +30,7 @@ import {
   updateReportTitleAndDescription,
   updateReportStatusByAdmin,
   deleteReport,
+  createRealTestReport,
 } from '../services/reportService';
 import { CreateReportModal } from './CreateReportModal';
 import { ModalPortal } from './ModalPortal';
@@ -52,12 +53,19 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
   onNavigateRiskMap,
 }) => {
   const { theme, colors } = useTheme();
-  const { language, t, translateCategory, translatePriority, translateStatus } = useLanguage();
+  const { language, t, translateCategory, translatePriority, translateStatus, translateRole } = useLanguage();
   const isDark = theme === 'dark';
-  const isAdmin = currentUserRole === 'administrador';
+  const normalizedRole = String(currentUserRole || 'ciudadano').toLowerCase().trim();
+  const isAdmin = normalizedRole === 'administrador' || normalizedRole === 'operador';
 
-  // Tabs: 'my' = mis reportes, 'adminReview' = panel de revisión admin
+  // Tabs: 'my' = mis reportes, 'adminReview' = panel de gestión (solo administradores/operadores)
   const [activeTab, setActiveTab] = useState<'my' | 'adminReview'>('my');
+
+  useEffect(() => {
+    if (!isAdmin && activeTab === 'adminReview') {
+      setActiveTab('my');
+    }
+  }, [isAdmin, activeTab]);
 
   // Reports data from real-time onSnapshot
   const [userReports, setUserReports] = useState<IncidentReport[]>([]);
@@ -86,7 +94,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
   // Action status messages
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // 1. Subscribe to current user's reports (where uid == currentUserId)
+  // 1. Subscribe to current user's reports (where uid == currentUserId) with timeout safeguard
   useEffect(() => {
     if (!currentUserId) {
       setIsLoading(false);
@@ -94,19 +102,28 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     }
 
     setIsLoading(true);
+    const loadingTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+
     const unsubscribe = subscribeToUserReports(
       currentUserId,
       (reports) => {
+        clearTimeout(loadingTimer);
         setUserReports(reports);
         setIsLoading(false);
       },
       (err) => {
+        clearTimeout(loadingTimer);
         console.warn('[Security Urban :: MyReports] Error en escucha de reportes:', err);
         setIsLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(loadingTimer);
+      unsubscribe();
+    };
   }, [currentUserId]);
 
   // 2. If user is admin, also subscribe to admin review feed
@@ -141,90 +158,174 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     return matchesStatus && matchesSearch;
   });
 
-  // Start in-line editing for title
+  // Start in-line editing for title (strictly restricted to authorized roles)
   const handleStartEdit = (report: IncidentReport) => {
+    if (!isAdmin) {
+      setFeedbackMsg({
+        type: 'error',
+        text:
+          language === 'es'
+            ? 'No tienes permisos de edición sobre reportes registrados.'
+            : 'You do not have permission to edit registered reports.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 3500);
+      return;
+    }
     setEditingReportId(report.id);
     setEditingTitle(report.titulo);
   };
 
-  // Save edited title to Firestore
+  // Save edited title to Firestore with timeout and immediate state closure
   const handleSaveEdit = async (reportId: string) => {
+    if (!isAdmin) {
+      setEditingReportId(null);
+      setFeedbackMsg({
+        type: 'error',
+        text:
+          language === 'es'
+            ? 'No tienes permisos de edición para realizar esta acción.'
+            : 'You do not have edit permissions to perform this action.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 3500);
+      return;
+    }
     if (!editingTitle.trim()) return;
 
     setIsSavingEdit(true);
     try {
-      await updateReportTitleAndDescription(reportId, editingTitle.trim());
+      await Promise.race([
+        updateReportTitleAndDescription(reportId, editingTitle.trim()),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Tiempo de espera agotado al actualizar el reporte.')), 3000)
+        ),
+      ]);
       setFeedbackMsg({
         type: 'success',
-        text: language === 'es' ? 'Título del reporte actualizado con éxito en Firestore.' : 'Report title updated successfully.',
+        text: language === 'es' ? 'Título del reporte actualizado con éxito.' : 'Report title updated successfully.',
       });
-      setEditingReportId(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
     } finally {
+      setEditingReportId(null);
       setIsSavingEdit(false);
-      setTimeout(() => setFeedbackMsg(null), 3000);
+      setTimeout(() => setFeedbackMsg(null), 3500);
     }
   };
 
   // Admin Accept Report
   const handleAdminAccept = async (reportId: string) => {
-    if (!currentUserId) return;
+    if (!isAdmin || !currentUserId) {
+      setFeedbackMsg({
+        type: 'error',
+        text:
+          language === 'es'
+            ? 'Acción restringida: tu rol de Ciudadano solo permite crear y visualizar reportes.'
+            : 'Restricted action: Citizen role can only create and view reports.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 3500);
+      return;
+    }
     setIsProcessingAdminAction(true);
     try {
-      await updateReportStatusByAdmin(reportId, 'aceptado', currentUserId, currentUserEmail);
+      await Promise.race([
+        updateReportStatusByAdmin(reportId, 'aceptado', currentUserId, currentUserEmail),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Tiempo de espera agotado al procesar la acción.')), 3000)
+        ),
+      ]);
       setFeedbackMsg({
         type: 'success',
-        text: language === 'es' ? '✔ Reporte aceptado. Ahora es visible públicamente en el Mapa y Alertas.' : 'Report accepted and published.',
+        text: language === 'es' ? '✔ Reporte aceptado y publicado en el Mapa y Alertas.' : 'Report accepted and published.',
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
     } finally {
       setIsProcessingAdminAction(false);
-      setTimeout(() => setFeedbackMsg(null), 3000);
+      setTimeout(() => setFeedbackMsg(null), 3500);
     }
   };
 
   // Admin Reject Report
   const handleAdminRejectSubmit = async () => {
-    if (!rejectingReportId || !currentUserId) return;
+    const targetReportId = rejectingReportId;
+    if (!isAdmin || !targetReportId || !currentUserId) {
+      setRejectingReportId(null);
+      setRejectReason('');
+      setIsProcessingAdminAction(false);
+      setFeedbackMsg({
+        type: 'error',
+        text:
+          language === 'es'
+            ? 'No tienes permisos de moderación para rechazar reportes.'
+            : 'You do not have moderation permissions to reject reports.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 3500);
+      return;
+    }
+
     setIsProcessingAdminAction(true);
     try {
-      await updateReportStatusByAdmin(rejectingReportId, 'rechazado', currentUserId, currentUserEmail, rejectReason);
+      await Promise.race([
+        updateReportStatusByAdmin(targetReportId, 'rechazado', currentUserId, currentUserEmail, rejectReason),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Tiempo de espera agotado al procesar el rechazo.')), 3000)
+        ),
+      ]);
       setFeedbackMsg({
         type: 'success',
         text: language === 'es' ? 'Reporte marcado como rechazado.' : 'Report marked as rejected.',
       });
-      setRejectingReportId(null);
-      setRejectReason('');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
     } finally {
+      // Always close modal immediately whether action succeeded or failed
+      setRejectingReportId(null);
+      setRejectReason('');
       setIsProcessingAdminAction(false);
-      setTimeout(() => setFeedbackMsg(null), 3000);
+      setTimeout(() => setFeedbackMsg(null), 3500);
     }
   };
 
   // Confirm Delete report via accessible modal
   const handleConfirmDelete = async () => {
-    if (!reportToDelete) return;
+    const targetReport = reportToDelete;
+    if (!isAdmin || !targetReport) {
+      setReportToDelete(null);
+      setIsDeletingReport(false);
+      setFeedbackMsg({
+        type: 'error',
+        text:
+          language === 'es'
+            ? 'No tienes permisos para eliminar reportes del sistema.'
+            : 'You do not have permission to delete reports.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 3500);
+      return;
+    }
+
     setIsDeletingReport(true);
     try {
-      await deleteReport(reportToDelete.id);
+      await Promise.race([
+        deleteReport(targetReport.id),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Tiempo de espera agotado al eliminar el reporte.')), 3000)
+        ),
+      ]);
       setFeedbackMsg({
         type: 'success',
-        text: language === 'es' ? 'Reporte eliminado de Firestore.' : 'Report deleted.',
+        text: language === 'es' ? 'Reporte eliminado correctamente.' : 'Report deleted.',
       });
-      setReportToDelete(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
     } finally {
+      // Always close modal immediately whether action succeeded or failed
+      setReportToDelete(null);
       setIsDeletingReport(false);
-      setTimeout(() => setFeedbackMsg(null), 3000);
+      setTimeout(() => setFeedbackMsg(null), 3500);
     }
   };
 
@@ -251,8 +352,8 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                 COLECCIÓN FIRESTORE // REPORTES
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                ONSNAPSHOT REAL-TIME
+                <ShieldCheck className="w-3.5 h-3.5" />
+                {translateRole(currentUserRole)}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
@@ -261,15 +362,17 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
           </div>
         </div>
 
-        {/* Action Button: Nuevo Reporte */}
-        <button
-          type="button"
-          onClick={() => setIsCreateModalOpen(true)}
-          className="min-h-[42px] px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span>{language === 'es' ? 'Reportar Incidente' : 'Report Incident'}</span>
-        </button>
+        {/* Action Button: Reportar Incidente */}
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="min-h-[42px] px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>{language === 'es' ? 'Reportar Incidente' : 'Report Incident'}</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. Feedback Notification */}
@@ -345,7 +448,11 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
             }`}
           >
             <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span>{language === 'es' ? 'Panel de Verificación Admin' : 'Admin Review Panel'}</span>
+            <span>
+              {language === 'es'
+                ? 'Panel de Gestión y Verificación'
+                : 'Management & Verification Panel'}
+            </span>
             {adminReports.filter((r) => r.estado === 'pendiente').length > 0 && (
               <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-400 text-slate-950">
                 {adminReports.filter((r) => r.estado === 'pendiente').length} PENDIENTES
@@ -615,7 +722,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                             {report.titulo}
                           </h3>
 
-                          {(isOwner || isAdmin) && (
+                          {isAdmin && (
                             <button
                               type="button"
                               onClick={() => handleStartEdit(report)}
@@ -690,10 +797,9 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                     )}
                   </div>
 
-                  {/* Right Column: Actions (Admin review or Owner delete) */}
-                  <div className="flex flex-row md:flex-col items-center md:items-end gap-2 shrink-0 pt-2 md:pt-0">
-                    {/* Admin Verification Controls */}
-                    {isAdmin && activeTab === 'adminReview' && (
+                  {/* Right Column: Actions (Strictly visible ONLY for Admin / Operador roles; hidden for Ciudadano) */}
+                  {isAdmin && (
+                    <div className="flex flex-row md:flex-col items-center md:items-end gap-2 shrink-0 pt-2 md:pt-0">
                       <div className="flex items-center gap-2">
                         {report.estado !== 'aceptado' && (
                           <button
@@ -722,10 +828,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                           </button>
                         )}
                       </div>
-                    )}
 
-                    {/* Owner or Admin Delete */}
-                    {(isOwner || isAdmin) && (
                       <button
                         type="button"
                         onClick={() => setReportToDelete(report)}
@@ -735,8 +838,8 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -744,9 +847,9 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         </div>
       )}
 
-      {/* 6. Admin Reject Reason Modal */}
+      {/* 6. Admin Reject Reason Modal (Strictly gated to Admin/Operador roles) */}
       <ModalPortal
-        isOpen={Boolean(rejectingReportId)}
+        isOpen={isAdmin && Boolean(rejectingReportId)}
         onClose={() => setRejectingReportId(null)}
         disableClose={isProcessingAdminAction}
         maxWidthClass="max-w-md"
@@ -824,9 +927,9 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         </div>
       </ModalPortal>
 
-      {/* 6B. Accessible Delete Confirmation Modal */}
+      {/* 6B. Accessible Delete Confirmation Modal (Strictly gated to Admin/Operador roles) */}
       <ModalPortal
-        isOpen={Boolean(reportToDelete)}
+        isOpen={isAdmin && Boolean(reportToDelete)}
         onClose={() => setReportToDelete(null)}
         disableClose={isDeletingReport}
         maxWidthClass="max-w-md"
@@ -902,9 +1005,19 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         onReportCreated={() => {
           setFeedbackMsg({
             type: 'success',
-            text: language === 'es' ? '✔ Reporte registrado exitosamente con estado PENDIENTE.' : 'Report submitted successfully.',
+            text:
+              language === 'es'
+                ? '✔ Reporte y evidencia del suceso registrados exitosamente.'
+                : 'Report and incident evidence submitted successfully.',
           });
           setTimeout(() => setFeedbackMsg(null), 4000);
+        }}
+        onReportError={(errMsg) => {
+          setFeedbackMsg({
+            type: 'error',
+            text: errMsg,
+          });
+          setTimeout(() => setFeedbackMsg(null), 4500);
         }}
       />
     </div>

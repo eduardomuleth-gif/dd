@@ -147,12 +147,12 @@ export const ModulePlaceholderView: React.FC<ModulePlaceholderViewProps> = ({
       icon: <User className="w-8 h-8 text-red-500" />,
       tag: 'PERFIL // CIUDADANO',
       description: language === 'es'
-        ? 'Gestiona tu información de agente comunal, credenciales de acceso, número de contacto para emergencias y verificación barrial en la Comuna 8.'
-        : 'Manage your community agent profile, access credentials, emergency contact phone, and neighborhood verification in Comuna 8.',
+        ? 'Gestiona tu información de ciudadano, credenciales de acceso, número de contacto para emergencias y verificación barrial en la Comuna 8.'
+        : 'Manage your citizen profile, access credentials, emergency contact phone, and neighborhood verification in Comuna 8.',
       status: 'VERIFICADO',
       bullets: language === 'es'
-        ? ['Rol asignado: Agente Comunal de Monitoreo', 'Sector georreferenciado: Comuna 8 (Villa Hermosa)', 'Estado de seguridad: Verificación en 2 pasos activa']
-        : ['Assigned Role: Community Monitoring Agent', 'Georeferenced Sector: Comuna 8 (Villa Hermosa)', 'Security Status: 2-factor verification active'],
+        ? ['Rol asignado: Ciudadano', 'Sector georreferenciado: Comuna 8 (Villa Hermosa)', 'Estado de seguridad: Verificación en 2 pasos activa']
+        : ['Assigned Role: Citizen', 'Georeferenced Sector: Comuna 8 (Villa Hermosa)', 'Security Status: 2-factor verification active'],
     },
     settings: {
       title: language === 'es' ? 'Configuración y Ajustes' : 'Settings & Preferences',

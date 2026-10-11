@@ -231,10 +231,61 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
   const [zoomLevel, setZoomLevel] = useState<number>(14);
   const [communityAcceptedReports, setCommunityAcceptedReports] = useState<IncidentReport[]>([]);
   const [openCategoryDropdown, setOpenCategoryDropdown] = useState<'high' | 'moderate' | 'central' | null>(null);
-  const [dropdownOpenUpward, setDropdownOpenUpward] = useState<boolean>(false);
+  const [dropdownPosition, setDropdownPosition] = useState<{
+    leftPx: number;
+    widthPx: number;
+    openUpward: boolean;
+  }>({ leftPx: 0, widthPx: 240, openUpward: false });
   const categoryDropdownsContainerRef = useRef<HTMLDivElement | null>(null);
+  const categoryButtonRefs = useRef<Record<'high' | 'moderate' | 'central', HTMLButtonElement | null>>({
+    high: null,
+    moderate: null,
+    central: null,
+  });
 
-  // Close category dropdown on click outside or Escape
+  const computeAdaptiveDropdownPosition = useCallback(
+    (cat: 'high' | 'moderate' | 'central', btnEl: HTMLButtonElement | null) => {
+      if (!btnEl || typeof window === 'undefined') return;
+      const btnRect = btnEl.getBoundingClientRect();
+      const containerRect = categoryDropdownsContainerRef.current?.getBoundingClientRect();
+
+      const minX = Math.max(12, containerRect ? containerRect.left + 8 : 12);
+      const maxX = Math.min(
+        window.innerWidth - 12,
+        containerRect ? containerRect.right - 8 : window.innerWidth - 12
+      );
+      const availableWidth = Math.max(180, maxX - minX);
+      const panelWidth =
+        window.innerWidth < 640
+          ? Math.min(btnRect.width, availableWidth)
+          : Math.min(256, availableWidth);
+
+      let targetViewportLeft = btnRect.left;
+      if (cat === 'moderate') {
+        targetViewportLeft = btnRect.left + (btnRect.width - panelWidth) / 2;
+      } else if (cat === 'central') {
+        targetViewportLeft = btnRect.right - panelWidth;
+      }
+
+      const clampedViewportLeft = Math.max(
+        minX,
+        Math.min(targetViewportLeft, maxX - panelWidth)
+      );
+      const relativeLeftPx = Math.round(clampedViewportLeft - btnRect.left);
+
+      const spaceBelow = window.innerHeight - btnRect.bottom;
+      const openUpward = spaceBelow < 260 && btnRect.top > 260;
+
+      setDropdownPosition({
+        leftPx: relativeLeftPx,
+        widthPx: Math.round(panelWidth),
+        openUpward,
+      });
+    },
+    []
+  );
+
+  // Close category dropdown on click outside or Escape, and recalculate position on resize
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       if (
@@ -249,22 +300,32 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
         setOpenCategoryDropdown(null);
       }
     };
+    const handleResize = () => {
+      if (openCategoryDropdown && categoryButtonRefs.current[openCategoryDropdown]) {
+        computeAdaptiveDropdownPosition(
+          openCategoryDropdown,
+          categoryButtonRefs.current[openCategoryDropdown]
+        );
+      }
+    };
     document.addEventListener('mousedown', handleOutsideClick);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleResize, { passive: true });
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [openCategoryDropdown, computeAdaptiveDropdownPosition]);
 
   const handleToggleCategoryDropdown = useCallback(
     (cat: 'high' | 'moderate' | 'central', e: React.MouseEvent<HTMLButtonElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      setDropdownOpenUpward(spaceBelow < 270 && rect.top > 280);
+      const btnEl = e.currentTarget;
+      categoryButtonRefs.current[cat] = btnEl;
+      computeAdaptiveDropdownPosition(cat, btnEl);
       setOpenCategoryDropdown((prev) => (prev === cat ? null : cat));
     },
-    []
+    [computeAdaptiveDropdownPosition]
   );
 
   // Subscribe to real approved community alerts from Firestore
@@ -1041,23 +1102,43 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
         </div>
       </div>
 
-      {/* 2. Mandatory Citizen Disclaimer Banner exclusively for Comuna 8 */}
-      <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/50 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 backdrop-blur-md shadow-xs">
-        <Info className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-        <div className="flex-1 text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
-          <span className="font-bold text-amber-900 dark:text-amber-300">{t('disclaimerTitle')}</span>{' '}
-          {t('disclaimerText')}{' '}
-          <a
-            href="https://www.medellin.gov.co/sisc/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-amber-800 dark:text-amber-300 font-bold underline hover:text-amber-950 dark:hover:text-amber-200 inline-flex items-center gap-1"
-          >
-            {t('siscLinkText')}
-            <ExternalLink className="w-4 h-4 ml-0.5 inline" />
-          </a>
-          .
+      {/* 2. Información Descriptiva del Sector & Recomendaciones Internas del Equipo */}
+      <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 backdrop-blur-md shadow-xs">
+        <div className="flex items-start gap-3.5 flex-1 min-w-0">
+          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className="font-bold text-slate-900 dark:text-white uppercase font-['Rajdhani'] tracking-wider text-sm sm:text-base">
+                {selectedSector
+                  ? `${language === 'es' ? 'Guía Preventiva del Sector:' : 'Sector Preventive Guide:'} ${selectedSector.name}`
+                  : t('disclaimerTitle')}
+              </span>
+              {selectedSector && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 border border-cyan-500/30">
+                  {selectedSector.quadrant}
+                </span>
+              )}
+            </div>
+            <p className="font-medium text-slate-600 dark:text-slate-300">
+              {selectedSector
+                ? `${selectedSector.contextNote} ${selectedSector.citizenAdvice}`
+                : t('disclaimerText')}
+            </p>
+          </div>
         </div>
+
+        {selectedSector?.recommendedCorridor && (
+          <div className="px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 shrink-0 max-w-full md:max-w-xs">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
+              {language === 'es' ? 'Recomendación Interna de Ruta' : 'Internal Corridor Recommendation'}
+            </span>
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5 block truncate">
+              {selectedSector.recommendedCorridor}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 3. Main Tactical Map Display (Left) & Sector Informative + Transit Recommendations Panel (Right) */}
@@ -1258,6 +1339,9 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                 return (
                   <div key={catGroup.id} className="relative min-w-0">
                     <button
+                      ref={(el) => {
+                        categoryButtonRefs.current[catGroup.id] = el;
+                      }}
                       type="button"
                       id={`select-sector-${catGroup.id === 'central' ? 'low' : catGroup.id}`}
                       aria-haspopup="listbox"
@@ -1285,14 +1369,18 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                       />
                     </button>
 
-                    {/* Boundary-Constrained Dropdown List with Internal Scroll (max-h-60 overflow-y-auto) */}
+                    {/* Adaptive Viewport-Clamped Dropdown List with Internal Scroll (max-h-56 overflow-y-auto) */}
                     {isOpen && (
                       <div
                         role="listbox"
                         aria-label={language === 'es' ? catGroup.titleEs : catGroup.titleEn}
-                        className={`absolute ${catGroup.alignmentClass} ${
-                          dropdownOpenUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-                        } z-50 w-full sm:w-64 max-w-[calc(100vw-2rem)] rounded-xl border ${
+                        style={{
+                          left: `${dropdownPosition.leftPx}px`,
+                          width: `${dropdownPosition.widthPx}px`,
+                        }}
+                        className={`absolute ${
+                          dropdownPosition.openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                        } z-50 rounded-xl border ${
                           catGroup.menuBorderClass
                         } bg-white dark:bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in duration-150`}
                       >
@@ -1308,7 +1396,7 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                           <span>{catGroup.sectors.length} sectores</span>
                         </div>
 
-                        <ul className="max-h-60 overflow-y-auto overscroll-contain divide-y divide-slate-100 dark:divide-slate-800/70 p-1">
+                        <ul className="max-h-56 overflow-y-auto overscroll-contain divide-y divide-slate-100 dark:divide-slate-800/70 p-1 tactical-scrollbar">
                           {catGroup.sectors.map((sec) => {
                             const isSelected = selectedSector?.id === sec.id;
                             return (
@@ -1607,7 +1695,7 @@ export const RiskMapScreen: React.FC<RiskMapScreenProps> = ({
                           );
                         }).length
                       }{' '}
-                      {language === 'es' ? 'alertas aprobadas' : 'approved alerts'}
+                      {language === 'es' ? 'alertas activas' : 'active alerts'}
                     </span>
                   </div>
 

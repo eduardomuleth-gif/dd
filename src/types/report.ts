@@ -63,6 +63,7 @@ export interface CreateReportInput {
     lng: number;
   };
   nivelPrioridad: ReportPriority;
+  estadoInicial?: ReportStatus;
   mediaFile?: File | null;
   mediaUrl?: string;
   mediaType?: ReportMediaType;

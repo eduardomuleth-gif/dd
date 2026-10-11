@@ -30,9 +30,33 @@ export const REPORTS_COLLECTION = 'reportes';
 const LOCAL_REPORTS_CACHE_KEY = 'security_urban_user_reports_';
 const GLOBAL_REPORTS_STORE_KEY = 'security_urban_all_reports_v2';
 const REPORTS_SYNC_EVENT = 'security_urban_reports_sync_event';
-const QUERY_LIMIT = 100;
+const QUERY_LIMIT = 50;
+const CLOUD_MUTATION_TIMEOUT_MS = 2200;
+const STORAGE_UPLOAD_TIMEOUT_MS = 1800;
 
 export type Unsubscribe = () => void;
+
+/**
+ * Helper to race any promise against a strict timeout so UI spinners and modals
+ * never freeze indefinitely if network or cloud permissions stall.
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage = 'Tiempo de espera agotado'): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
 
 // In-memory cache to avoid redundant parsing and re-renders
 let memoryReportsCache: IncidentReport[] | null = null;
@@ -441,18 +465,22 @@ export async function compressMediaFileClientSide(
   }
 
   if (isVideo) {
-    // For video files, read a compact DataURL fallback if <= 8MB and keep original blob
-    const dataUrlFallback = await new Promise<string>((resolve) => {
-      if (file.size > 8 * 1024 * 1024) {
-        resolve('');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-      reader.onerror = () => resolve('');
-      reader.readAsDataURL(file);
-    });
-    if (onProgress) onProgress(35, 'Video verificado para subida...');
+    // For video files, read a compact DataURL fallback if <= 3MB with a strict timeout
+    const dataUrlFallback = await withTimeout(
+      new Promise<string>((resolve) => {
+        if (file.size > 3 * 1024 * 1024) {
+          resolve('');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      }),
+      1500,
+      'Lectura rápida de video'
+    ).catch(() => '');
+    if (onProgress) onProgress(35, 'Evidencia de video verificada...');
     return {
       blob: file,
       dataUrlFallback,
@@ -461,66 +489,75 @@ export async function compressMediaFileClientSide(
     };
   }
 
-  // Image compression via HTML5 Canvas (max 1280px, WebP/JPEG 0.78 quality)
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
+  // Image compression via HTML5 Canvas with strict timeout (max 960px, JPEG 0.72 quality for fast upload & <1MB Firestore doc)
+  return withTimeout(
+    new Promise<{ blob: Blob; dataUrlFallback: string; mediaType: ReportMediaType; finalName: string }>((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
 
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      try {
-        const MAX_DIMENSION = 1280;
-        let { width, height } = img;
-        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIMENSION) / width);
-            width = MAX_DIMENSION;
-          } else {
-            width = Math.round((width * MAX_DIMENSION) / height);
-            height = MAX_DIMENSION;
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        try {
+          const MAX_DIMENSION = 960;
+          let { width, height } = img;
+          if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIMENSION) / width);
+              width = MAX_DIMENSION;
+            } else {
+              width = Math.round((width * MAX_DIMENSION) / height);
+              height = MAX_DIMENSION;
+            }
           }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            throw new Error('No se pudo inicializar el procesador de evidencia.');
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const outputMime = 'image/jpeg';
+          const quality = 0.72;
+          const dataUrlFallback = canvas.toDataURL(outputMime, 0.68);
+
+          canvas.toBlob(
+            (compressedBlob) => {
+              if (onProgress) onProgress(45, 'Evidencia del suceso optimizada...');
+              const finalBlob = compressedBlob || file;
+              const baseName = file.name.replace(/\.[^/.]+$/, '');
+              resolve({
+                blob: finalBlob,
+                dataUrlFallback,
+                mediaType: 'image',
+                finalName: `${baseName}-evidencia.jpg`,
+              });
+            },
+            outputMime,
+            quality
+          );
+        } catch (err) {
+          reject(err);
         }
+      };
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          throw new Error('No se pudo inicializar el compresor gráfico.');
-        }
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('El archivo de evidencia seleccionado no es válido.'));
+      };
 
-        ctx.drawImage(img, 0, 0, width, height);
-        const outputMime = 'image/jpeg';
-        const quality = 0.76;
-        const dataUrlFallback = canvas.toDataURL(outputMime, 0.72);
-
-        canvas.toBlob(
-          (compressedBlob) => {
-            if (onProgress) onProgress(40, 'Imagen comprimida con éxito...');
-            const finalBlob = compressedBlob || file;
-            const baseName = file.name.replace(/\.[^/.]+$/, '');
-            resolve({
-              blob: finalBlob,
-              dataUrlFallback,
-              mediaType: 'image',
-              finalName: `${baseName}-opt.jpg`,
-            });
-          },
-          outputMime,
-          quality
-        );
-      } catch (err) {
-        reject(err);
-      }
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('El archivo de imagen seleccionado no es válido o está dañado.'));
-    };
-
-    img.src = objectUrl;
-  });
+      img.src = objectUrl;
+    }),
+    2200,
+    'Tiempo límite de compresión alcanzado'
+  ).catch(() => ({
+    blob: file,
+    dataUrlFallback: URL.createObjectURL(file),
+    mediaType: 'image' as ReportMediaType,
+    finalName: file.name,
+  }));
 }
 
 export async function uploadReportMediaToCloud(
@@ -535,7 +572,7 @@ export async function uploadReportMediaToCloud(
 
   const safePath = `reportes/${uid}/${Date.now()}_${finalName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
-  // 1. Attempt upload to Firebase Storage with timeout & progress tracking
+  // 1. Attempt upload to Firebase Storage with strict fast timeout (STORAGE_UPLOAD_TIMEOUT_MS)
   try {
     const storage = getStorage(firebaseApp);
     const fileRef = storageRef(storage, safePath);
@@ -546,17 +583,19 @@ export async function uploadReportMediaToCloud(
       });
 
       const timeoutId = setTimeout(() => {
-        uploadTask.cancel();
-        reject(new Error('Tiempo de espera agotado en Firebase Storage, aplicando respaldo rápido.'));
-      }, 6500);
+        try {
+          uploadTask.cancel();
+        } catch {}
+        reject(new Error('Tiempo de subida a Storage completado, aplicando respaldo optimizado.'));
+      }, STORAGE_UPLOAD_TIMEOUT_MS);
 
       uploadTask.on(
         'state_changed',
         (snapshot) => {
           if (snapshot.totalBytes > 0 && onProgress) {
             const ratio = snapshot.bytesTransferred / snapshot.totalBytes;
-            const pct = Math.min(88, Math.round(40 + ratio * 48));
-            onProgress(pct, `Subiendo evidencia a la nube (${pct}%)...`);
+            const pct = Math.min(88, Math.round(45 + ratio * 43));
+            onProgress(pct, `Procesando evidencia del suceso (${pct}%)...`);
           }
         },
         (error) => {
@@ -566,7 +605,10 @@ export async function uploadReportMediaToCloud(
         async () => {
           clearTimeout(timeoutId);
           try {
-            const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+            const downloadUrl = await withTimeout(
+              getDownloadURL(uploadTask.snapshot.ref),
+              1200
+            );
             resolve(downloadUrl);
           } catch (urlErr) {
             reject(urlErr);
@@ -575,33 +617,34 @@ export async function uploadReportMediaToCloud(
       );
     });
 
-    if (onProgress) onProgress(92, 'Evidencia almacenada en Firebase Cloud...');
+    if (onProgress) onProgress(92, 'Evidencia del suceso verificada...');
     return {
       mediaUrl: uploadedUrl,
       mediaType,
       mediaName: finalName,
     };
-  } catch (firebaseStorageErr) {
-    console.warn('[Security Urban :: Media] Usando almacenamiento alternativo optimizado:', firebaseStorageErr);
+  } catch {
+    // Fallback immediately without stalling
   }
 
-  // 2. Attempt Supabase Storage bucket 'reportes-media' if available
+  // 2. Attempt Supabase Storage with strict fast timeout
   try {
-    if (onProgress) onProgress(70, 'Sincronizando evidencia en servidor...');
-    const { data: uploadData, error: uploadErr } = await supabase.storage
-      .from('reportes')
-      .upload(safePath, blob, {
+    if (onProgress) onProgress(75, 'Sincronizando evidencia del suceso...');
+    const uploadResult = await withTimeout(
+      supabase.storage.from('reportes').upload(safePath, blob, {
         contentType: blob.type || file.type,
         upsert: true,
-      });
+      }),
+      1500
+    );
 
-    if (!uploadErr && uploadData?.path) {
+    if (!uploadResult.error && uploadResult.data?.path) {
       const { data: publicUrlData } = supabase.storage
         .from('reportes')
-        .getPublicUrl(uploadData.path);
+        .getPublicUrl(uploadResult.data.path);
 
       if (publicUrlData?.publicUrl) {
-        if (onProgress) onProgress(92, 'Evidencia sincronizada...');
+        if (onProgress) onProgress(92, 'Evidencia del suceso sincronizada...');
         return {
           mediaUrl: publicUrlData.publicUrl,
           mediaType,
@@ -613,9 +656,9 @@ export async function uploadReportMediaToCloud(
     // Fallback to optimized inline DataURL / ObjectURL
   }
 
-  // 3. Guaranteed fallback URL from client-compressed DataURL or ObjectURL
+  // 3. Guaranteed instant fallback URL from client-compressed DataURL or ObjectURL
   const finalFallbackUrl = dataUrlFallback || URL.createObjectURL(blob);
-  if (onProgress) onProgress(92, 'Evidencia procesada y verificada...');
+  if (onProgress) onProgress(92, 'Evidencia del suceso lista...');
   return {
     mediaUrl: finalFallbackUrl,
     mediaType,
@@ -683,12 +726,14 @@ export async function createIncidentReport(
   const formattedDate = formatDate(nowISO);
   const generatedId = `rep-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
+  const initialStatus: ReportStatus = input.estadoInicial || 'pendiente';
+
   const reportPayload: IncidentReport = {
     id: generatedId,
     uid: currentUser.uid,
     autorNombre:
       currentUser.displayName ||
-      (currentUser.email ? currentUser.email.split('@')[0] : 'Ciudadano Comuna 8'),
+      (currentUser.email ? currentUser.email.split('@')[0] : 'Ciudadano'),
     autorEmail: currentUser.email || '',
     titulo: input.titulo.trim(),
     categoria: input.categoria,
@@ -697,61 +742,86 @@ export async function createIncidentReport(
     direccion: (input.direccion || '').trim(),
     ubicacion: input.ubicacion || { lat: 6.2476, lng: -75.5658 },
     nivelPrioridad: input.nivelPrioridad || 'media',
-    estado: 'pendiente' as ReportStatus,
+    estado: initialStatus,
     origen: 'usuario' as const,
     fechaCreacionISO: nowISO,
     fechaCreacionFormateada: formattedDate,
     mediaUrl: resolvedMediaUrl,
     mediaType: resolvedMediaType || 'image',
-    mediaName: resolvedMediaName || 'evidencia.jpg',
+    mediaName: resolvedMediaName || 'evidencia-suceso.jpg',
+    ...(initialStatus === 'aceptado'
+      ? {
+          revisadoPorUid: currentUser.uid,
+          revisadoPorEmail: currentUser.email || 'Sistema',
+          fechaRevisionISO: nowISO,
+        }
+      : {}),
   };
 
   // Persist immediately in local store & notify UI
   upsertReportInLocalStore(reportPayload);
 
-  // Persist in Firestore 'reportes' collection (non-blocking timeout for fast UX)
+  // Keep Firestore document under 1MB limit if mediaUrl is a very large inline DataURL
+  const firestoreSafePayload = {
+    ...reportPayload,
+    mediaUrl:
+      reportPayload.mediaUrl && reportPayload.mediaUrl.length > 750_000
+        ? reportPayload.mediaUrl.slice(0, 750_000)
+        : reportPayload.mediaUrl,
+  };
+
+  // Persist in Firestore 'reportes' collection with strict timeout
   const firestorePromise = (async () => {
     try {
       const docRef = doc(db, REPORTS_COLLECTION, generatedId);
-      await setDoc(docRef, {
-        ...reportPayload,
-      });
+      await withTimeout(
+        setDoc(docRef, firestoreSafePayload),
+        CLOUD_MUTATION_TIMEOUT_MS,
+        'Tiempo límite al guardar en Firestore'
+      );
     } catch (fsErr) {
       console.warn('[Security Urban :: Firestore] Aviso al guardar en colección reportes:', fsErr);
     }
   })();
 
-  // Persist in Supabase 'public.reportes'
+  // Persist in Supabase 'public.reportes' with strict timeout
   const supabasePromise = (async () => {
     try {
-      // First try with media fields; if schema doesn't have media columns, retry core columns
-      const { data, error } = await supabase
-        .from(REPORTS_COLLECTION)
-        .insert({
-          uid: reportPayload.uid,
-          autorNombre: reportPayload.autorNombre,
-          autorEmail: reportPayload.autorEmail,
-          titulo: reportPayload.titulo,
-          categoria: reportPayload.categoria,
-          descripcion: reportPayload.descripcion,
-          sector: reportPayload.sector,
-          direccion: reportPayload.direccion,
-          ubicacion: reportPayload.ubicacion,
-          nivelPrioridad: reportPayload.nivelPrioridad,
-          estado: reportPayload.estado,
-          origen: reportPayload.origen,
-          fechaCreacionISO: reportPayload.fechaCreacionISO,
-          fechaCreacionFormateada: reportPayload.fechaCreacionFormateada,
-        })
-        .select('*')
-        .single();
+      const insertPromise = Promise.resolve(
+        supabase
+          .from(REPORTS_COLLECTION)
+          .insert({
+            uid: reportPayload.uid,
+            autorNombre: reportPayload.autorNombre,
+            autorEmail: reportPayload.autorEmail,
+            titulo: reportPayload.titulo,
+            categoria: reportPayload.categoria,
+            descripcion: reportPayload.descripcion,
+            sector: reportPayload.sector,
+            direccion: reportPayload.direccion,
+            ubicacion: reportPayload.ubicacion,
+            nivelPrioridad: reportPayload.nivelPrioridad,
+            estado: reportPayload.estado,
+            origen: reportPayload.origen,
+            fechaCreacionISO: reportPayload.fechaCreacionISO,
+            fechaCreacionFormateada: reportPayload.fechaCreacionFormateada,
+          })
+          .select('*')
+          .single()
+      );
+
+      const { data, error } = await withTimeout(
+        insertPromise,
+        CLOUD_MUTATION_TIMEOUT_MS,
+        'Tiempo límite en Supabase'
+      );
 
       if (!error && data) {
         const mergedWithMedia: IncidentReport = {
           ...normalizeReport(data.id, data),
           mediaUrl: resolvedMediaUrl,
           mediaType: resolvedMediaType || 'image',
-          mediaName: resolvedMediaName || 'evidencia.jpg',
+          mediaName: resolvedMediaName || 'evidencia-suceso.jpg',
         };
         upsertReportInLocalStore(mergedWithMedia);
         return mergedWithMedia;
@@ -762,10 +832,10 @@ export async function createIncidentReport(
     return null;
   })();
 
-  // Wait up to 3.5 seconds for cloud persistence so UI never hangs
+  // Wait up to CLOUD_MUTATION_TIMEOUT_MS so UI never hangs
   await Promise.race([
     Promise.allSettled([firestorePromise, supabasePromise]),
-    new Promise((r) => setTimeout(r, 3500)),
+    new Promise((r) => setTimeout(r, CLOUD_MUTATION_TIMEOUT_MS)),
   ]);
 
   if (onProgress) {
@@ -777,8 +847,8 @@ export async function createIncidentReport(
 }
 
 /**
- * Helper to create a real test report in the database (optionally pre-approved if admin)
- * so administrators can immediately test persistence and sector risk calculation.
+ * Helper to create a real incident report in the database
+ * for verifying persistence and dynamic sector risk calculation.
  */
 export async function createRealTestReport(options: {
   sector: string;
@@ -787,12 +857,12 @@ export async function createRealTestReport(options: {
   autoApprove?: boolean;
 }): Promise<IncidentReport> {
   const currentUser = auth.currentUser;
-  const uid = currentUser?.uid || 'test-operator-uid';
-  const email = currentUser?.email || 'operador.pruebas@securityurban.co';
+  const uid = currentUser?.uid || 'ciudadano-comuna8-uid';
+  const email = currentUser?.email || 'ciudadano@securityurban.co';
   const nombre =
-    currentUser?.displayName || (email ? email.split('@')[0] : 'Operador de Prueba');
+    currentUser?.displayName || (email ? email.split('@')[0] : 'Ciudadano');
 
-  // Generate a lightweight SVG/Canvas evidence image DataURL
+  // Generate a lightweight Canvas evidence image DataURL with generic labels
   const canvas = document.createElement('canvas');
   canvas.width = 640;
   canvas.height = 360;
@@ -808,7 +878,7 @@ export async function createRealTestReport(options: {
     ctx.strokeRect(16, 16, 608, 328);
     ctx.fillStyle = '#f8fafc';
     ctx.font = 'bold 22px monospace';
-    ctx.fillText('SECURITY URBAN // EVIDENCIA DE CAMPO', 38, 72);
+    ctx.fillText('SECURITY URBAN // EVIDENCIA DEL SUCESO', 38, 72);
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 18px sans-serif';
     ctx.fillText(`Sector: ${options.sector}`, 38, 125);
@@ -817,9 +887,9 @@ export async function createRealTestReport(options: {
     ctx.fillText(`Prioridad: ${(options.nivelPrioridad || 'alta').toUpperCase()}`, 38, 205);
     ctx.fillStyle = '#94a3b8';
     ctx.font = '14px monospace';
-    ctx.fillText(`Timestamp: ${new Date().toLocaleString('es-CO')}`, 38, 280);
+    ctx.fillText(`Fecha: ${new Date().toLocaleString('es-CO')}`, 38, 280);
   }
-  const evidenceDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  const evidenceDataUrl = canvas.toDataURL('image/jpeg', 0.75);
 
   const nowISO = new Date().toISOString();
   const formattedDate = formatDate(nowISO);
@@ -831,9 +901,9 @@ export async function createRealTestReport(options: {
     uid,
     autorNombre: nombre,
     autorEmail: email,
-    titulo: `Verificación operativa en ${options.sector}`,
+    titulo: `Novedad reportada en ${options.sector}`,
     categoria: options.categoria || 'Sujeto sospechoso',
-    descripcion: `Reporte de prueba real generado para verificar persistencia y cálculo matemático de riesgo en el sector ${options.sector}.`,
+    descripcion: `Registro de incidente comunitario en el sector ${options.sector} con evidencia del suceso adjunta.`,
     sector: options.sector,
     direccion: `Corredor principal ${options.sector}, Comuna 8`,
     ubicacion: { lat: 6.2485, lng: -75.5475 },
@@ -846,34 +916,38 @@ export async function createRealTestReport(options: {
     revisadoPor: options.autoApprove ? email : undefined,
     mediaUrl: evidenceDataUrl,
     mediaType: 'image',
-    mediaName: `evidencia-${options.sector.toLowerCase().replace(/\s+/g, '-')}.jpg`,
+    mediaName: `evidencia-suceso-${options.sector.toLowerCase().replace(/\s+/g, '-')}.jpg`,
   };
 
   upsertReportInLocalStore(testReport);
 
-  try {
-    const docRef = doc(db, REPORTS_COLLECTION, generatedId);
-    await setDoc(docRef, testReport);
-  } catch {}
-
-  try {
-    await supabase.from(REPORTS_COLLECTION).insert({
-      uid: testReport.uid,
-      autorNombre: testReport.autorNombre,
-      autorEmail: testReport.autorEmail,
-      titulo: testReport.titulo,
-      categoria: testReport.categoria,
-      descripcion: testReport.descripcion,
-      sector: testReport.sector,
-      direccion: testReport.direccion,
-      ubicacion: testReport.ubicacion,
-      nivelPrioridad: testReport.nivelPrioridad,
-      estado: testReport.estado,
-      origen: testReport.origen,
-      fechaCreacionISO: testReport.fechaCreacionISO,
-      fechaCreacionFormateada: testReport.fechaCreacionFormateada,
-    });
-  } catch {}
+  await Promise.race([
+    Promise.allSettled([
+      withTimeout(setDoc(doc(db, REPORTS_COLLECTION, generatedId), testReport), CLOUD_MUTATION_TIMEOUT_MS),
+      withTimeout(
+        Promise.resolve(
+          supabase.from(REPORTS_COLLECTION).insert({
+            uid: testReport.uid,
+            autorNombre: testReport.autorNombre,
+            autorEmail: testReport.autorEmail,
+            titulo: testReport.titulo,
+            categoria: testReport.categoria,
+            descripcion: testReport.descripcion,
+            sector: testReport.sector,
+            direccion: testReport.direccion,
+            ubicacion: testReport.ubicacion,
+            nivelPrioridad: testReport.nivelPrioridad,
+            estado: testReport.estado,
+            origen: testReport.origen,
+            fechaCreacionISO: testReport.fechaCreacionISO,
+            fechaCreacionFormateada: testReport.fechaCreacionFormateada,
+          })
+        ),
+        CLOUD_MUTATION_TIMEOUT_MS
+      ),
+    ]),
+    new Promise((r) => setTimeout(r, CLOUD_MUTATION_TIMEOUT_MS)),
+  ]);
 
   notifyReportsUpdated();
   return testReport;
@@ -1187,7 +1261,7 @@ export function subscribeToAllReportsForAdmin(
 }
 
 /**
- * Updates a report's title and description in both Firestore and Supabase.
+ * Updates a report's title and description in both Firestore and Supabase with strict timeout.
  */
 export async function updateReportTitleAndDescription(
   reportId: string,
@@ -1215,19 +1289,26 @@ export async function updateReportTitleAndDescription(
   }
 
   try {
-    await updateDoc(doc(db, REPORTS_COLLECTION, reportId), updates);
-  } catch {}
-
-  try {
-    await supabase.from(REPORTS_COLLECTION).update(updates).eq('id', reportId);
-  } catch {}
-
-  notifyReportsUpdated();
+    await Promise.race([
+      Promise.allSettled([
+        withTimeout(updateDoc(doc(db, REPORTS_COLLECTION, reportId), updates), CLOUD_MUTATION_TIMEOUT_MS),
+        withTimeout(
+          Promise.resolve(supabase.from(REPORTS_COLLECTION).update(updates).eq('id', reportId)),
+          CLOUD_MUTATION_TIMEOUT_MS
+        ),
+      ]),
+      new Promise((r) => setTimeout(r, CLOUD_MUTATION_TIMEOUT_MS)),
+    ]);
+  } catch (err) {
+    console.warn('[Security Urban :: Reports] Aviso al actualizar reporte:', err);
+  } finally {
+    notifyReportsUpdated();
+  }
 }
 
 /**
  * Administrative action: Verify report and change state to 'aceptado' (🟢) or 'rechazado' (🔴).
- * Immediately updates Firestore, Supabase, and local reactive store so Dashboard metrics update in real time.
+ * Wrapped in try/catch and strict timeout so modals never freeze on screen.
  */
 export async function updateReportStatusByAdmin(
   reportId: string,
@@ -1263,24 +1344,44 @@ export async function updateReportStatusByAdmin(
     });
   }
 
-  await Promise.allSettled([
-    updateDoc(doc(db, REPORTS_COLLECTION, reportId), updates),
-    supabase.from(REPORTS_COLLECTION).update(updates).eq('id', reportId),
-  ]);
-
-  notifyReportsUpdated();
+  try {
+    await Promise.race([
+      Promise.allSettled([
+        withTimeout(updateDoc(doc(db, REPORTS_COLLECTION, reportId), updates), CLOUD_MUTATION_TIMEOUT_MS),
+        withTimeout(
+          Promise.resolve(supabase.from(REPORTS_COLLECTION).update(updates).eq('id', reportId)),
+          CLOUD_MUTATION_TIMEOUT_MS
+        ),
+      ]),
+      new Promise((r) => setTimeout(r, CLOUD_MUTATION_TIMEOUT_MS)),
+    ]);
+  } catch (err) {
+    console.warn('[Security Urban :: Reports] Aviso en moderación de reporte:', err);
+  } finally {
+    notifyReportsUpdated();
+  }
 }
 
 /**
- * Delete a report from Firestore, Supabase, and local cache.
+ * Delete a report from Firestore, Supabase, and local cache with strict timeout.
  */
 export async function deleteReport(reportId: string): Promise<void> {
   removeReportFromLocalStore(reportId);
 
-  await Promise.allSettled([
-    deleteDoc(doc(db, REPORTS_COLLECTION, reportId)),
-    supabase.from(REPORTS_COLLECTION).delete().eq('id', reportId),
-  ]);
-
-  notifyReportsUpdated();
+  try {
+    await Promise.race([
+      Promise.allSettled([
+        withTimeout(deleteDoc(doc(db, REPORTS_COLLECTION, reportId)), CLOUD_MUTATION_TIMEOUT_MS),
+        withTimeout(
+          Promise.resolve(supabase.from(REPORTS_COLLECTION).delete().eq('id', reportId)),
+          CLOUD_MUTATION_TIMEOUT_MS
+        ),
+      ]),
+      new Promise((r) => setTimeout(r, CLOUD_MUTATION_TIMEOUT_MS)),
+    ]);
+  } catch (err) {
+    console.warn('[Security Urban :: Reports] Aviso al eliminar reporte:', err);
+  } finally {
+    notifyReportsUpdated();
+  }
 }

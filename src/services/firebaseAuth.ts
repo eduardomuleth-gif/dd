@@ -193,6 +193,21 @@ export const db: Firestore = (() => {
   }
 })();
 
+function withAuthTimeout<T>(promise: Promise<T>, ms = 2200): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Firestore timeout')), ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 console.log('[Security Urban :: Firebase] SDK inicializado con proyecto:', firebaseConfig.projectId);
 
 /**
@@ -209,10 +224,10 @@ export async function executeSignIn(
     const user = userCredential.user;
     console.log('[Firebase Auth] ✔ Autenticación exitosa para:', user.email, `(UID: ${user.uid}, emailVerified: ${user.emailVerified})`);
 
-    // Requirement 3: Consultar Firestore y verificar estado 'suspendido'
+    // Requirement 3: Consultar Firestore y verificar estado 'suspendido' con límite de tiempo
     try {
       const userDocRef = doc(db, 'usuarios', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
+      const userDocSnap = await withAuthTimeout(getDoc(userDocRef), 2000);
 
       if (userDocSnap.exists()) {
         const userData = userDocSnap.data();
@@ -222,23 +237,38 @@ export async function executeSignIn(
           return { user: null, error: 'ACCOUNT_SUSPENDED' };
         }
 
-        // Update last access timestamp
-        updateDoc(userDocRef, { ultimoAcceso: new Date().toISOString() }).catch(() => {});
-        return { user, error: null, role: userData.rol || 'ciudadano' };
+        const rawRole = String(userData.rol || '').toLowerCase().trim();
+        const normalizedRole =
+          rawRole === 'administrador'
+            ? 'administrador'
+            : rawRole === 'operador'
+            ? 'operador'
+            : 'ciudadano';
+
+        // Update last access timestamp (and normalize legacy role if needed)
+        const updates: Record<string, any> = { ultimoAcceso: new Date().toISOString() };
+        if (userData.rol !== normalizedRole) {
+          updates.rol = normalizedRole;
+        }
+        updateDoc(userDocRef, updates).catch(() => {});
+        return { user, error: null, role: normalizedRole };
       } else {
-        // Self-healing: existing auth user without firestore doc yet
-        const defaultRole = email.toLowerCase().includes('admin') ? 'administrador' : 'ciudadano';
-        await setDoc(userDocRef, {
-          uid: user.uid,
-          nombre: user.displayName || email.split('@')[0],
-          correo: email.trim().toLowerCase(),
-          fechaRegistro: serverTimestamp(),
-          fechaRegistroISO: new Date().toISOString(),
-          rol: defaultRole,
-          estado: 'activo',
-          sector: 'Comuna 8 - No especificado',
-          ultimoAcceso: new Date().toISOString(),
-        });
+        // Self-healing: existing auth user without firestore doc yet -> default role is 'ciudadano'
+        const defaultRole = 'ciudadano';
+        await withAuthTimeout(
+          setDoc(userDocRef, {
+            uid: user.uid,
+            nombre: user.displayName || email.split('@')[0],
+            correo: email.trim().toLowerCase(),
+            fechaRegistro: serverTimestamp(),
+            fechaRegistroISO: new Date().toISOString(),
+            rol: defaultRole,
+            estado: 'activo',
+            sector: 'Comuna 8 - No especificado',
+            ultimoAcceso: new Date().toISOString(),
+          }),
+          2000
+        ).catch(() => {});
         return { user, error: null, role: defaultRole };
       }
     } catch (firestoreErr) {
@@ -383,23 +413,25 @@ export async function executeSignUp(
       }
     }
 
-    // Requirement 1: Complementary record in Firestore 'usuarios' collection
+    // Requirement 1: Complementary record in Firestore 'usuarios' collection with default role 'ciudadano'
     try {
       const userDocRef = doc(db, 'usuarios', user.uid);
-      const isInitialAdmin = email.toLowerCase().includes('admin');
       const now = new Date();
-      await setDoc(userDocRef, {
-        uid: user.uid,
-        nombre: displayName.trim() || email.split('@')[0],
-        correo: email.trim().toLowerCase(),
-        fechaRegistro: serverTimestamp(),
-        fechaRegistroISO: now.toISOString(),
-        rol: isInitialAdmin ? 'administrador' : 'ciudadano',
-        estado: 'activo',
-        sector: sector.trim() || 'No especificado',
-        ultimoAcceso: now.toISOString(),
-      });
-      console.log('[Firebase Auth] ✔ Registro complementario guardado en Firestore (usuarios/' + user.uid + ')');
+      await withAuthTimeout(
+        setDoc(userDocRef, {
+          uid: user.uid,
+          nombre: displayName.trim() || email.split('@')[0],
+          correo: email.trim().toLowerCase(),
+          fechaRegistro: serverTimestamp(),
+          fechaRegistroISO: now.toISOString(),
+          rol: 'ciudadano',
+          estado: 'activo',
+          sector: sector.trim() || 'No especificado',
+          ultimoAcceso: now.toISOString(),
+        }),
+        2000
+      );
+      console.log('[Firebase Auth] ✔ Registro complementario guardado en Firestore (usuarios/' + user.uid + ') con rol: ciudadano');
     } catch (firestoreErr) {
       console.warn('[Firebase Auth] Aviso guardando en Firestore usuarios:', firestoreErr);
       // Non-fatal: the user account in Auth was created successfully

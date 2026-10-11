@@ -433,6 +433,8 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   const [selectedPlaceInfo, setSelectedPlaceInfo] = useState<RealSafePlace | null>(null);
   // Controls whether all markers of the category are rendered vs. strictly the selected location
   const [showAllCategoryMarkers, setShowAllCategoryMarkers] = useState<boolean>(false);
+  const showAllCategoryMarkersRef = useRef<boolean>(false);
+  showAllCategoryMarkersRef.current = showAllCategoryMarkers;
   const shouldFitCategoryBoundsRef = useRef<boolean>(false);
 
   // Calculated Routes (supports 1, 2, 3+ route options)
@@ -674,8 +676,14 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
           <div class="w-2 h-2.5 bg-white mt-0.5 rounded-b-full shadow"></div>
         `;
 
+        const shouldShowThisMarker = showAllCategoryMarkersRef.current
+          ? true
+          : selectedPlaceInfo?.id === place.id ||
+            originType === place.id ||
+            destinationType === place.id;
+
         const marker = new AdvancedMarkerElement({
-          map: null,
+          map: shouldShowThisMarker ? mapInstanceRef.current : null,
           position: place.location,
           title: `${place.name} (${place.categoryLabel})`,
           content: pinElement,
@@ -684,7 +692,11 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
 
         marker.addListener('click', () => {
           setSelectedPlaceInfo(place);
+          showAllCategoryMarkersRef.current = false;
           setShowAllCategoryMarkers(false);
+          markersByPlaceIdRef.current.forEach((m, id) => {
+            m.map = id === place.id ? mapInstanceRef.current : null;
+          });
           mapInstanceRef.current?.panTo(place.location);
           if ((mapInstanceRef.current?.getZoom() || 14) < 15) {
             mapInstanceRef.current?.setZoom(16);
@@ -701,37 +713,30 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
 
       setIsLoadingPlaces(false);
     },
-    [fitMapToCategoryPlaces]
+    [fitMapToCategoryPlaces, selectedPlaceInfo, originType, destinationType]
   );
 
   // Synchronize category marker visibility:
-  // When a specific location is selected (or assigned as Origin/Destination), deactivate mass rendering
-  // of all other markers in that category so only the selected point remains visible on the map.
+  // When a specific location is selected as Origin or Destination (or focused), hide all other
+  // mass category markers from the map to prevent visual saturation.
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
 
-    const hasSpecificSelection =
-      !showAllCategoryMarkers &&
-      (Boolean(selectedPlaceInfo) ||
-        originType.startsWith('place-') ||
-        destinationType.startsWith('place-'));
-
     markersByPlaceIdRef.current.forEach((marker, placeId) => {
-      if (hasSpecificSelection) {
+      if (showAllCategoryMarkers) {
+        marker.map = map;
+      } else {
         const isKeepVisible =
           selectedPlaceInfo?.id === placeId ||
           originType === placeId ||
           destinationType === placeId;
         marker.map = isKeepVisible ? map : null;
-      } else if (showAllCategoryMarkers) {
-        marker.map = map;
-      } else {
-        marker.map = null;
       }
     });
   }, [
     mapLoaded,
+    isLoadingPlaces,
     showAllCategoryMarkers,
     selectedPlaceInfo,
     originType,
@@ -751,9 +756,13 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   // Handle user clicking a category button in "Elegir ubicaciones"
   const handleSelectCategory = (cat: SafeLocationCategory) => {
     setSelectedPlaceInfo(null);
+    showAllCategoryMarkersRef.current = true;
     setShowAllCategoryMarkers(true);
     shouldFitCategoryBoundsRef.current = true;
     if (cat === safePlacesCategory) {
+      markersByPlaceIdRef.current.forEach((m) => {
+        m.map = mapInstanceRef.current;
+      });
       const currentCatPlaces = realPlaces.filter((p) => p.category === cat);
       fitMapToCategoryPlaces(currentCatPlaces);
     } else {
@@ -765,7 +774,11 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   // Deactivates mass rendering of all other markers in the category
   const handleFocusPlaceOnMap = (place: RealSafePlace) => {
     setSelectedPlaceInfo(place);
+    showAllCategoryMarkersRef.current = false;
     setShowAllCategoryMarkers(false);
+    markersByPlaceIdRef.current.forEach((m, id) => {
+      m.map = id === place.id ? mapInstanceRef.current : null;
+    });
     if (mapInstanceRef.current) {
       mapInstanceRef.current.panTo(place.location);
       mapInstanceRef.current.setZoom(16);
@@ -1595,6 +1608,9 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
   // Set a location from "Elegir ubicaciones" or map marker as Origin or Destination:
   // Hides all other markers of that category so only the chosen Origin/Destination point remains visible
   const handleSetPlaceAs = (place: RealSafePlace, target: 'origin' | 'destination') => {
+    const nextOrigin = target === 'origin' ? place.id : originType;
+    const nextDest = target === 'destination' ? place.id : destinationType;
+
     if (target === 'origin') {
       setOriginType(place.id);
       setOriginCustomText('');
@@ -1605,7 +1621,15 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
       setDestinationResolvedCoord(place.location);
     }
     setSelectedPlaceInfo(place);
+    showAllCategoryMarkersRef.current = false;
     setShowAllCategoryMarkers(false);
+    markersByPlaceIdRef.current.forEach((m, id) => {
+      const keep = id === place.id || id === nextOrigin || id === nextDest;
+      m.map = keep ? mapInstanceRef.current : null;
+    });
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.panTo(place.location);
+    }
   };
 
   return (
@@ -1683,9 +1707,21 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
               onChange={(val) => {
                 setOriginType(val);
                 if (val !== 'otro') setOriginResolvedCoord(undefined);
+                showAllCategoryMarkersRef.current = false;
+                setShowAllCategoryMarkers(false);
                 if (val.startsWith('place-')) {
-                  setShowAllCategoryMarkers(false);
+                  const matchedPlace = realPlaces.find((p) => p.id === val) || null;
+                  setSelectedPlaceInfo(matchedPlace);
+                  if (matchedPlace && mapInstanceRef.current) {
+                    mapInstanceRef.current.panTo(matchedPlace.location);
+                  }
+                } else {
+                  setSelectedPlaceInfo(null);
                 }
+                markersByPlaceIdRef.current.forEach((m, id) => {
+                  const keep = id === val || id === destinationType;
+                  m.map = keep ? mapInstanceRef.current : null;
+                });
               }}
               isOrigin={true}
               sectors={COMUNA_8_SECTORS}
@@ -1711,9 +1747,21 @@ export const SafeRoutesScreen: React.FC<SafeRoutesScreenProps> = ({
               onChange={(val) => {
                 setDestinationType(val);
                 if (val !== 'otro') setDestinationResolvedCoord(undefined);
+                showAllCategoryMarkersRef.current = false;
+                setShowAllCategoryMarkers(false);
                 if (val.startsWith('place-')) {
-                  setShowAllCategoryMarkers(false);
+                  const matchedPlace = realPlaces.find((p) => p.id === val) || null;
+                  setSelectedPlaceInfo(matchedPlace);
+                  if (matchedPlace && mapInstanceRef.current) {
+                    mapInstanceRef.current.panTo(matchedPlace.location);
+                  }
+                } else {
+                  setSelectedPlaceInfo(null);
                 }
+                markersByPlaceIdRef.current.forEach((m, id) => {
+                  const keep = id === val || id === originType;
+                  m.map = keep ? mapInstanceRef.current : null;
+                });
               }}
               isOrigin={false}
               sectors={COMUNA_8_SECTORS}

@@ -1280,7 +1280,7 @@ export const UserManagementScreen: React.FC<UserManagementScreenProps> = ({
                 {[
                   {
                     id: 'ciudadano',
-                    label: language === 'es' ? 'Ciudadano (Agente Comunal)' : 'Citizen (Community Agent)',
+                    label: language === 'es' ? 'Ciudadano' : 'Citizen',
                     desc: language === 'es' ? 'Reporte de incidentes, consulta de mapas y rutas seguras.' : 'Incident reporting, risk map, safe routes.',
                     icon: <Users className="w-4 h-4 text-slate-400" />,
                   },

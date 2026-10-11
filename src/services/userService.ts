@@ -25,6 +25,22 @@ import { FirestoreUser, UserRole, UserStatus, UserStats, UserPreferences } from 
 
 const USERS_COLLECTION = 'usuarios';
 const USER_PROFILE_CACHE_PREFIX = 'security_urban_user_profile_';
+const FIRESTORE_OP_TIMEOUT_MS = 2200;
+
+function withFirestoreTimeout<T>(promise: Promise<T>, ms = FIRESTORE_OP_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Tiempo de espera de Firestore agotado')), ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
 
 function getCachedProfile(uid: string): FirestoreUser | null {
   try {
@@ -81,13 +97,21 @@ export function normalizeUserData(id: string, data: any): FirestoreUser {
     }
   }
 
+  const rawRol = String(data.rol || '').toLowerCase().trim();
+  const normalizedRol: UserRole =
+    rawRol === 'administrador'
+      ? 'administrador'
+      : rawRol === 'operador'
+      ? 'operador'
+      : 'ciudadano';
+
   return {
     uid: id,
-    nombre: data.nombre || 'Usuario Comunal',
+    nombre: data.nombre || 'Ciudadano',
     correo: data.correo || '',
     fechaRegistro: fechaRegistroFormatted,
     fechaRegistroISO: fechaRegistroISO,
-    rol: (data.rol as UserRole) || 'ciudadano',
+    rol: normalizedRol,
     estado: (data.estado as UserStatus) || 'activo',
     sector: data.sector || 'Comuna 8 - No especificado',
     ultimoAcceso: data.ultimoAcceso || 'No registrado',
@@ -186,7 +210,7 @@ export function subscribeToFirestoreUsers(
 export async function fetchFirestoreUsers(): Promise<{ users: FirestoreUser[]; stats: UserStats }> {
   try {
     const usersRef = collection(db, USERS_COLLECTION);
-    const snapshot = await getDocs(query(usersRef, limit(100)));
+    const snapshot = await withFirestoreTimeout(getDocs(query(usersRef, limit(50))));
     const users: FirestoreUser[] = [];
 
     snapshot.forEach((docSnap) => {
@@ -213,7 +237,7 @@ export async function getFirestoreUserProfile(uid: string): Promise<FirestoreUse
 
   try {
     const userDocRef = doc(db, USERS_COLLECTION, uid);
-    const snap = await getDoc(userDocRef);
+    const snap = await withFirestoreTimeout(getDoc(userDocRef));
     if (!snap.exists()) {
       return cached;
     }
@@ -234,11 +258,11 @@ export async function getFirestoreUserProfile(uid: string): Promise<FirestoreUse
       const u = auth.currentUser;
       const fallback: FirestoreUser = {
         uid: u.uid,
-        nombre: u.displayName || (u.email ? u.email.split('@')[0] : 'Usuario Comuna 8'),
+        nombre: u.displayName || (u.email ? u.email.split('@')[0] : 'Ciudadano'),
         correo: u.email || '',
         fechaRegistro: 'Hoy',
         fechaRegistroISO: new Date().toISOString(),
-        rol: (u.email || '').toLowerCase().includes('admin') ? 'administrador' : 'ciudadano',
+        rol: 'ciudadano',
         estado: 'activo',
         sector: 'Villa Hermosa, Comuna 8',
       };
@@ -257,10 +281,12 @@ export async function updateFirestoreUserRole(uid: string, newRole: UserRole): P
   console.log(`[Security Urban :: UserService] Actualizando rol de ${uid} a "${newRole}"...`);
   try {
     const userDocRef = doc(db, USERS_COLLECTION, uid);
-    await updateDoc(userDocRef, {
-      rol: newRole,
-      fechaModificacionRol: new Date().toISOString(),
-    });
+    await withFirestoreTimeout(
+      updateDoc(userDocRef, {
+        rol: newRole,
+        fechaModificacionRol: new Date().toISOString(),
+      })
+    );
     console.log(`[Security Urban :: UserService] ✔ Rol actualizado exitosamente.`);
   } catch (err) {
     console.warn('[Security Urban :: UserService] No se pudo actualizar rol en servidor de inmediato:', err);
@@ -274,10 +300,12 @@ export async function updateFirestoreUserStatus(uid: string, newStatus: UserStat
   console.log(`[Security Urban :: UserService] Actualizando estado de ${uid} a "${newStatus}"...`);
   try {
     const userDocRef = doc(db, USERS_COLLECTION, uid);
-    await updateDoc(userDocRef, {
-      estado: newStatus,
-      fechaModificacionEstado: new Date().toISOString(),
-    });
+    await withFirestoreTimeout(
+      updateDoc(userDocRef, {
+        estado: newStatus,
+        fechaModificacionEstado: new Date().toISOString(),
+      })
+    );
     console.log(`[Security Urban :: UserService] ✔ Estado actualizado exitosamente.`);
   } catch (err) {
     console.warn('[Security Urban :: UserService] No se pudo actualizar estado en servidor de inmediato:', err);
@@ -322,7 +350,7 @@ export async function updateUserProfileAndFirestore(
     correo: user.email || (existing?.correo || ''),
     fechaRegistro: existing?.fechaRegistro || 'Hoy',
     fechaRegistroISO: existing?.fechaRegistroISO || nowISO,
-    rol: existing?.rol || ((user.email || '').toLowerCase().includes('admin') ? 'administrador' : 'ciudadano'),
+    rol: existing?.rol || 'ciudadano',
     estado: existing?.estado || 'activo',
     sector: data.sector !== undefined ? data.sector.trim() : (existing?.sector || 'Villa Hermosa, Comuna 8'),
     telefono: data.telefono !== undefined ? data.telefono.trim() : existing?.telefono,
@@ -342,7 +370,7 @@ export async function updateUserProfileAndFirestore(
     if (data.sector !== undefined) updates.sector = data.sector.trim();
     if (data.preferencias !== undefined) updates.preferencias = data.preferencias;
 
-    await setDoc(userDocRef, updates, { merge: true });
+    await withFirestoreTimeout(setDoc(userDocRef, updates, { merge: true }));
     console.log('[Security Urban :: UserService] ✔ Firestore document actualizado exitosamente');
   } catch (err) {
     console.warn('[Security Urban :: UserService] No se pudo sincronizar de inmediato en Firestore (guardado en caché local):', err);
@@ -362,10 +390,12 @@ export async function saveUserPreferences(uid: string, prefs: UserPreferences): 
 
   try {
     const userDocRef = doc(db, USERS_COLLECTION, uid);
-    await updateDoc(userDocRef, {
-      preferencias: prefs,
-      fechaActualizacionPreferencias: new Date().toISOString(),
-    });
+    await withFirestoreTimeout(
+      updateDoc(userDocRef, {
+        preferencias: prefs,
+        fechaActualizacionPreferencias: new Date().toISOString(),
+      })
+    );
   } catch (err) {
     console.warn('[Security Urban :: UserService] Advertencia guardando preferencias en Firestore (guardadas localmente):', err);
   }
@@ -513,34 +543,44 @@ export async function deleteFirestoreUserByAdmin(uid: string): Promise<{ success
 export async function syncCurrentUserFirestoreProfile(user: User): Promise<FirestoreUser> {
   const userDocRef = doc(db, USERS_COLLECTION, user.uid);
   try {
-    const snap = await getDoc(userDocRef);
+    const snap = await withFirestoreTimeout(getDoc(userDocRef));
     if (snap.exists()) {
-      return normalizeUserData(snap.id, snap.data());
+      const rawData = snap.data();
+      const normalized = normalizeUserData(snap.id, rawData);
+      // If Firestore had a legacy 'agente_comunal' or missing role, persist 'ciudadano'
+      if (rawData.rol !== normalized.rol) {
+        updateDoc(userDocRef, { rol: normalized.rol }).catch(() => {});
+      }
+      setCachedProfile(user.uid, normalized);
+      return normalized;
     }
 
-    // Auto-create document
-    const isEmailAdmin = (user.email || '').toLowerCase().includes('admin');
+    // Auto-create document with standard 'ciudadano' role
     const now = new Date();
     const newProfile: Record<string, any> = {
       uid: user.uid,
-      nombre: user.displayName || (user.email ? user.email.split('@')[0] : 'Usuario Comuna 8'),
+      nombre: user.displayName || (user.email ? user.email.split('@')[0] : 'Ciudadano'),
       correo: user.email || '',
       fechaRegistro: serverTimestamp(),
       fechaRegistroISO: now.toISOString(),
-      rol: isEmailAdmin ? 'administrador' : 'ciudadano',
+      rol: 'ciudadano',
       estado: 'activo',
       sector: 'Villa Hermosa, Comuna 8',
       ultimoAcceso: now.toISOString(),
     };
 
-    await setDoc(userDocRef, newProfile);
-    console.log(`[Security Urban :: UserService] ✔ Perfil de usuario inicializado en Firestore:`, user.email);
-    return normalizeUserData(user.uid, newProfile);
+    await withFirestoreTimeout(setDoc(userDocRef, newProfile)).catch(() => {});
+    console.log(`[Security Urban :: UserService] ✔ Perfil de usuario inicializado en Firestore con rol ciudadano:`, user.email);
+    const normalized = normalizeUserData(user.uid, newProfile);
+    setCachedProfile(user.uid, normalized);
+    return normalized;
   } catch (err) {
     console.warn('[Security Urban :: UserService] No se pudo sincronizar perfil en Firestore:', err);
+    const cached = getCachedProfile(user.uid);
+    if (cached) return cached;
     return {
       uid: user.uid,
-      nombre: user.displayName || (user.email ? user.email.split('@')[0] : 'Usuario Comuna 8'),
+      nombre: user.displayName || (user.email ? user.email.split('@')[0] : 'Ciudadano'),
       correo: user.email || '',
       fechaRegistro: 'Hoy',
       fechaRegistroISO: new Date().toISOString(),

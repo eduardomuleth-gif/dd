@@ -330,10 +330,15 @@ const MainScreen: React.FC = () => {
     };
   }, [currentUser, isEmailVerified]);
 
-  // Subscribe to real Firebase auth changes via route guard
+  // Subscribe to real Firebase auth changes via route guard with timeout safeguard
   useEffect(() => {
     console.log('[Security Urban :: RouteGuard] Inicializando listener onAuthStateChanged...');
+    const authSafetyTimer = setTimeout(() => {
+      setIsAuthLoading(false);
+    }, 2500);
+
     const unsubscribe = subscribeToAuth(async (user) => {
+      clearTimeout(authSafetyTimer);
       setCurrentUser(user);
       setIsEmailVerified(Boolean(user?.emailVerified));
       setIsAuthLoading(false);
@@ -356,7 +361,6 @@ const MainScreen: React.FC = () => {
             setIsEmailVerified(true);
           }
 
-          // Default demo elevation to admin if email contains admin/root, otherwise use profile.rol
           setCurrentUserRole(profile.rol);
         } catch (syncErr) {
           console.error('[Security Urban :: RouteGuard] Error al sincronizar perfil de Firestore:', syncErr);
@@ -369,7 +373,10 @@ const MainScreen: React.FC = () => {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(authSafetyTimer);
+      unsubscribe();
+    };
   }, []);
 
   // Motor de simulación periódica de actividad comunitaria para fines de demostración académica
@@ -1104,6 +1111,7 @@ const MainScreen: React.FC = () => {
             onNavigate={(targetTab) => setCurrentView(targetTab)}
             onOpenTacticalMap={() => setIsTacticalMapOpen(true)}
             currentUserId={currentUser?.uid}
+            currentUserRole={currentUserRole}
           />
         ) : currentView === 'riskMap' ? (
           // Dedicated "Mapa de Riesgo" with real Google Maps and HeatmapLayer
@@ -1147,6 +1155,7 @@ const MainScreen: React.FC = () => {
             onNavigateHome={() => setCurrentView('home')}
             onNavigateMyReports={() => setCurrentView('myReports')}
             onNavigateRiskMap={() => setCurrentView('riskMap')}
+            currentUserRole={currentUserRole}
           />
         ) : currentView === 'settings' || currentView === 'profile' ? (
           // Dedicated "Ajustes del Sistema" (User Profile, App Preferences, Security, Privacy, About, Danger Zone)

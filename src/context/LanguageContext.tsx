@@ -118,7 +118,7 @@ const translations: Record<Language, Record<string, string>> = {
     verificationStillPending: 'El correo aún no ha sido verificado. Por favor revisa tu bandeja de entrada o spam.',
 
     // Roles & User Statuses
-    userRoleCitizen: 'Agente Comunal',
+    userRoleCitizen: 'Ciudadano',
     userRoleOperator: 'Operador Táctico',
     userRoleAdmin: 'Administrador',
     accountStatusVerified: 'Verificado',
@@ -186,9 +186,9 @@ const translations: Record<Language, Record<string, string>> = {
     riskMapProvider: 'Google Maps Platform',
     riskMapTitle: 'Mapa de Riesgo y Prevención',
     riskMapDescription: 'Monitoreo preventivo de sectores, termografía de concentración de riesgo y cuadrantes comunitarios de la Comuna 8 (Villa Hermosa, Medellín).',
-    disclaimerTitle: 'Aviso informativo de referencia y transparencia comunitaria:',
-    disclaimerText: 'La clasificación y niveles de referencia de los 18 sectores de la Comuna 8 (Villa Hermosa) es orientativa y se basa en dinámicas históricas comunitarias y reportes públicos disponibles. No constituye un diagnóstico exacto por barrio ni una calificación institucional vinculante o estigmatizante sobre los territorios. Para información oficial y actualizada, consulta el',
-    siscLinkText: 'SISC de la Alcaldía de Medellín',
+    disclaimerTitle: 'Recomendaciones internas del equipo y guía del sector:',
+    disclaimerText: 'La clasificación de los 18 sectores de la Comuna 8 (Villa Hermosa) integra reportes comunitarios verificados y pautas preventivas del equipo Security Urban para orientar recorridos seguros, fortalecer el autocuidado barrial y articular la participación ciudadana.',
+    siscLinkText: '',
     searchPlacesPlaceholder: 'Buscar calle, carrera, barrio o lugar en Medellín...',
     modeHeat: 'Calor',
     modeMarkers: 'Marcadores',
@@ -500,7 +500,7 @@ const translations: Record<Language, Record<string, string>> = {
     verificationStillPending: 'Your email has not been verified yet. Please check your inbox and spam folder.',
 
     // Roles & User Statuses
-    userRoleCitizen: 'Community Agent',
+    userRoleCitizen: 'Citizen',
     userRoleOperator: 'Tactical Operator',
     userRoleAdmin: 'Administrator',
     accountStatusVerified: 'Verified',
@@ -568,9 +568,9 @@ const translations: Record<Language, Record<string, string>> = {
     riskMapProvider: 'Google Maps Platform',
     riskMapTitle: 'Risk & Prevention Map',
     riskMapDescription: 'Preventive sector monitoring, risk concentration thermography, and community quadrants for Comuna 8 (Villa Hermosa, Medellín).',
-    disclaimerTitle: 'Community Reference & Transparency Notice:',
-    disclaimerText: 'The classification and risk levels of the 18 sectors in Comuna 8 (Villa Hermosa) are orientative and based on historical community dynamics and publicly accessible records. They do not constitute an exact diagnostic per neighborhood nor a stigmatizing official rating. For official and updated data, please consult the',
-    siscLinkText: 'Medellín Mayor\'s Office SISC',
+    disclaimerTitle: 'Internal Team Recommendations & Sector Guide:',
+    disclaimerText: 'The classification of the 18 sectors in Comuna 8 (Villa Hermosa) integrates verified community reports and preventive guidelines from the Security Urban team to support safe transit, neighborhood self-care, and citizen participation.',
+    siscLinkText: '',
     searchPlacesPlaceholder: 'Search street, avenue, neighborhood or landmark in Medellín...',
     modeHeat: 'Heat',
     modeMarkers: 'Markers',
@@ -898,15 +898,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const translateRole = useCallback(
     (role: string): string => {
-      if (!role) return '';
-      const r = role.toLowerCase();
+      if (!role) return language === 'es' ? 'Ciudadano' : 'Citizen';
+      const r = role.toLowerCase().trim();
       if (language === 'es') {
-        if (r === 'ciudadano') return 'Agente Comunal';
+        if (r === 'ciudadano' || r === 'agente_comunal' || r === 'agente comunal') return 'Ciudadano';
         if (r === 'operador') return 'Operador Táctico';
         if (r === 'administrador') return 'Administrador';
         return role;
       } else {
-        if (r === 'ciudadano') return 'Community Agent';
+        if (r === 'ciudadano' || r === 'agente_comunal' || r === 'agente comunal') return 'Citizen';
         if (r === 'operador') return 'Tactical Operator';
         if (r === 'administrador') return 'Administrator';
         return role;

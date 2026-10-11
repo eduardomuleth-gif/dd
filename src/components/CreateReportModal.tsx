@@ -28,6 +28,7 @@ interface CreateReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onReportCreated?: () => void;
+  onReportError?: (errorMessage: string) => void;
   defaultSector?: string;
 }
 
@@ -65,6 +66,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   isOpen,
   onClose,
   onReportCreated,
+  onReportError,
   defaultSector,
 }) => {
   const { theme } = useTheme();
@@ -194,17 +196,19 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
     if (!mediaFile) {
       setErrorMsg(
         language === 'es'
-          ? 'Es obligatorio adjuntar una imagen o video de evidencia para enviar el reporte.'
+          ? 'Es obligatorio adjuntar una imagen o video de evidencia del suceso para enviar el reporte.'
           : 'Attaching an evidence image or video is mandatory to submit the report.'
       );
       return;
     }
 
     setIsSubmitting(true);
-    setUploadProgress(5);
+    setUploadProgress(10);
     setUploadStageText(
-      language === 'es' ? 'Preparando evidencia multimedia...' : 'Preparing media evidence...'
+      language === 'es' ? 'Procesando evidencia del suceso...' : 'Processing incident evidence...'
     );
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
     try {
       const input: CreateReportInput = {
@@ -214,41 +218,79 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
         sector: finalSector,
         direccion: direccion.trim(),
         nivelPrioridad,
+        estadoInicial: 'pendiente',
         mediaFile,
         mediaType,
         mediaName: mediaFile.name,
       };
 
-      await createIncidentReport(input, (pct, stage) => {
-        setUploadProgress(pct);
-        setUploadStageText(stage);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(
+            new Error(
+              language === 'es'
+                ? 'El tiempo de espera de conexión se agotó al procesar el reporte. Por favor intenta nuevamente.'
+                : 'Connection timed out while processing the report. Please try again.'
+            )
+          );
+        }, 4500);
       });
+
+      await Promise.race([
+        createIncidentReport(input, (pct, stage) => {
+          setUploadProgress(pct);
+          setUploadStageText(stage);
+        }),
+        timeoutPromise,
+      ]);
+
+      if (timeoutHandle) clearTimeout(timeoutHandle);
 
       setUploadProgress(100);
       setSuccessMsg(
         language === 'es'
-          ? '✔ Reporte y evidencia multimedia enviados con éxito (estado PENDIENTE de revisión).'
-          : '✔ Report and media evidence submitted successfully (PENDING status).'
+          ? '✔ Reporte y evidencia del suceso registrados exitosamente.'
+          : '✔ Report and incident evidence submitted successfully.'
       );
+
+      setTitulo('');
+      setDescripcion('');
+      setDireccion('');
+      setCustomSector('');
+      handleRemoveMedia();
+      setUploadProgress(0);
+      setUploadStageText('');
 
       setTimeout(() => {
         setSuccessMsg(null);
-        setTitulo('');
-        setDescripcion('');
-        setDireccion('');
-        setCustomSector('');
-        handleRemoveMedia();
-        setUploadProgress(0);
-        setUploadStageText('');
         onClose();
         if (onReportCreated) onReportCreated();
-      }, 1100);
+      }, 450);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setErrorMsg(msg);
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      const cleanError =
+        rawMsg.toLowerCase().includes('permission') || rawMsg.toLowerCase().includes('insufficient')
+          ? language === 'es'
+            ? 'No tienes permisos suficientes para completar esta operación.'
+            : 'You do not have sufficient permissions to complete this action.'
+          : rawMsg ||
+            (language === 'es'
+              ? 'No fue posible procesar el reporte en este momento.'
+              : 'Could not process the report at this time.');
+
       setUploadProgress(0);
       setUploadStageText('');
+      setIsSubmitting(false);
+
+      if (onReportError) {
+        onClose();
+        onReportError(cleanError);
+      } else {
+        setErrorMsg(cleanError);
+      }
     } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
       setIsSubmitting(false);
     }
   };
@@ -278,7 +320,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
               </span>
               <span className="text-slate-400">·</span>
               <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 uppercase">
-                EVIDENCIA OBLIGATORIA
+                EVIDENCIA DEL SUCESO
               </span>
             </div>
             <h2 className="text-base sm:text-xl font-black font-['Rajdhani'] uppercase tracking-wide truncate">
@@ -302,14 +344,14 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {/* Scrollable Content Area */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4">
-          {/* Verification Notice Banner */}
-          <div className="p-3 sm:p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 sm:gap-3 text-xs text-amber-800 dark:text-amber-300">
+          {/* Incident Evidence Notice Banner */}
+          <div className="p-3 sm:p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
             <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
             <p className="leading-relaxed">
-              <strong>{language === 'es' ? 'Verificación y Evidencia:' : 'Verification & Evidence:'}</strong>{' '}
+              <strong>{language === 'es' ? 'Evidencia del Suceso:' : 'Incident Evidence:'}</strong>{' '}
               {language === 'es'
-                ? 'Es obligatorio adjuntar una foto o video real del suceso. El archivo se comprime automáticamente antes de enviarse para garantizar una carga rápida.'
-                : 'Attaching a photo or video of the event is mandatory. Media is compressed client-side for fast upload.'}
+                ? 'Adjunta una fotografía o video del suceso para registrar tu reporte comunitario.'
+                : 'Attach a photo or video of the event to register your community report.'}
             </p>
           </div>
 
@@ -531,8 +573,8 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                 className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300"
               >
                 {language === 'es'
-                  ? '7. Evidencia Audiovisual Obligatoria (Imagen o Video) *'
-                  : '7. Mandatory Audiovisual Evidence (Image or Video) *'}
+                  ? '7. Evidencia del Suceso (Imagen o Video) *'
+                  : '7. Incident Evidence (Image or Video) *'}
               </label>
               <span
                 className={`text-[11px] font-mono font-bold ${

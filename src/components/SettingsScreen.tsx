@@ -607,13 +607,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       ? 'bg-red-600 text-white shadow-xs'
                       : currentUserRole === 'operador'
                       ? 'bg-amber-500 text-slate-950 font-bold'
-                      : 'bg-blue-600 text-white'
+                      : 'bg-emerald-600 text-white shadow-xs'
                   }`}>
                     {currentUserRole === 'administrador'
-                      ? 'ADMINISTRADOR'
+                      ? (language === 'es' ? 'ADMINISTRADOR' : 'ADMINISTRATOR')
                       : currentUserRole === 'operador'
-                      ? 'OPERADOR TÁCTICO'
-                      : 'CIUDADANO'}
+                      ? (language === 'es' ? 'OPERADOR TÁCTICO' : 'TACTICAL OPERATOR')
+                      : (language === 'es' ? 'CIUDADANO' : 'CITIZEN')}
                   </span>
                   {currentUser?.emailVerified ? (
                     <span className="px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
@@ -644,6 +644,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </strong>
                   </span>
                 </p>
+
+                <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    {currentUserRole === 'administrador'
+                      ? language === 'es'
+                        ? 'Permisos activos (Administrador): Gestión de usuarios, validación de reportes y configuración de plataforma.'
+                        : 'Active permissions (Administrator): User management, report validation, and platform configuration.'
+                      : currentUserRole === 'operador'
+                      ? language === 'es'
+                        ? 'Permisos activos (Operador Táctico): Atención de alertas SOS, monitoreo de sectores y apoyo táctico.'
+                        : 'Active permissions (Tactical Operator): SOS alert response, sector monitoring, and tactical support.'
+                      : language === 'es'
+                      ? 'Permisos activos (Ciudadano): Creación de reportes de incidentes, consulta del mapa de riesgo y rutas seguras.'
+                      : 'Active permissions (Citizen): Incident report creation, risk map consultation, and safe routes.'}
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -39,7 +39,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const isDark = theme === 'dark';
 
   // Extract clean display name
-  const displayName = userName || (userEmail ? userEmail.split('@')[0] : 'Agente Comunal');
+  const displayName = userName || (userEmail ? userEmail.split('@')[0] : 'Ciudadano');
 
   return (
     <div className="w-full flex flex-col items-center">

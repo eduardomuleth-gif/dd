@@ -27,6 +27,7 @@ import {
   subscribeToPublicAcceptedReports,
   subscribeToUserReports,
   calculateDynamicSectorRiskStats,
+  createRealTestReport,
 } from '../services/reportService';
 import { COMUNA_8_SECTORS } from '../data/medellinSectors';
 import { CreateReportModal } from './CreateReportModal';
@@ -35,6 +36,7 @@ interface DashboardScreenProps {
   onNavigate: (tab: NavTabId) => void;
   onOpenTacticalMap?: () => void;
   currentUserId?: string;
+  currentUserRole?: string;
 }
 
 interface DayTrend {
@@ -125,6 +127,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [myReports, setMyReports] = useState<IncidentReport[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState<boolean>(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [dashboardNotice, setDashboardNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Selected sector for the Statistical Sector Risk & Safety Donut Dashboard
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<
@@ -152,21 +155,30 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     return COMUNA_8_SECTORS.filter((s) => s.level === selectedCategoryFilter);
   }, [selectedCategoryFilter]);
 
-  // 1. Subscribe to real public reports
+  // 1. Subscribe to real public reports with timeout safeguard
   useEffect(() => {
     setIsLoadingReports(true);
+    const loadingTimer = setTimeout(() => {
+      setIsLoadingReports(false);
+    }, 2500);
+
     const unsubscribe = subscribeToPublicAcceptedReports(
       (reports) => {
+        clearTimeout(loadingTimer);
         setAcceptedReports(reports);
         setIsLoadingReports(false);
       },
       (err) => {
+        clearTimeout(loadingTimer);
         console.warn('[Security Urban :: Dashboard] Error consultando reportes públicos:', err);
         setIsLoadingReports(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(loadingTimer);
+      unsubscribe();
+    };
   }, []);
 
   // 2. Subscribe to current user's reports (where uid == currentUserId)
@@ -315,6 +327,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Optional Feedback Banner */}
+      {dashboardNotice && (
+        <div
+          role={dashboardNotice.type === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+          className={`w-full mb-5 p-3.5 rounded-2xl border text-xs sm:text-sm font-bold flex items-center justify-between shadow-xs ${
+            dashboardNotice.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+              : 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-400'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {dashboardNotice.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+            )}
+            <span>{dashboardNotice.text}</span>
+          </div>
+        </div>
+      )}
 
       {/* 2. Top Metric HUD Cards (Simplified, clean statistical indicators) */}
       <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -812,12 +846,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                         {selectedSectorData.contextNote}
                       </p>
                     </div>
-                    <div className="shrink-0 flex items-center gap-2 font-mono font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-                      <Bell className="w-3.5 h-3.5 text-amber-500" />
-                      <span>
-                        {sectorStats.sectorAlertsCount}{' '}
-                        {language === 'es' ? 'incidentes' : 'incidents'}
-                      </span>
+                    <div className="shrink-0 flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-2 font-mono font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+                        <Bell className="w-3.5 h-3.5 text-amber-500" />
+                        <span>
+                          {sectorStats.sectorAlertsCount}{' '}
+                          {language === 'es' ? 'incidentes' : 'incidents'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1022,7 +1058,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       <CreateReportModal
         isOpen={isCreateModalOpen}
         onClose={handleCloseCreateModal}
-        onReportCreated={() => {}}
+        onReportCreated={() => {
+          setDashboardNotice({
+            type: 'success',
+            text:
+              language === 'es'
+                ? '✔ Reporte y evidencia del suceso registrados exitosamente.'
+                : 'Report and incident evidence submitted successfully.',
+          });
+          setTimeout(() => setDashboardNotice(null), 4000);
+        }}
+        onReportError={(errMsg) => {
+          setDashboardNotice({
+            type: 'error',
+            text: errMsg,
+          });
+          setTimeout(() => setDashboardNotice(null), 4500);
+        }}
       />
     </div>
   );

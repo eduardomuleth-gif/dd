@@ -35,15 +35,17 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
   const [avatarImgError, setAvatarImgError] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { colors, theme } = useTheme();
-  const { t, language } = useLanguage();
+  const { t, language, translateRole } = useLanguage();
   const isDark = theme === 'dark';
 
   // Compute initials and clean display name
-  const rawName = user?.displayName || (user?.email ? user.email.split('@')[0] : 'Luis');
-  // Format to nice capitalized name (e.g. "luis.muleth" -> "Luis", or "Luis")
-  const displayName = rawName.split(/[._-]/)[0]
+  const rawName = user?.displayName?.trim() || (user?.email ? user.email.split('@')[0] : 'Ciudadano');
+  // Preserve full display name (e.g. "Victor Manuel") if displayName is present, or format email prefix cleanly
+  const displayName = user?.displayName?.trim()
+    ? user.displayName.trim()
+    : rawName.split(/[._-]/)[0]
     ? rawName.split(/[._-]/)[0].charAt(0).toUpperCase() + rawName.split(/[._-]/)[0].slice(1)
-    : 'Luis';
+    : 'Ciudadano';
 
   const userEmail = user?.email || 'usuario@seguridadcomuna8.gov.co';
   const initial = displayName.charAt(0).toUpperCase();
@@ -119,8 +121,8 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
           />
         </div>
 
-        {/* User Name */}
-        <div className="flex flex-col text-left leading-tight max-w-[78px] min-[380px]:max-w-[110px] sm:max-w-[140px]">
+        {/* User Name & Role Badge */}
+        <div className="flex flex-col text-left leading-tight max-w-[92px] min-[380px]:max-w-[125px] sm:max-w-[160px]">
           <span className="text-xs sm:text-sm font-bold tracking-wide text-slate-900 dark:text-slate-100 truncate">
             {displayName}
           </span>
@@ -131,14 +133,9 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
               ? 'text-blue-600 dark:text-blue-400'
               : 'text-emerald-700 dark:text-emerald-400'
           }`}>
-            <span className="hidden min-[380px]:inline">
-              {userRole === 'administrador'
-                ? t('userRoleAdmin')
-                : userRole === 'operador'
-                ? t('userRoleOperator')
-                : t('userRoleCitizen')}
+            <span>
+              {translateRole(userRole)}
             </span>
-            <span className="min-[380px]:hidden">Activo</span>
           </span>
         </div>
 
@@ -178,7 +175,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300 text-2xs font-semibold font-mono">
                   <ShieldCheck className="w-3 h-3" />
-                  {t('accountStatusVerified')}
+                  {translateRole(userRole)}
                 </span>
               </div>
 
