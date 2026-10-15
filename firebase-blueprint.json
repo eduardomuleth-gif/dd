@@ -107,7 +107,7 @@
         "estado": {
           "type": "string",
           "description": "Estado de verificación del reporte",
-          "enum": ["pendiente", "aceptado", "rechazado"]
+          "enum": ["pendiente", "aceptado", "aprobado", "rechazado"]
         },
         "nivelPrioridad": {
           "type": "string",

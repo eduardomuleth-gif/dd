@@ -41,7 +41,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const isDark = theme === 'dark';
 
   const isExplicitAdmin = isExplicitAdminEmail(userEmail);
-  const effectiveRole = isExplicitAdmin ? 'administrador' : userRole;
+  const effectiveRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
 
   // Extract clean display name
   const displayName = isExplicitAdmin
@@ -197,9 +197,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
-                  {language === 'es'
-                    ? 'Panel de Aprobación en Tiempo Real (Correos Registrados en Firebase)'
-                    : 'Real-Time Approval Panel (Firebase Registered Accounts)'}
+                  {language === 'es' ? 'Panel de Aprobaciones' : 'Approval Panel'}
                 </h3>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500 text-white">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -208,8 +206,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
                 {language === 'es'
-                  ? 'Revisa y acepta en tiempo real únicamente los reportes emitidos por usuarios registrados en Firebase en esta plataforma web. Al aceptarlos, se actualiza en vivo el Nivel de Riesgo por Sector.'
-                  : 'Review and approve in real time only reports submitted by users registered in Firebase on this web platform. Approving instantly updates Sector Risk in real time.'}
+                  ? 'Revisa y aprueba reportes ciudadanos en tiempo real. Al aprobarlos, se actualiza automáticamente el Nivel de Riesgo por Sector.'
+                  : 'Review and approve citizen reports in real time. Approving updates Sector Risk automatically.'}
               </p>
             </div>
           </div>
@@ -218,7 +216,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             onClick={() => onNavigate('myReports')}
             className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition shrink-0 cursor-pointer"
           >
-            <span>{language === 'es' ? 'Abrir Panel de Aprobación' : 'Open Approval Panel'}</span>
+            <span>{language === 'es' ? 'Abrir Panel de Aprobaciones' : 'Open Approval Panel'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

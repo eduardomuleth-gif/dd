@@ -9,24 +9,17 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
+    // ROL DE ADMINISTRADOR ASIGNADO DE FORMA EXCLUSIVA E INFALIBLE A eduardomuleth@gmail.com
     function isAdmin() {
-      return isAuthenticated() && 
-        (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'administrador');
+      return isAuthenticated() && request.auth.token.email.lower() == 'eduardomuleth@gmail.com';
     }
 
     match /usuarios/{userId} {
-      // Authenticated users can read users list and check suspension state
       allow read: if isAuthenticated();
-      
-      // A user can create their initial registration document
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      
-      // Self-update basic fields, or admins can update any field (including rol and estado)
       allow update: if isAuthenticated() && (
         request.auth.uid == userId || isAdmin()
       );
-      
-      // Deletions allowed for the account owner (account deletion) or administrators
       allow delete: if isAuthenticated() && (
         request.auth.uid == userId || isAdmin()
       );
@@ -34,39 +27,37 @@ service cloud.firestore {
 
     match /reportes/{reporteId} {
       // 1. Creation:
-      // - Standard citizen reports: Must be authenticated, author UID must match, status is 'pendiente'
-      // - Simulation reports (demo activity): Must have origen == 'simulacion' and estado == 'aceptado'
-      // - Administrators: Can create directly
       allow create: if isAuthenticated() && (
-        (request.resource.data.uid == request.auth.uid && request.resource.data.estado == 'pendiente') ||
-        (request.resource.data.origen == 'simulacion' && request.resource.data.estado == 'aceptado') ||
+        request.resource.data.uid == request.auth.uid ||
+        request.resource.data.origen == 'simulacion' ||
         isAdmin()
       );
 
       // 2. Read:
-      // - Admins can read all reports
-      // - The author can read their own report (even if pendiente or rechazado)
-      // - Any authenticated user can read if it has been verified and accepted
       allow read: if isAuthenticated() && (
         isAdmin() ||
         request.auth.uid == resource.data.uid ||
-        resource.data.estado == 'aceptado'
+        resource.data.estado == 'aceptado' ||
+        resource.data.estado == 'aprobado'
       );
 
-      // 3. Update:
-      // - Admins can update any field (including verifying/accepting/rejecting)
-      // - The author can update their own report title/description/content (without changing the status themselves)
+      // 3. Update: Únicamente el Administrador (eduardomuleth@gmail.com) puede cambiar el estado a 'aprobado' o 'rechazado'
       allow update: if isAuthenticated() && (
         isAdmin() ||
         (request.auth.uid == resource.data.uid && request.resource.data.estado == resource.data.estado)
       );
 
-      // 4. Delete: Admins, author, or simulated reports cleanup
+      // 4. Delete:
       allow delete: if isAuthenticated() && (
         isAdmin() ||
         request.auth.uid == resource.data.uid ||
         resource.data.origen == 'simulacion'
       );
+    }
+
+    match /incidentes/{reporteId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isAdmin();
     }
   }
 }

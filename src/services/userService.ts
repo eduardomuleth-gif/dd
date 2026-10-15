@@ -27,15 +27,12 @@ const USERS_COLLECTION = 'usuarios';
 const USER_PROFILE_CACHE_PREFIX = 'security_urban_user_profile_';
 const FIRESTORE_OP_TIMEOUT_MS = 2200;
 
-export const ADMIN_EMAILS: string[] = [
-  'eduardomuleth@gmail.com',
-  'admin.seguridad@securityurban.medellin.gov.co',
-];
+export const SOLE_ADMIN_EMAIL = 'eduardomuleth@gmail.com';
+export const ADMIN_EMAILS: string[] = [SOLE_ADMIN_EMAIL];
 
 export function isExplicitAdminEmail(email?: string | null): boolean {
   if (!email) return false;
-  const clean = email.toLowerCase().trim();
-  return ADMIN_EMAILS.some((adminEmail) => adminEmail.toLowerCase() === clean);
+  return email.toLowerCase().trim() === SOLE_ADMIN_EMAIL;
 }
 
 function withFirestoreTimeout<T>(promise: Promise<T>, ms = FIRESTORE_OP_TIMEOUT_MS): Promise<T> {
@@ -110,15 +107,8 @@ export function normalizeUserData(id: string, data: any): FirestoreUser {
 
   const userEmail = String(data.correo || '').toLowerCase().trim();
   const isExplicitAdmin = isExplicitAdminEmail(userEmail);
-  const rawRol = String(data.rol || '').toLowerCase().trim();
-
-  const normalizedRol: UserRole = isExplicitAdmin
-    ? 'administrador'
-    : rawRol === 'administrador'
-    ? 'administrador'
-    : rawRol === 'operador'
-    ? 'operador'
-    : 'ciudadano';
+  // Exclusively eduardomuleth@gmail.com is granted 'administrador'. Everyone else is strictly 'ciudadano'.
+  const normalizedRol: UserRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
 
   // Compute name with explicit Administrator support for eduardomuleth@gmail.com
   let resolvedNombre = data.nombre ? String(data.nombre).trim() : '';
@@ -582,12 +572,13 @@ export async function syncCurrentUserFirestoreProfile(user: User): Promise<Fires
       const rawData = snap.data();
       const normalized = normalizeUserData(snap.id, rawData);
 
-      // Enforce administrator role in Firestore for explicit admin accounts
+      // Enforce administrator role ONLY for eduardomuleth@gmail.com; enforce ciudadano for everyone else
       if (isExplicitAdmin && normalized.rol !== 'administrador') {
         normalized.rol = 'administrador';
         updateDoc(userDocRef, { rol: 'administrador', nombre: normalized.nombre }).catch(() => {});
-      } else if (rawData.rol !== normalized.rol) {
-        updateDoc(userDocRef, { rol: normalized.rol }).catch(() => {});
+      } else if (!isExplicitAdmin && normalized.rol !== 'ciudadano') {
+        normalized.rol = 'ciudadano';
+        updateDoc(userDocRef, { rol: 'ciudadano' }).catch(() => {});
       }
 
       setCachedProfile(user.uid, normalized);

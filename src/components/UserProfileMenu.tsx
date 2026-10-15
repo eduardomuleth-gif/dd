@@ -40,7 +40,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
   const isDark = theme === 'dark';
 
   const isExplicitAdmin = isExplicitAdminEmail(user?.email);
-  const effectiveRole = isExplicitAdmin ? 'administrador' : userRole;
+  const effectiveRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
 
   // Compute initials and clean display name
   const rawName = user?.displayName?.trim() || (user?.email ? user.email.split('@')[0] : 'Ciudadano');

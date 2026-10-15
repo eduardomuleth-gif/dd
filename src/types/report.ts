@@ -21,7 +21,7 @@ export const INCIDENT_CATEGORIES: IncidentCategory[] = [
   'Otro',
 ];
 
-export type ReportStatus = 'pendiente' | 'aceptado' | 'rechazado';
+export type ReportStatus = 'pendiente' | 'aceptado' | 'aprobado' | 'rechazado';
 export type ReportPriority = 'baja' | 'media' | 'alta' | 'critica';
 export type ReportMediaType = 'image' | 'video';
 

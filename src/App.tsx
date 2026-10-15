@@ -31,33 +31,15 @@ import { HomeScreen } from './components/HomeScreen';
 import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderView';
 import { UserProfileMenu } from './components/UserProfileMenu';
 
-const DashboardScreen = lazy(() =>
-  import('./components/DashboardScreen').then((m) => ({ default: m.DashboardScreen }))
-);
-const RiskMapScreen = lazy(() =>
-  import('./components/RiskMapScreen').then((m) => ({ default: m.RiskMapScreen }))
-);
-const SafeRoutesScreen = lazy(() =>
-  import('./components/SafeRoutesScreen').then((m) => ({ default: m.SafeRoutesScreen }))
-);
-const TacticalSupportScreen = lazy(() =>
-  import('./components/TacticalSupportScreen').then((m) => ({ default: m.TacticalSupportScreen }))
-);
-const UserManagementScreen = lazy(() =>
-  import('./components/UserManagementScreen').then((m) => ({ default: m.UserManagementScreen }))
-);
-const SettingsScreen = lazy(() =>
-  import('./components/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
-);
-const MyReportsScreen = lazy(() =>
-  import('./components/MyReportsScreen').then((m) => ({ default: m.MyReportsScreen }))
-);
-const AlertsScreen = lazy(() =>
-  import('./components/AlertsScreen').then((m) => ({ default: m.AlertsScreen }))
-);
-const TacticalMapModal = lazy(() =>
-  import('./components/TacticalMapModal').then((m) => ({ default: m.TacticalMapModal }))
-);
+import { DashboardScreen } from './components/DashboardScreen';
+import { RiskMapScreen } from './components/RiskMapScreen';
+import { SafeRoutesScreen } from './components/SafeRoutesScreen';
+import { TacticalSupportScreen } from './components/TacticalSupportScreen';
+import { UserManagementScreen } from './components/UserManagementScreen';
+import { SettingsScreen } from './components/SettingsScreen';
+import { MyReportsScreen } from './components/MyReportsScreen';
+import { AlertsScreen } from './components/AlertsScreen';
+import { TacticalMapModal } from './components/TacticalMapModal';
 import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
 import {
   subscribeToAuth,
@@ -363,13 +345,12 @@ const MainScreen: React.FC = () => {
           }
 
           const isExplicitAdmin = isExplicitAdminEmail(user.email);
-          const effectiveRole = isExplicitAdmin ? 'administrador' : (profile.rol || 'ciudadano');
+          const effectiveRole: UserRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
           setCurrentUserRole(effectiveRole);
         } catch (syncErr) {
           console.error('[Security Urban :: RouteGuard] Error al sincronizar perfil de Firestore:', syncErr);
-          if (isExplicitAdminEmail(user.email)) {
-            setCurrentUserRole('administrador');
-          }
+          const isExplicitAdmin = isExplicitAdminEmail(user.email);
+          setCurrentUserRole(isExplicitAdmin ? 'administrador' : 'ciudadano');
         }
       } else {
         console.log('[Security Urban :: RouteGuard] ✖ Sin sesión activa -> Redirigiendo a Login');
@@ -414,7 +395,7 @@ const MainScreen: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
-  const isEffectiveAdmin = currentUserRole === 'administrador' || isExplicitAdminEmail(currentUser?.email);
+  const isEffectiveAdmin = isExplicitAdminEmail(currentUser?.email);
 
   // Nav menu items: módulos principales del sistema (Gestión de Usuarios y Ajustes se acceden desde el menú de perfil)
   const navMenuItems: { id: NavTabId; label: string; icon: React.ReactNode; badge?: string }[] = [
@@ -757,11 +738,11 @@ const MainScreen: React.FC = () => {
               {/* Clearly Visible User Profile Menu (Avatar/initials + name + dropdown) */}
               <UserProfileMenu
                 user={currentUser}
-                userRole={isExplicitAdminEmail(currentUser?.email) ? 'administrador' : currentUserRole}
+                userRole={isEffectiveAdmin ? 'administrador' : 'ciudadano'}
                 onViewProfile={handleViewProfile}
                 onOpenSettings={handleOpenSettings}
                 onNavigateToUsers={
-                  (currentUserRole === 'administrador' || isExplicitAdminEmail(currentUser?.email))
+                  isEffectiveAdmin
                     ? () => {
                         setCurrentView('userManagement');
                         setIsMobileMenuOpen(false);
