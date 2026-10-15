@@ -14,12 +14,14 @@ import {
   Navigation,
   UserCheck,
   PlusCircle,
-  FileCheck2
+  FileCheck2,
+  ShieldCheck
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { NavTabId } from './ModulePlaceholderView';
 import { SecurityUrbanLogo } from './SecurityUrbanLogo';
+import { isExplicitAdminEmail } from '../services/userService';
 
 interface HomeScreenProps {
   onNavigate: (tab: NavTabId) => void;
@@ -38,8 +40,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const { t, language } = useLanguage();
   const isDark = theme === 'dark';
 
+  const isExplicitAdmin = isExplicitAdminEmail(userEmail);
+  const effectiveRole = isExplicitAdmin ? 'administrador' : userRole;
+
   // Extract clean display name
-  const displayName = userName || (userEmail ? userEmail.split('@')[0] : 'Ciudadano');
+  const displayName = isExplicitAdmin
+    ? (userName && userName !== 'Ciudadano' && userName !== 'eduardomuleth' ? userName : 'Luis (Administrador)')
+    : userName || (userEmail ? userEmail.split('@')[0] : 'Ciudadano');
 
   return (
     <div className="w-full flex flex-col items-center">
@@ -114,7 +121,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           {/* Personalized User Greeting Badge */}
           <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 text-emerald-800 dark:text-emerald-300 font-semibold text-sm mb-3 max-w-full">
             <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="truncate max-w-[240px] sm:max-w-none">{t('welcomeBack')}, <span className="font-bold text-slate-900 dark:text-white capitalize">{displayName}</span></span>
+            <span className="truncate max-w-[240px] sm:max-w-none">{t('welcomeBack')}, <span className="font-bold text-slate-900 dark:text-white">{displayName}</span></span>
           </div>
 
           {/* Subtitle / Tagline Badge */}
@@ -157,6 +164,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
               <span>{t('goToDashboard')}</span>
             </button>
+
+            {effectiveRole === 'administrador' && (
+              <button
+                type="button"
+                onClick={() => onNavigate('myReports')}
+                className="w-full sm:w-auto min-h-[48px] px-6 sm:px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
+              >
+                <ShieldCheck className="w-5 h-5 shrink-0" />
+                <span>{language === 'es' ? 'Aprobar Reportes en Vivo' : 'Live Report Approvals'}</span>
+              </button>
+            )}
           </div>
 
           {/* Authenticated User Session Line (14px auxiliary text) */}
@@ -168,6 +186,43 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           )}
         </div>
       </section>
+
+      {/* Administrator Callout: Real-Time Approval of Reports from Registered Firebase Accounts */}
+      {effectiveRole === 'administrador' && (
+        <div className="w-full mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-600/10 via-amber-500/10 to-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5 sm:mt-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
+                  {language === 'es'
+                    ? 'Panel de Aprobación en Tiempo Real (Correos Registrados en Firebase)'
+                    : 'Real-Time Approval Panel (Firebase Registered Accounts)'}
+                </h3>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500 text-white">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  EN VIVO
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                {language === 'es'
+                  ? 'Revisa y acepta en tiempo real únicamente los reportes emitidos por usuarios registrados en Firebase en esta plataforma web. Al aceptarlos, se actualiza en vivo el Nivel de Riesgo por Sector.'
+                  : 'Review and approve in real time only reports submitted by users registered in Firebase on this web platform. Approving instantly updates Sector Risk in real time.'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('myReports')}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition shrink-0 cursor-pointer"
+          >
+            <span>{language === 'es' ? 'Abrir Panel de Aprobación' : 'Open Approval Panel'}</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* 3. Section Title for Quick Access Cards (24-30px section heading) */}
       <div className="w-full mb-5 px-1 sm:px-2 flex flex-col sm:flex-row sm:items-end justify-between gap-2">

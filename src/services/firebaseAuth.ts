@@ -237,34 +237,51 @@ export async function executeSignIn(
           return { user: null, error: 'ACCOUNT_SUSPENDED' };
         }
 
-        const rawRole = String(userData.rol || '').toLowerCase().trim();
-        const normalizedRole =
-          rawRole === 'administrador'
-            ? 'administrador'
-            : rawRole === 'operador'
-            ? 'operador'
-            : 'ciudadano';
+        const emailTrim = email.trim().toLowerCase();
+        const isExplicitAdmin =
+          emailTrim === 'eduardomuleth@gmail.com' ||
+          emailTrim === 'admin.seguridad@securityurban.medellin.gov.co';
 
-        // Update last access timestamp (and normalize legacy role if needed)
+        const rawRole = String(userData.rol || '').toLowerCase().trim();
+        const normalizedRole = isExplicitAdmin
+          ? 'administrador'
+          : rawRole === 'administrador'
+          ? 'administrador'
+          : rawRole === 'operador'
+          ? 'operador'
+          : 'ciudadano';
+
+        // Update last access timestamp (and normalize role if needed)
         const updates: Record<string, any> = { ultimoAcceso: new Date().toISOString() };
         if (userData.rol !== normalizedRole) {
           updates.rol = normalizedRole;
         }
+        if (isExplicitAdmin && (!userData.nombre || userData.nombre === 'Ciudadano' || userData.nombre.toLowerCase() === 'eduardomuleth')) {
+          updates.nombre = 'Luis (Administrador)';
+        }
         updateDoc(userDocRef, updates).catch(() => {});
         return { user, error: null, role: normalizedRole };
       } else {
-        // Self-healing: existing auth user without firestore doc yet -> default role is 'ciudadano'
-        const defaultRole = 'ciudadano';
+        // Self-healing: existing auth user without firestore doc yet
+        const emailTrim = email.trim().toLowerCase();
+        const isExplicitAdmin =
+          emailTrim === 'eduardomuleth@gmail.com' ||
+          emailTrim === 'admin.seguridad@securityurban.medellin.gov.co';
+        const defaultRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
+        const defaultName = isExplicitAdmin
+          ? (user.displayName && user.displayName !== 'Ciudadano' && user.displayName !== 'eduardomuleth' ? user.displayName : 'Luis (Administrador)')
+          : (user.displayName || email.split('@')[0]);
+
         await withAuthTimeout(
           setDoc(userDocRef, {
             uid: user.uid,
-            nombre: user.displayName || email.split('@')[0],
-            correo: email.trim().toLowerCase(),
+            nombre: defaultName,
+            correo: emailTrim,
             fechaRegistro: serverTimestamp(),
             fechaRegistroISO: new Date().toISOString(),
             rol: defaultRole,
             estado: 'activo',
-            sector: 'Comuna 8 - No especificado',
+            sector: isExplicitAdmin ? 'Villa Hermosa (Comando Central)' : 'Comuna 8 - No especificado',
             ultimoAcceso: new Date().toISOString(),
           }),
           2000
@@ -413,25 +430,34 @@ export async function executeSignUp(
       }
     }
 
-    // Requirement 1: Complementary record in Firestore 'usuarios' collection with default role 'ciudadano'
+    // Complementary record in Firestore 'usuarios' collection
     try {
+      const emailTrim = email.trim().toLowerCase();
+      const isExplicitAdmin =
+        emailTrim === 'eduardomuleth@gmail.com' ||
+        emailTrim === 'admin.seguridad@securityurban.medellin.gov.co';
+      const initialRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
+      const initialName = isExplicitAdmin
+        ? (displayName.trim() && displayName.trim() !== 'Ciudadano' && displayName.trim().toLowerCase() !== 'eduardomuleth' ? displayName.trim() : 'Luis (Administrador)')
+        : (displayName.trim() || email.split('@')[0]);
+
       const userDocRef = doc(db, 'usuarios', user.uid);
       const now = new Date();
       await withAuthTimeout(
         setDoc(userDocRef, {
           uid: user.uid,
-          nombre: displayName.trim() || email.split('@')[0],
-          correo: email.trim().toLowerCase(),
+          nombre: initialName,
+          correo: emailTrim,
           fechaRegistro: serverTimestamp(),
           fechaRegistroISO: now.toISOString(),
-          rol: 'ciudadano',
+          rol: initialRole,
           estado: 'activo',
-          sector: sector.trim() || 'No especificado',
+          sector: isExplicitAdmin ? 'Villa Hermosa (Comando Central)' : (sector.trim() || 'No especificado'),
           ultimoAcceso: now.toISOString(),
         }),
         2000
       );
-      console.log('[Firebase Auth] ✔ Registro complementario guardado en Firestore (usuarios/' + user.uid + ') con rol: ciudadano');
+      console.log('[Firebase Auth] ✔ Registro complementario guardado en Firestore (usuarios/' + user.uid + ') con rol: ' + initialRole);
     } catch (firestoreErr) {
       console.warn('[Firebase Auth] Aviso guardando en Firestore usuarios:', firestoreErr);
       // Non-fatal: the user account in Auth was created successfully

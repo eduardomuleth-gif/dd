@@ -117,6 +117,7 @@ const SectorDonutGauge: React.FC<DonutChartProps> = React.memo(
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigate,
   currentUserId,
+  currentUserRole = 'ciudadano',
 }) => {
   const { colors, theme } = useTheme();
   const { language, t, translateCategory } = useLanguage();

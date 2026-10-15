@@ -15,7 +15,8 @@ import {
   X, 
   Loader2, 
   Settings,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -65,7 +66,7 @@ import {
   AUTH_SYNC_CHANNEL_NAME,
   PASSWORD_RESET_PENDING_KEY,
 } from './services/firebaseAuth';
-import { syncCurrentUserFirestoreProfile } from './services/userService';
+import { syncCurrentUserFirestoreProfile, isExplicitAdminEmail } from './services/userService';
 import { UserRole } from './types/user';
 import { startActivitySimulation } from './services/activitySimulationService';
 import { DEMO_MODE } from './config/simulation';
@@ -361,9 +362,14 @@ const MainScreen: React.FC = () => {
             setIsEmailVerified(true);
           }
 
-          setCurrentUserRole(profile.rol);
+          const isExplicitAdmin = isExplicitAdminEmail(user.email);
+          const effectiveRole = isExplicitAdmin ? 'administrador' : (profile.rol || 'ciudadano');
+          setCurrentUserRole(effectiveRole);
         } catch (syncErr) {
           console.error('[Security Urban :: RouteGuard] Error al sincronizar perfil de Firestore:', syncErr);
+          if (isExplicitAdminEmail(user.email)) {
+            setCurrentUserRole('administrador');
+          }
         }
       } else {
         console.log('[Security Urban :: RouteGuard] ✖ Sin sesión activa -> Redirigiendo a Login');
@@ -408,6 +414,8 @@ const MainScreen: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
+  const isEffectiveAdmin = currentUserRole === 'administrador' || isExplicitAdminEmail(currentUser?.email);
+
   // Nav menu items: módulos principales del sistema (Gestión de Usuarios y Ajustes se acceden desde el menú de perfil)
   const navMenuItems: { id: NavTabId; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'home', label: t('navHome'), icon: <HomeIcon className="w-4 h-4" /> },
@@ -416,7 +424,14 @@ const MainScreen: React.FC = () => {
     { id: 'safeRoutes', label: t('navSafeRoutes'), icon: <Route className="w-4 h-4" /> },
     { id: 'tacticalSupport', label: t('navTacticalSupport'), icon: <Users className="w-4 h-4" /> },
     { id: 'alerts', label: t('navAlerts'), icon: <Bell className="w-4 h-4" /> },
-    { id: 'myReports', label: t('navMyReports'), icon: <FileText className="w-4 h-4" /> },
+    {
+      id: 'myReports',
+      label: isEffectiveAdmin
+        ? (language === 'es' ? 'Aprobación en Tiempo Real' : 'Real-Time Approvals')
+        : t('navMyReports'),
+      icon: isEffectiveAdmin ? <ShieldCheck className="w-4 h-4 text-emerald-400" /> : <FileText className="w-4 h-4" />,
+      badge: isEffectiveAdmin ? (language === 'es' ? 'EN VIVO' : 'LIVE') : undefined,
+    },
   ];
 
   // 1. Initial Loading State (while Firebase onAuthStateChanged resolves)
@@ -742,13 +757,17 @@ const MainScreen: React.FC = () => {
               {/* Clearly Visible User Profile Menu (Avatar/initials + name + dropdown) */}
               <UserProfileMenu
                 user={currentUser}
-                userRole={currentUserRole}
+                userRole={isExplicitAdminEmail(currentUser?.email) ? 'administrador' : currentUserRole}
                 onViewProfile={handleViewProfile}
                 onOpenSettings={handleOpenSettings}
-                onNavigateToUsers={() => {
-                  setCurrentView('userManagement');
-                  setIsMobileMenuOpen(false);
-                }}
+                onNavigateToUsers={
+                  (currentUserRole === 'administrador' || isExplicitAdminEmail(currentUser?.email))
+                    ? () => {
+                        setCurrentView('userManagement');
+                        setIsMobileMenuOpen(false);
+                      }
+                    : undefined
+                }
                 onSignOut={handleSignOut}
               />
 

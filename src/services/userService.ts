@@ -27,6 +27,17 @@ const USERS_COLLECTION = 'usuarios';
 const USER_PROFILE_CACHE_PREFIX = 'security_urban_user_profile_';
 const FIRESTORE_OP_TIMEOUT_MS = 2200;
 
+export const ADMIN_EMAILS: string[] = [
+  'eduardomuleth@gmail.com',
+  'admin.seguridad@securityurban.medellin.gov.co',
+];
+
+export function isExplicitAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const clean = email.toLowerCase().trim();
+  return ADMIN_EMAILS.some((adminEmail) => adminEmail.toLowerCase() === clean);
+}
+
 function withFirestoreTimeout<T>(promise: Promise<T>, ms = FIRESTORE_OP_TIMEOUT_MS): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Tiempo de espera de Firestore agotado')), ms);
@@ -97,23 +108,37 @@ export function normalizeUserData(id: string, data: any): FirestoreUser {
     }
   }
 
+  const userEmail = String(data.correo || '').toLowerCase().trim();
+  const isExplicitAdmin = isExplicitAdminEmail(userEmail);
   const rawRol = String(data.rol || '').toLowerCase().trim();
-  const normalizedRol: UserRole =
-    rawRol === 'administrador'
-      ? 'administrador'
-      : rawRol === 'operador'
-      ? 'operador'
-      : 'ciudadano';
+
+  const normalizedRol: UserRole = isExplicitAdmin
+    ? 'administrador'
+    : rawRol === 'administrador'
+    ? 'administrador'
+    : rawRol === 'operador'
+    ? 'operador'
+    : 'ciudadano';
+
+  // Compute name with explicit Administrator support for eduardomuleth@gmail.com
+  let resolvedNombre = data.nombre ? String(data.nombre).trim() : '';
+  if (isExplicitAdmin) {
+    if (!resolvedNombre || resolvedNombre === 'Ciudadano' || resolvedNombre.toLowerCase() === 'eduardomuleth') {
+      resolvedNombre = 'Luis (Administrador)';
+    }
+  } else if (!resolvedNombre) {
+    resolvedNombre = 'Ciudadano';
+  }
 
   return {
     uid: id,
-    nombre: data.nombre || 'Ciudadano',
+    nombre: resolvedNombre,
     correo: data.correo || '',
     fechaRegistro: fechaRegistroFormatted,
     fechaRegistroISO: fechaRegistroISO,
     rol: normalizedRol,
     estado: (data.estado as UserStatus) || 'activo',
-    sector: data.sector || 'Comuna 8 - No especificado',
+    sector: isExplicitAdmin ? (data.sector || 'Villa Hermosa (Comando Central)') : (data.sector || 'Comuna 8 - No especificado'),
     ultimoAcceso: data.ultimoAcceso || 'No registrado',
     telefono: data.telefono,
     preferencias: data.preferencias,
@@ -256,15 +281,18 @@ export async function getFirestoreUserProfile(uid: string): Promise<FirestoreUse
     // 2. Self-healing fallback from active Firebase Auth session
     if (auth.currentUser && auth.currentUser.uid === uid) {
       const u = auth.currentUser;
+      const isAdmin = isExplicitAdminEmail(u.email);
       const fallback: FirestoreUser = {
         uid: u.uid,
-        nombre: u.displayName || (u.email ? u.email.split('@')[0] : 'Ciudadano'),
+        nombre: isAdmin
+          ? (u.displayName && u.displayName !== 'Ciudadano' && u.displayName !== 'eduardomuleth' ? u.displayName : 'Luis (Administrador)')
+          : (u.displayName || (u.email ? u.email.split('@')[0] : 'Ciudadano')),
         correo: u.email || '',
         fechaRegistro: 'Hoy',
         fechaRegistroISO: new Date().toISOString(),
-        rol: 'ciudadano',
+        rol: isAdmin ? 'administrador' : 'ciudadano',
         estado: 'activo',
-        sector: 'Villa Hermosa, Comuna 8',
+        sector: isAdmin ? 'Villa Hermosa (Comando Central)' : 'Villa Hermosa, Comuna 8',
       };
       setCachedProfile(uid, fallback);
       return fallback;
@@ -542,35 +570,46 @@ export async function deleteFirestoreUserByAdmin(uid: string): Promise<{ success
  */
 export async function syncCurrentUserFirestoreProfile(user: User): Promise<FirestoreUser> {
   const userDocRef = doc(db, USERS_COLLECTION, user.uid);
+  const isExplicitAdmin = isExplicitAdminEmail(user.email);
+  const targetRole: UserRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
+  const defaultDisplayName = isExplicitAdmin
+    ? (user.displayName && user.displayName !== 'Ciudadano' && user.displayName !== 'eduardomuleth' ? user.displayName : 'Luis (Administrador)')
+    : (user.displayName || (user.email ? user.email.split('@')[0] : 'Ciudadano'));
+
   try {
     const snap = await withFirestoreTimeout(getDoc(userDocRef));
     if (snap.exists()) {
       const rawData = snap.data();
       const normalized = normalizeUserData(snap.id, rawData);
-      // If Firestore had a legacy 'agente_comunal' or missing role, persist 'ciudadano'
-      if (rawData.rol !== normalized.rol) {
+
+      // Enforce administrator role in Firestore for explicit admin accounts
+      if (isExplicitAdmin && normalized.rol !== 'administrador') {
+        normalized.rol = 'administrador';
+        updateDoc(userDocRef, { rol: 'administrador', nombre: normalized.nombre }).catch(() => {});
+      } else if (rawData.rol !== normalized.rol) {
         updateDoc(userDocRef, { rol: normalized.rol }).catch(() => {});
       }
+
       setCachedProfile(user.uid, normalized);
       return normalized;
     }
 
-    // Auto-create document with standard 'ciudadano' role
+    // Auto-create document: Administrator for eduardomuleth@gmail.com, Ciudadano for everyone else
     const now = new Date();
     const newProfile: Record<string, any> = {
       uid: user.uid,
-      nombre: user.displayName || (user.email ? user.email.split('@')[0] : 'Ciudadano'),
+      nombre: defaultDisplayName,
       correo: user.email || '',
       fechaRegistro: serverTimestamp(),
       fechaRegistroISO: now.toISOString(),
-      rol: 'ciudadano',
+      rol: targetRole,
       estado: 'activo',
-      sector: 'Villa Hermosa, Comuna 8',
+      sector: isExplicitAdmin ? 'Villa Hermosa (Comando Central)' : 'Villa Hermosa, Comuna 8',
       ultimoAcceso: now.toISOString(),
     };
 
     await withFirestoreTimeout(setDoc(userDocRef, newProfile)).catch(() => {});
-    console.log(`[Security Urban :: UserService] ✔ Perfil de usuario inicializado en Firestore con rol ciudadano:`, user.email);
+    console.log(`[Security Urban :: UserService] ✔ Perfil de usuario inicializado en Firestore con rol ${targetRole}:`, user.email);
     const normalized = normalizeUserData(user.uid, newProfile);
     setCachedProfile(user.uid, normalized);
     return normalized;
@@ -580,13 +619,13 @@ export async function syncCurrentUserFirestoreProfile(user: User): Promise<Fires
     if (cached) return cached;
     return {
       uid: user.uid,
-      nombre: user.displayName || (user.email ? user.email.split('@')[0] : 'Ciudadano'),
+      nombre: defaultDisplayName,
       correo: user.email || '',
       fechaRegistro: 'Hoy',
       fechaRegistroISO: new Date().toISOString(),
-      rol: 'ciudadano',
+      rol: targetRole,
       estado: 'activo',
-      sector: 'Villa Hermosa, Comuna 8',
+      sector: isExplicitAdmin ? 'Villa Hermosa (Comando Central)' : 'Villa Hermosa, Comuna 8',
     };
   }
 }

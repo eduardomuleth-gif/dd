@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { isExplicitAdminEmail } from '../services/userService';
 
 interface UserProfileMenuProps {
   user: FirebaseUser | null;
@@ -38,10 +39,17 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
   const { t, language, translateRole } = useLanguage();
   const isDark = theme === 'dark';
 
+  const isExplicitAdmin = isExplicitAdminEmail(user?.email);
+  const effectiveRole = isExplicitAdmin ? 'administrador' : userRole;
+
   // Compute initials and clean display name
   const rawName = user?.displayName?.trim() || (user?.email ? user.email.split('@')[0] : 'Ciudadano');
-  // Preserve full display name (e.g. "Victor Manuel") if displayName is present, or format email prefix cleanly
-  const displayName = user?.displayName?.trim()
+  // Preserve full display name (e.g. "Luis (Administrador)" or "Victor Manuel") if displayName is present
+  const displayName = isExplicitAdmin
+    ? (user?.displayName && user.displayName !== 'Ciudadano' && user.displayName !== 'eduardomuleth'
+        ? user.displayName.trim()
+        : 'Luis (Administrador)')
+    : user?.displayName?.trim()
     ? user.displayName.trim()
     : rawName.split(/[._-]/)[0]
     ? rawName.split(/[._-]/)[0].charAt(0).toUpperCase() + rawName.split(/[._-]/)[0].slice(1)
@@ -127,14 +135,14 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
             {displayName}
           </span>
           <span className={`text-2xs font-mono font-semibold truncate flex items-center gap-1 ${
-            userRole === 'administrador'
+            effectiveRole === 'administrador'
               ? 'text-red-600 dark:text-red-400'
-              : userRole === 'operador'
+              : effectiveRole === 'operador'
               ? 'text-blue-600 dark:text-blue-400'
               : 'text-emerald-700 dark:text-emerald-400'
           }`}>
             <span>
-              {translateRole(userRole)}
+              {translateRole(effectiveRole)}
             </span>
           </span>
         </div>
@@ -173,9 +181,15 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
                 <span className="font-bold text-sm tracking-wide text-slate-900 dark:text-slate-100 truncate">
                   {displayName}
                 </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300 text-2xs font-semibold font-mono">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold font-mono ${
+                  effectiveRole === 'administrador'
+                    ? 'bg-red-50 dark:bg-red-950/80 border border-red-200 dark:border-red-700/60 text-red-700 dark:text-red-300'
+                    : effectiveRole === 'operador'
+                    ? 'bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-700/60 text-blue-700 dark:text-blue-300'
+                    : 'bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300'
+                }`}>
                   <ShieldCheck className="w-3 h-3" />
-                  {translateRole(userRole)}
+                  {translateRole(effectiveRole)}
                 </span>
               </div>
 
