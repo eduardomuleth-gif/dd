@@ -71,13 +71,14 @@ export interface CreateReportInput {
 }
 
 export interface DynamicSectorRiskResult {
+  hasReports: boolean;
   riskPercentage: number;
-  safetyPercentage: number;
-  stabilityPercentage: number;
+  safetyPercentage: number | null;
+  stabilityPercentage: number | null;
   weightedScore: number;
   sectorAlertsCount: number;
   criticalOrHighCount: number;
-  riskLevel: 'high' | 'moderate' | 'low';
+  riskLevel: 'high' | 'moderate' | 'low' | 'neutral';
   riskLabel: string;
   riskColorHex: string;
 }

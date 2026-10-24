@@ -14,13 +14,14 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { isExplicitAdminEmail } from '../services/userService';
+import { UserRole } from '../types/user';
 
 interface UserProfileMenuProps {
   user: FirebaseUser | null;
   userRole?: string;
   onViewProfile: () => void;
   onOpenSettings: () => void;
-  onNavigateToUsers?: () => void;
+  onNavigateToAdminControlCenter?: () => void;
   onSignOut: () => void;
 }
 
@@ -29,7 +30,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
   userRole = 'ciudadano',
   onViewProfile,
   onOpenSettings,
-  onNavigateToUsers,
+  onNavigateToAdminControlCenter,
   onSignOut,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,7 +41,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
   const isDark = theme === 'dark';
 
   const isExplicitAdmin = isExplicitAdminEmail(user?.email);
-  const effectiveRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
+  const effectiveRole: UserRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
 
   // Compute initials and clean display name
   const rawName = user?.displayName?.trim() || (user?.email ? user.email.split('@')[0] : 'Ciudadano');
@@ -137,8 +138,6 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
           <span className={`text-2xs font-mono font-semibold truncate flex items-center gap-1 ${
             effectiveRole === 'administrador'
               ? 'text-red-600 dark:text-red-400'
-              : effectiveRole === 'operador'
-              ? 'text-blue-600 dark:text-blue-400'
               : 'text-emerald-700 dark:text-emerald-400'
           }`}>
             <span>
@@ -184,8 +183,6 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold font-mono ${
                   effectiveRole === 'administrador'
                     ? 'bg-red-50 dark:bg-red-950/80 border border-red-200 dark:border-red-700/60 text-red-700 dark:text-red-300'
-                    : effectiveRole === 'operador'
-                    ? 'bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-700/60 text-blue-700 dark:text-blue-300'
                     : 'bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-700/60 text-emerald-800 dark:text-emerald-300'
                 }`}>
                   <ShieldCheck className="w-3 h-3" />
@@ -243,26 +240,26 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
               </div>
             </button>
 
-            {/* Option: Gestión de Usuarios (Admin Terminal) */}
-            {onNavigateToUsers && (
+            {/* Option: Centro de Control Operativo (Admin Exclusive) */}
+            {onNavigateToAdminControlCenter && (
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => handleSelectOption(onNavigateToUsers)}
-                className="w-full min-h-[44px] flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-xl transition cursor-pointer text-slate-800 dark:text-slate-200 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/50 dark:hover:text-red-300"
+                onClick={() => handleSelectOption(onNavigateToAdminControlCenter)}
+                className="w-full min-h-[44px] flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-xl transition cursor-pointer text-slate-800 dark:text-slate-200 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-300"
               >
-                <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-red-950/80 flex items-center justify-center text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 shrink-0">
-                  <Users className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/60 shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col text-left min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span>{t('navUserManagement')}</span>
-                    <span className="px-1.5 py-0.5 rounded-md bg-red-600 text-white font-mono text-2xs font-bold">
-                      ADMIN
+                    <span>{language === 'es' ? 'Centro de Control Operativo' : 'Operations Control'}</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-mono text-2xs font-bold">
+                      OFICIAL
                     </span>
                   </div>
                   <span className="text-xs text-slate-600 dark:text-slate-400 font-normal truncate">
-                    {language === 'es' ? 'Roles, estados y auditoría comunal' : 'Roles, statuses & community audit'}
+                    {language === 'es' ? 'Aprobaciones, alertas masivas y control' : 'Approvals, mass alerts & telemetry'}
                   </span>
                 </div>
               </button>

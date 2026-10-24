@@ -15,7 +15,18 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 
-export type NavTabId = 'home' | 'dashboard' | 'riskMap' | 'safeRoutes' | 'tacticalSupport' | 'userManagement' | 'myReports' | 'alerts' | 'profile' | 'settings';
+export type NavTabId =
+  | 'home'
+  | 'dashboard'
+  | 'riskMap'
+  | 'safeRoutes'
+  | 'tacticalSupport'
+  | 'userManagement'
+  | 'myReports'
+  | 'alerts'
+  | 'profile'
+  | 'settings'
+  | 'adminControlCenter';
 
 interface ModulePlaceholderViewProps {
   tab: NavTabId;
@@ -166,6 +177,19 @@ export const ModulePlaceholderView: React.FC<ModulePlaceholderViewProps> = ({
       bullets: language === 'es'
         ? ['Notificaciones prioritarias: Activadas (Sonido y vibración)', 'Capa de visualización: HUD de alta legibilidad', 'Frecuencia de telemetría: Tiempo real (WebSockets)']
         : ['Priority notifications: Enabled (Sound & vibration)', 'Display layer: High-legibility HUD', 'Telemetry frequency: Real-time (WebSockets)'],
+    },
+    adminControlCenter: {
+      title: language === 'es' ? 'Centro de Control Operativo' : 'Operations Control Center',
+      subtitle: language === 'es' ? 'Gestión administrativa y auditoría en tiempo real' : 'Administrative management & real-time audit',
+      icon: <ShieldAlert className="w-8 h-8 text-red-500" />,
+      tag: 'ADMIN // COMUNA 8',
+      description: language === 'es'
+        ? 'Panel exclusivo para la aprobación de reportes ciudadanos, emisión de alertas masivas y telemetría de sectores.'
+        : 'Exclusive dashboard for citizen report approvals, mass alert broadcasting, and sector telemetry.',
+      status: 'TERMINAL OFICIAL ACTIVA',
+      bullets: language === 'es'
+        ? ['Aprobación física de incidentes en Firestore', 'Emisión de alertas comunales en vivo', 'Monitoreo dinámico de riesgo']
+        : ['Physical incident approval in Firestore', 'Live communal mass alerts', 'Dynamic sector risk monitoring'],
     },
   };
 

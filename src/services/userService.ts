@@ -27,12 +27,12 @@ const USERS_COLLECTION = 'usuarios';
 const USER_PROFILE_CACHE_PREFIX = 'security_urban_user_profile_';
 const FIRESTORE_OP_TIMEOUT_MS = 2200;
 
-export const SOLE_ADMIN_EMAIL = 'eduardomuleth@gmail.com';
-export const ADMIN_EMAILS: string[] = [SOLE_ADMIN_EMAIL];
+export const ADMIN_PRIMARY_EMAIL = 'eduardomuleth@gmail.com';
+export const ADMIN_EMAILS: string[] = [ADMIN_PRIMARY_EMAIL];
 
 export function isExplicitAdminEmail(email?: string | null): boolean {
   if (!email) return false;
-  return email.toLowerCase().trim() === SOLE_ADMIN_EMAIL;
+  return email.toLowerCase().trim() === ADMIN_PRIMARY_EMAIL.toLowerCase();
 }
 
 function withFirestoreTimeout<T>(promise: Promise<T>, ms = FIRESTORE_OP_TIMEOUT_MS): Promise<T> {
@@ -107,14 +107,16 @@ export function normalizeUserData(id: string, data: any): FirestoreUser {
 
   const userEmail = String(data.correo || '').toLowerCase().trim();
   const isExplicitAdmin = isExplicitAdminEmail(userEmail);
-  // Exclusively eduardomuleth@gmail.com is granted 'administrador'. Everyone else is strictly 'ciudadano'.
+
+  // Strict Security: ONLY eduardomuleth@gmail.com can hold 'administrador' role.
+  // All other users are strictly restricted to 'ciudadano'.
   const normalizedRol: UserRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
 
   // Compute name with explicit Administrator support for eduardomuleth@gmail.com
   let resolvedNombre = data.nombre ? String(data.nombre).trim() : '';
   if (isExplicitAdmin) {
     if (!resolvedNombre || resolvedNombre === 'Ciudadano' || resolvedNombre.toLowerCase() === 'eduardomuleth') {
-      resolvedNombre = 'Luis (Administrador)';
+      resolvedNombre = 'Administrador General (Luis)';
     }
   } else if (!resolvedNombre) {
     resolvedNombre = 'Ciudadano';
@@ -181,6 +183,8 @@ export function calculateUserStats(users: FirestoreUser[]): UserStats {
   };
 }
 
+export const DEFAULT_REGISTERED_CITIZENS: FirestoreUser[] = [];
+
 /**
  * Real-time listener for all users in Firestore collection 'usuarios'
  */
@@ -188,19 +192,22 @@ export function subscribeToFirestoreUsers(
   onUpdate: (users: FirestoreUser[], stats: UserStats) => void,
   onError?: (err: any) => void
 ): () => void {
-  console.log('[Security Urban :: UserService] Suscribiéndose en tiempo real a colección "usuarios"...');
   const usersRef = collection(db, USERS_COLLECTION);
   const q = query(usersRef, limit(100));
 
   return onSnapshot(
     q,
     (snapshot) => {
-      const users: FirestoreUser[] = [];
+      const userMap = new Map<string, FirestoreUser>();
+
       snapshot.forEach((docSnap) => {
-        users.push(normalizeUserData(docSnap.id, docSnap.data()));
+        const u = normalizeUserData(docSnap.id, docSnap.data());
+        userMap.set(u.uid, u);
       });
 
-      // Sort: Admins & Operadores first, then by registration date or name
+      const users = Array.from(userMap.values());
+
+      // Sort: Admins first, then by name
       users.sort((a, b) => {
         const roleOrder: Record<UserRole, number> = { administrador: 1, operador: 2, ciudadano: 3 };
         const roleDiff = (roleOrder[a.rol] || 3) - (roleOrder[b.rol] || 3);
@@ -209,11 +216,12 @@ export function subscribeToFirestoreUsers(
       });
 
       const stats = calculateUserStats(users);
-      console.log(`[Security Urban :: UserService] ✔ Actualización en vivo: ${users.length} usuarios en Firestore.`);
       onUpdate(users, stats);
     },
     (err) => {
-      console.error('[Security Urban :: UserService] ✖ Error en listener onSnapshot de usuarios:', err);
+      console.error('[Security Urban :: UserService] Error en listener onSnapshot de usuarios:', err);
+      const stats = calculateUserStats([]);
+      onUpdate([], stats);
       if (onError) onError(err);
     }
   );
@@ -572,13 +580,12 @@ export async function syncCurrentUserFirestoreProfile(user: User): Promise<Fires
       const rawData = snap.data();
       const normalized = normalizeUserData(snap.id, rawData);
 
-      // Enforce administrator role ONLY for eduardomuleth@gmail.com; enforce ciudadano for everyone else
+      // Enforce administrator role in Firestore for explicit admin accounts
       if (isExplicitAdmin && normalized.rol !== 'administrador') {
         normalized.rol = 'administrador';
         updateDoc(userDocRef, { rol: 'administrador', nombre: normalized.nombre }).catch(() => {});
-      } else if (!isExplicitAdmin && normalized.rol !== 'ciudadano') {
-        normalized.rol = 'ciudadano';
-        updateDoc(userDocRef, { rol: 'ciudadano' }).catch(() => {});
+      } else if (rawData.rol !== normalized.rol) {
+        updateDoc(userDocRef, { rol: normalized.rol }).catch(() => {});
       }
 
       setCachedProfile(user.uid, normalized);
@@ -622,94 +629,10 @@ export async function syncCurrentUserFirestoreProfile(user: User): Promise<Fires
 }
 
 /**
- * Pre-populates initial representative users for Comuna 8 if the collection is fresh,
- * so the administrator has a realistic operational dashboard to manage immediately.
+ * Disabled: Ensures no fake or mock user emails are created or seeded into Firestore.
+ * All information strictly depends on real user registrations.
  */
 export async function seedInitialCommunityUsersIfEmpty(): Promise<void> {
-  try {
-    const usersRef = collection(db, USERS_COLLECTION);
-    const snap = await getDocs(usersRef);
-    if (!snap.empty) {
-      return; // Already populated
-    }
-
-    console.log('[Security Urban :: UserService] Inicializando usuarios semilla para Comuna 8...');
-    const now = new Date();
-
-    const sampleUsers = [
-      {
-        uid: 'usr_sec_admin_01',
-        nombre: 'Sargento Carlos Mario Echeverri',
-        correo: 'admin.seguridad@securityurban.medellin.gov.co',
-        rol: 'administrador',
-        estado: 'activo',
-        sector: 'Villa Hermosa (Comando Central)',
-        diasAtras: 30,
-      },
-      {
-        uid: 'usr_sec_op_01',
-        nombre: 'Patrullera Mariana Restrepo G.',
-        correo: 'operador.enciso@seguridadcomuna8.gov.co',
-        rol: 'operador',
-        estado: 'activo',
-        sector: 'Enciso - Cuadrante 8-2',
-        diasAtras: 18,
-      },
-      {
-        uid: 'usr_sec_op_02',
-        nombre: 'Agente David Londoño Vélez',
-        correo: 'operador.ladera@seguridadcomuna8.gov.co',
-        rol: 'operador',
-        estado: 'activo',
-        sector: 'La Ladera - Parque Biblioteca',
-        diasAtras: 12,
-      },
-      {
-        uid: 'usr_sec_cit_01',
-        nombre: 'Gloria Inés Montoya',
-        correo: 'gloria.montoya@comuna8unida.org',
-        rol: 'ciudadano',
-        estado: 'activo',
-        sector: 'Sucre - Sector Los Mangos',
-        diasAtras: 3,
-      },
-      {
-        uid: 'usr_sec_cit_02',
-        nombre: 'Julián Andrés Henao',
-        correo: 'j.henao88@gmail.com',
-        rol: 'ciudadano',
-        estado: 'activo',
-        sector: 'Trece de Noviembre',
-        diasAtras: 2,
-      },
-      {
-        uid: 'usr_sec_cit_03',
-        nombre: 'Felipe Quintero Berrío',
-        correo: 'felipe.quintero.infraccion@correo.com',
-        rol: 'ciudadano',
-        estado: 'suspendido',
-        sector: 'El Pinal (Reportes Falsos)',
-        diasAtras: 25,
-      },
-    ];
-
-    for (const sample of sampleUsers) {
-      const regDate = new Date(now.getTime() - sample.diasAtras * 24 * 60 * 60 * 1000);
-      await setDoc(doc(db, USERS_COLLECTION, sample.uid), {
-        uid: sample.uid,
-        nombre: sample.nombre,
-        correo: sample.correo,
-        fechaRegistro: Timestamp.fromDate(regDate),
-        fechaRegistroISO: regDate.toISOString(),
-        rol: sample.rol,
-        estado: sample.estado,
-        sector: sample.sector,
-        ultimoAcceso: new Date().toISOString(),
-      });
-    }
-
-    console.log('[Security Urban :: UserService] ✔ Usuarios iniciales de Comuna 8 sembrados exitosamente.');
-  } catch (err) {
-    console.warn('[Security Urban :: UserService] No se pudieron sembrar usuarios semilla:', err);
-  }
+  // Intentionally no-op to eliminate fake/mock user accounts.
+  return;
 }

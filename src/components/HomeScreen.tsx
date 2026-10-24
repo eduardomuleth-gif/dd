@@ -41,7 +41,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const isDark = theme === 'dark';
 
   const isExplicitAdmin = isExplicitAdminEmail(userEmail);
-  const effectiveRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
+  const effectiveRole = isExplicitAdmin ? 'administrador' : userRole;
 
   // Extract clean display name
   const displayName = isExplicitAdmin
@@ -165,14 +165,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <span>{t('goToDashboard')}</span>
             </button>
 
-            {effectiveRole === 'administrador' && (
+            {isExplicitAdmin && (
               <button
                 type="button"
-                onClick={() => onNavigate('myReports')}
-                className="w-full sm:w-auto min-h-[48px] px-6 sm:px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
+                onClick={() => onNavigate('adminControlCenter')}
+                className="w-full sm:w-auto min-h-[48px] px-6 sm:px-7 py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-semibold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-[0.99]"
               >
                 <ShieldCheck className="w-5 h-5 shrink-0" />
-                <span>{language === 'es' ? 'Aprobar Reportes en Vivo' : 'Live Report Approvals'}</span>
+                <span>{language === 'es' ? 'Centro de Control Operativo' : 'Operations Control Center'}</span>
               </button>
             )}
           </div>
@@ -187,36 +187,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* Administrator Callout: Real-Time Approval of Reports from Registered Firebase Accounts */}
+      {/* Administrator Callout: Panel de Aprobaciones */}
       {effectiveRole === 'administrador' && (
-        <div className="w-full mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-600/10 via-amber-500/10 to-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+        <div className="w-full mb-6 p-4 sm:p-5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
           <div className="flex items-start sm:items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5 sm:mt-0">
+            <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5 sm:mt-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
-                  {language === 'es' ? 'Panel de Aprobaciones' : 'Approval Panel'}
+                  {language === 'es'
+                    ? 'Panel de Aprobaciones'
+                    : 'Approvals Panel'}
                 </h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500 text-white">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  EN VIVO
-                </span>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
                 {language === 'es'
-                  ? 'Revisa y aprueba reportes ciudadanos en tiempo real. Al aprobarlos, se actualiza automáticamente el Nivel de Riesgo por Sector.'
-                  : 'Review and approve citizen reports in real time. Approving updates Sector Risk automatically.'}
+                  ? 'Revisa y gestiona en tiempo real los reportes ciudadanos recibidos para actualizar el Nivel de Riesgo por Sector.'
+                  : 'Review and manage community reports in real time to update Sector Risk levels.'}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => onNavigate('myReports')}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition shrink-0 cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition shrink-0 cursor-pointer"
           >
-            <span>{language === 'es' ? 'Abrir Panel de Aprobaciones' : 'Open Approval Panel'}</span>
+            <span>{language === 'es' ? 'Abrir Panel' : 'Open Panel'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

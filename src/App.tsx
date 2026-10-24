@@ -31,15 +31,36 @@ import { HomeScreen } from './components/HomeScreen';
 import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderView';
 import { UserProfileMenu } from './components/UserProfileMenu';
 
-import { DashboardScreen } from './components/DashboardScreen';
-import { RiskMapScreen } from './components/RiskMapScreen';
-import { SafeRoutesScreen } from './components/SafeRoutesScreen';
-import { TacticalSupportScreen } from './components/TacticalSupportScreen';
-import { UserManagementScreen } from './components/UserManagementScreen';
-import { SettingsScreen } from './components/SettingsScreen';
-import { MyReportsScreen } from './components/MyReportsScreen';
-import { AlertsScreen } from './components/AlertsScreen';
-import { TacticalMapModal } from './components/TacticalMapModal';
+const DashboardScreen = lazy(() =>
+  import('./components/DashboardScreen').then((m) => ({ default: m.DashboardScreen }))
+);
+const RiskMapScreen = lazy(() =>
+  import('./components/RiskMapScreen').then((m) => ({ default: m.RiskMapScreen }))
+);
+const SafeRoutesScreen = lazy(() =>
+  import('./components/SafeRoutesScreen').then((m) => ({ default: m.SafeRoutesScreen }))
+);
+const TacticalSupportScreen = lazy(() =>
+  import('./components/TacticalSupportScreen').then((m) => ({ default: m.TacticalSupportScreen }))
+);
+const UserManagementScreen = lazy(() =>
+  import('./components/UserManagementScreen').then((m) => ({ default: m.UserManagementScreen }))
+);
+const SettingsScreen = lazy(() =>
+  import('./components/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
+const MyReportsScreen = lazy(() =>
+  import('./components/MyReportsScreen').then((m) => ({ default: m.MyReportsScreen }))
+);
+const AlertsScreen = lazy(() =>
+  import('./components/AlertsScreen').then((m) => ({ default: m.AlertsScreen }))
+);
+const TacticalMapModal = lazy(() =>
+  import('./components/TacticalMapModal').then((m) => ({ default: m.TacticalMapModal }))
+);
+const AdminControlCenterScreen = lazy(() =>
+  import('./components/AdminControlCenterScreen').then((m) => ({ default: m.AdminControlCenterScreen }))
+);
 import { SecurityUrbanLogo } from './components/SecurityUrbanLogo';
 import {
   subscribeToAuth,
@@ -345,12 +366,17 @@ const MainScreen: React.FC = () => {
           }
 
           const isExplicitAdmin = isExplicitAdminEmail(user.email);
-          const effectiveRole: UserRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
+          const effectiveRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
           setCurrentUserRole(effectiveRole);
+          if (isExplicitAdmin) {
+            setCurrentView((prev) => (prev === 'home' ? 'adminControlCenter' : prev));
+          }
         } catch (syncErr) {
           console.error('[Security Urban :: RouteGuard] Error al sincronizar perfil de Firestore:', syncErr);
-          const isExplicitAdmin = isExplicitAdminEmail(user.email);
-          setCurrentUserRole(isExplicitAdmin ? 'administrador' : 'ciudadano');
+          if (isExplicitAdminEmail(user.email)) {
+            setCurrentUserRole('administrador');
+            setCurrentView((prev) => (prev === 'home' ? 'adminControlCenter' : prev));
+          }
         }
       } else {
         console.log('[Security Urban :: RouteGuard] ✖ Sin sesión activa -> Redirigiendo a Login');
@@ -365,6 +391,19 @@ const MainScreen: React.FC = () => {
       unsubscribe();
     };
   }, []);
+
+  // Strict Security Route Guard: Prevent non-admin users from accessing administrative routes
+  useEffect(() => {
+    if (!currentUser) return;
+    const isExplicitAdmin = isExplicitAdminEmail(currentUser.email);
+    if (!isExplicitAdmin && (currentView === 'adminControlCenter' || currentView === 'userManagement')) {
+      console.warn('[Security Urban :: RouteGuard] Intento no autorizado a vista de administración -> Redirigiendo a home');
+      setCurrentView('home');
+    }
+    if (isExplicitAdmin && currentView === 'userManagement') {
+      setCurrentView('adminControlCenter');
+    }
+  }, [currentView, currentUser]);
 
   // Motor de simulación periódica de actividad comunitaria para fines de demostración académica
   useEffect(() => {
@@ -395,25 +434,36 @@ const MainScreen: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
-  const isEffectiveAdmin = isExplicitAdminEmail(currentUser?.email);
+  const isEffectiveAdmin = currentUserRole === 'administrador' || isExplicitAdminEmail(currentUser?.email);
 
-  // Nav menu items: módulos principales del sistema (Gestión de Usuarios y Ajustes se acceden desde el menú de perfil)
-  const navMenuItems: { id: NavTabId; label: string; icon: React.ReactNode; badge?: string }[] = [
-    { id: 'home', label: t('navHome'), icon: <HomeIcon className="w-4 h-4" /> },
-    { id: 'dashboard', label: t('navDashboard'), icon: <Activity className="w-4 h-4" /> },
-    { id: 'riskMap', label: t('navRiskMap'), icon: <Map className="w-4 h-4" /> },
-    { id: 'safeRoutes', label: t('navSafeRoutes'), icon: <Route className="w-4 h-4" /> },
-    { id: 'tacticalSupport', label: t('navTacticalSupport'), icon: <Users className="w-4 h-4" /> },
-    { id: 'alerts', label: t('navAlerts'), icon: <Bell className="w-4 h-4" /> },
-    {
-      id: 'myReports',
-      label: isEffectiveAdmin
-        ? (language === 'es' ? 'Aprobación en Tiempo Real' : 'Real-Time Approvals')
-        : t('navMyReports'),
-      icon: isEffectiveAdmin ? <ShieldCheck className="w-4 h-4 text-emerald-400" /> : <FileText className="w-4 h-4" />,
-      badge: isEffectiveAdmin ? (language === 'es' ? 'EN VIVO' : 'LIVE') : undefined,
-    },
-  ];
+  // Nav menu items: módulos exclusivos para Administrador (eduardomuleth@gmail.com) vs Ciudadano
+  const navMenuItems: { id: NavTabId; label: string; icon: React.ReactNode; badge?: string }[] = isEffectiveAdmin
+    ? [
+        {
+          id: 'adminControlCenter',
+          label: language === 'es' ? 'Panel de Aprobaciones' : 'Approval Panel',
+          icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />,
+        },
+        {
+          id: 'riskMap',
+          label: language === 'es' ? 'Mapa de Riesgo' : 'Risk Map',
+          icon: <Map className="w-4 h-4 text-amber-500" />,
+        },
+        {
+          id: 'settings',
+          label: language === 'es' ? 'Ajustes' : 'Settings',
+          icon: <Settings className="w-4 h-4 text-slate-400" />,
+        },
+      ]
+    : [
+        { id: 'home', label: t('navHome'), icon: <HomeIcon className="w-4 h-4" /> },
+        { id: 'dashboard', label: t('navDashboard'), icon: <Activity className="w-4 h-4" /> },
+        { id: 'riskMap', label: t('navRiskMap'), icon: <Map className="w-4 h-4" /> },
+        { id: 'safeRoutes', label: t('navSafeRoutes'), icon: <Route className="w-4 h-4" /> },
+        { id: 'tacticalSupport', label: t('navTacticalSupport'), icon: <Users className="w-4 h-4" /> },
+        { id: 'alerts', label: t('navAlerts'), icon: <Bell className="w-4 h-4" /> },
+        { id: 'myReports', label: t('navMyReports'), icon: <FileText className="w-4 h-4" /> },
+      ];
 
   // 1. Initial Loading State (while Firebase onAuthStateChanged resolves)
   if (isAuthLoading) {
@@ -699,11 +749,11 @@ const MainScreen: React.FC = () => {
       >
         <div className="w-full max-w-[1720px] mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-3 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2 sm:gap-3">
-            {/* Brand identity (clickable to go home) */}
+            {/* Brand identity (clickable to go home or admin center) */}
             <button
               type="button"
               onClick={() => {
-                setCurrentView('home');
+                setCurrentView(isEffectiveAdmin ? 'adminControlCenter' : 'home');
                 setIsMobileMenuOpen(false);
               }}
               className="flex items-center gap-2.5 sm:gap-3 text-left cursor-pointer group min-w-0 shrink"
@@ -738,13 +788,13 @@ const MainScreen: React.FC = () => {
               {/* Clearly Visible User Profile Menu (Avatar/initials + name + dropdown) */}
               <UserProfileMenu
                 user={currentUser}
-                userRole={isEffectiveAdmin ? 'administrador' : 'ciudadano'}
+                userRole={isExplicitAdminEmail(currentUser?.email) ? 'administrador' : currentUserRole}
                 onViewProfile={handleViewProfile}
                 onOpenSettings={handleOpenSettings}
-                onNavigateToUsers={
+                onNavigateToAdminControlCenter={
                   isEffectiveAdmin
                     ? () => {
-                        setCurrentView('userManagement');
+                        setCurrentView('adminControlCenter');
                         setIsMobileMenuOpen(false);
                       }
                     : undefined
@@ -1097,6 +1147,14 @@ const MainScreen: React.FC = () => {
               setCurrentUser(auth.currentUser || currentUser);
             }}
           />
+        ) : currentView === 'adminControlCenter' && isEffectiveAdmin ? (
+          // Requested "Centro de Control Operativo" / "Gestión Admin" for eduardomuleth@gmail.com
+          <AdminControlCenterScreen
+            currentUserEmail={currentUser?.email}
+            currentUserId={currentUser?.uid}
+            onNavigateRiskMap={() => setCurrentView('riskMap')}
+            onNavigateUsers={() => setCurrentView('userManagement')}
+          />
         ) : currentView === 'home' ? (
           // Requested "Inicio" (Home) Authenticated Welcome Screen
           <HomeScreen
@@ -1182,14 +1240,21 @@ const MainScreen: React.FC = () => {
         aria-label={language === 'es' ? 'Barra de navegación inferior móvil' : 'Mobile bottom navigation bar'}
         className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl shadow-lg ${colors.headerBg} ${colors.headerBorder}`}
       >
-        <div className="max-w-xl mx-auto px-1.5 py-1 grid grid-cols-6 gap-0.5">
-          {[
-            { id: 'home' as NavTabId, shortLabel: language === 'es' ? 'Inicio' : 'Home', icon: <HomeIcon className="w-4 h-4" /> },
-            { id: 'dashboard' as NavTabId, shortLabel: language === 'es' ? 'Panel' : 'Panel', icon: <Activity className="w-4 h-4" /> },
-            { id: 'riskMap' as NavTabId, shortLabel: language === 'es' ? 'Mapa' : 'Map', icon: <Map className="w-4 h-4" /> },
-            { id: 'safeRoutes' as NavTabId, shortLabel: language === 'es' ? 'Rutas' : 'Routes', icon: <Route className="w-4 h-4" /> },
-            { id: 'alerts' as NavTabId, shortLabel: language === 'es' ? 'Alertas' : 'Alerts', icon: <Bell className="w-4 h-4" /> },
-          ].map((tab) => {
+        <div className={`max-w-xl mx-auto px-1.5 py-1 grid ${isEffectiveAdmin ? 'grid-cols-4' : 'grid-cols-6'} gap-0.5`}>
+          {(isEffectiveAdmin
+            ? [
+                { id: 'adminControlCenter' as NavTabId, shortLabel: 'Aprobaciones', icon: <ShieldCheck className="w-4 h-4" /> },
+                { id: 'riskMap' as NavTabId, shortLabel: language === 'es' ? 'Mapa' : 'Map', icon: <Map className="w-4 h-4" /> },
+                { id: 'settings' as NavTabId, shortLabel: language === 'es' ? 'Ajustes' : 'Settings', icon: <Settings className="w-4 h-4" /> },
+              ]
+            : [
+                { id: 'home' as NavTabId, shortLabel: language === 'es' ? 'Inicio' : 'Home', icon: <HomeIcon className="w-4 h-4" /> },
+                { id: 'dashboard' as NavTabId, shortLabel: language === 'es' ? 'Panel' : 'Panel', icon: <Activity className="w-4 h-4" /> },
+                { id: 'riskMap' as NavTabId, shortLabel: language === 'es' ? 'Mapa' : 'Map', icon: <Map className="w-4 h-4" /> },
+                { id: 'safeRoutes' as NavTabId, shortLabel: language === 'es' ? 'Rutas' : 'Routes', icon: <Route className="w-4 h-4" /> },
+                { id: 'alerts' as NavTabId, shortLabel: language === 'es' ? 'Alertas' : 'Alerts', icon: <Bell className="w-4 h-4" /> },
+              ]
+          ).map((tab) => {
             const isActive = currentView === tab.id && !isMobileMenuOpen;
             return (
               <button

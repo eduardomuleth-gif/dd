@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   Video,
   Trash2,
+  Crosshair,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -81,6 +82,11 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
   const [direccion, setDireccion] = useState<string>('');
   const [descripcion, setDescripcion] = useState<string>('');
   const [nivelPrioridad, setNivelPrioridad] = useState<ReportPriority>('media');
+
+  // Real GPS location state
+  const [realLocation, setRealLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Mandatory multimedia state (image or video)
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -162,6 +168,96 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
     }
   };
 
+  const handleDetectRealLocation = () => {
+    setLocationError(null);
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationError(
+        language === 'es'
+          ? 'Tu navegador o dispositivo no soporta geolocalización GPS.'
+          : 'Your browser or device does not support GPS geolocation.'
+      );
+      return;
+    }
+
+    setIsLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const coords = { lat: latitude, lng: longitude };
+        setRealLocation(coords);
+
+        // Attempt reverse geocoding to human-readable address
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=es`,
+            { headers: { 'Accept': 'application/json' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            const road = addr.road || addr.pedestrian || addr.suburb || '';
+            const houseNumber = addr.house_number ? `# ${addr.house_number}` : '';
+            const neighbourhood = addr.neighbourhood || addr.suburb || addr.quarter || '';
+            const city = addr.city || addr.town || 'Medellín';
+
+            const formattedAddress = [road, houseNumber, neighbourhood, city]
+              .filter(Boolean)
+              .join(', ');
+
+            if (formattedAddress) {
+              setDireccion(formattedAddress);
+            } else if (data.display_name) {
+              setDireccion(data.display_name.split(',').slice(0, 3).join(','));
+            } else {
+              setDireccion(`GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+            }
+
+            // Auto-match Comuna 8 sector if detected
+            if (neighbourhood) {
+              const matchedSector = COMUNA_8_SECTORS.find((s) =>
+                s.toLowerCase().includes(neighbourhood.toLowerCase()) ||
+                neighbourhood.toLowerCase().includes(s.toLowerCase().split('(')[0].trim())
+              );
+              if (matchedSector) {
+                setSector(matchedSector);
+              }
+            }
+          } else {
+            setDireccion(`GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+          }
+        } catch {
+          setDireccion(`GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        let msg = language === 'es' ? 'No se pudo obtener la ubicación GPS.' : 'Could not get GPS location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = language === 'es'
+            ? 'Permiso de ubicación denegado. Permite el acceso a la ubicación en tu navegador.'
+            : 'Location permission denied. Please allow location access in your browser.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = language === 'es'
+            ? 'Señal de ubicación no disponible en este momento.'
+            : 'Location signal unavailable.';
+        } else if (error.code === error.TIMEOUT) {
+          msg = language === 'es'
+            ? 'Tiempo de espera agotado al consultar ubicación GPS.'
+            : 'GPS location request timed out.';
+        }
+        setLocationError(msg);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      }
+    );
+  };
+
   const isFormValid =
     titulo.trim().length >= 4 &&
     descripcion.trim().length > 0 &&
@@ -217,6 +313,7 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
         descripcion: cleanDescription,
         sector: finalSector,
         direccion: direccion.trim(),
+        ubicacion: realLocation || undefined,
         nivelPrioridad,
         estadoInicial: 'pendiente',
         mediaFile,
@@ -257,6 +354,8 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
       setDescripcion('');
       setDireccion('');
       setCustomSector('');
+      setRealLocation(null);
+      setLocationError(null);
       handleRemoveMedia();
       setUploadProgress(0);
       setUploadStageText('');
@@ -507,12 +606,35 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
             </div>
 
             <div>
-              <label
-                htmlFor="report-address-input"
-                className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5"
-              >
-                {language === 'es' ? '5. Dirección o Punto de Referencia' : '5. Address / Landmark'}
-              </label>
+              <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                <label
+                  htmlFor="report-address-input"
+                  className="block text-xs font-bold font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300"
+                >
+                  {language === 'es' ? '5. Dirección o Punto de Referencia' : '5. Address / Landmark'}
+                </label>
+
+                {/* Opción de Ubicación Real arribita del campo */}
+                <button
+                  type="button"
+                  onClick={handleDetectRealLocation}
+                  disabled={isLocating}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer active:scale-95 disabled:opacity-60"
+                  title={language === 'es' ? 'Detectar mi ubicación real actual por GPS' : 'Detect my real current location via GPS'}
+                >
+                  {isLocating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Crosshair className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  )}
+                  <span>
+                    {isLocating
+                      ? (language === 'es' ? 'Detectando GPS...' : 'Locating GPS...')
+                      : (language === 'es' ? '📍 Ubicación Real' : '📍 Real Location')}
+                  </span>
+                </button>
+              </div>
+
               <div className="relative">
                 <MapPin
                   className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -522,7 +644,12 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                   id="report-address-input"
                   type="text"
                   value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
+                  onChange={(e) => {
+                    setDireccion(e.target.value);
+                    if (realLocation && !e.target.value) {
+                      setRealLocation(null);
+                    }
+                  }}
                   placeholder={
                     language === 'es'
                       ? 'Ej. Cra 40 # 56-20 cerca a la cancha'
@@ -535,6 +662,36 @@ export const CreateReportModal: React.FC<CreateReportModalProps> = ({
                   }`}
                 />
               </div>
+
+              {/* Indicador de Ubicación Real detectada */}
+              {realLocation && (
+                <div className="mt-1.5 flex items-center justify-between text-[11px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>
+                      {language === 'es'
+                        ? `GPS fijado: ${realLocation.lat.toFixed(5)}, ${realLocation.lng.toFixed(5)}`
+                        : `GPS locked: ${realLocation.lat.toFixed(5)}, ${realLocation.lng.toFixed(5)}`}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRealLocation(null);
+                      setDireccion('');
+                    }}
+                    className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 underline cursor-pointer text-[10px]"
+                  >
+                    {language === 'es' ? 'Quitar' : 'Clear'}
+                  </button>
+                </div>
+              )}
+
+              {locationError && (
+                <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400 font-mono">
+                  {locationError}
+                </p>
+              )}
             </div>
           </div>
 

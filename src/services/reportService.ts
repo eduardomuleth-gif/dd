@@ -5,10 +5,10 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
-  getDocs,
   query,
   where,
   limit,
+  getDocs,
 } from 'firebase/firestore';
 import {
   getStorage,
@@ -121,13 +121,6 @@ function detectMediaType(urlOrName?: string, explicitType?: string): ReportMedia
   return 'image';
 }
 
-export function isReportApproved(reportOrStatus?: IncidentReport | string | null): boolean {
-  if (!reportOrStatus) return false;
-  const status = typeof reportOrStatus === 'string' ? reportOrStatus : reportOrStatus.estado;
-  const s = String(status).toLowerCase().trim();
-  return s === 'aceptado' || s === 'aprobado';
-}
-
 function normalizeReport(id: string, data: Record<string, any>): IncidentReport {
   const reportId = String(data?.id || id);
   const createdISO =
@@ -144,13 +137,6 @@ function normalizeReport(id: string, data: Record<string, any>): IncidentReport 
   const mediaName = data?.mediaName || data?.media_name || undefined;
   const mediaType = detectMediaType(mediaUrl || mediaName, data?.mediaType || data?.media_type);
 
-  const rawEstado = String(data?.estado || 'pendiente').toLowerCase().trim();
-  const estado: ReportStatus = isReportApproved(rawEstado)
-    ? 'aprobado'
-    : rawEstado === 'rechazado'
-    ? 'rechazado'
-    : 'pendiente';
-
   return {
     id: reportId,
     uid: data?.uid || '',
@@ -163,7 +149,12 @@ function normalizeReport(id: string, data: Record<string, any>): IncidentReport 
     direccion: data?.direccion || '',
     ubicacion: data?.ubicacion || undefined,
     nivelPrioridad: (data?.nivelPrioridad as ReportPriority) || 'media',
-    estado,
+    estado: (() => {
+      const raw = String(data?.estado || 'pendiente').toLowerCase().trim();
+      if (raw === 'aprobado' || raw === 'aceptado') return 'aprobado';
+      if (raw === 'rechazado') return 'rechazado';
+      return 'pendiente';
+    })(),
     fechaCreacionISO: createdISO,
     fechaCreacionFormateada: data?.fechaCreacionFormateada || formatDate(createdISO),
     fechaRevisionISO: data?.fechaRevisionISO ?? undefined,
@@ -176,14 +167,51 @@ function normalizeReport(id: string, data: Record<string, any>): IncidentReport 
   };
 }
 
+export function isReportApproved(status?: string | null): boolean {
+  if (!status) return false;
+  const s = String(status).toLowerCase().trim();
+  return s === 'aprobado' || s === 'aceptado';
+}
+
 function isRealUserReport(r: IncidentReport): boolean {
-  return (
-    r.origen !== 'simulacion' &&
-    r.uid !== 'system-simulation' &&
-    r.uid !== 'sim_robot_comuna8' &&
-    r.autorEmail !== 'simulacion.alerta@securityurban.gov.co' &&
-    !r.id.startsWith('sim-')
-  );
+  if (!r || !r.id) return false;
+  const id = String(r.id);
+  const email = String(r.autorEmail || '').toLowerCase().trim();
+  const uid = String(r.uid || '');
+
+  // Filter out any mock/seed/simulated data
+  if (
+    r.origen === 'simulacion' ||
+    uid === 'system-simulation' ||
+    uid === 'sim_robot_comuna8' ||
+    email === 'simulacion.alerta@securityurban.gov.co' ||
+    id.startsWith('sim-') ||
+    id.startsWith('rep-santiago-gomez') ||
+    id.startsWith('rep-yalena-quintero') ||
+    id.startsWith('rep-andrea-restrepo') ||
+    id.startsWith('rep-danna-morales') ||
+    id.startsWith('rep-citizen-')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export const INITIAL_CITIZEN_REPORTS: IncidentReport[] = [];
+
+// Clean legacy localStorage on startup so test reports do not persist
+if (typeof window !== 'undefined') {
+  try {
+    const raw = localStorage.getItem(GLOBAL_REPORTS_STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const clean = parsed.filter(isRealUserReport);
+        localStorage.setItem(GLOBAL_REPORTS_STORE_KEY, JSON.stringify(clean));
+      }
+    }
+  } catch {}
 }
 
 function getGlobalCachedReports(): IncidentReport[] {
@@ -195,12 +223,20 @@ function getGlobalCachedReports(): IncidentReport[] {
     if (raw) {
       const parsed = JSON.parse(raw) as IncidentReport[];
       if (Array.isArray(parsed)) {
-        memoryReportsCache = parsed.filter(isRealUserReport);
+        const clean = parsed.filter(isRealUserReport);
+        if (clean.length !== parsed.length) {
+          localStorage.setItem(GLOBAL_REPORTS_STORE_KEY, JSON.stringify(clean));
+        }
+        memoryReportsCache = clean.sort(
+          (a, b) => new Date(b.fechaCreacionISO).getTime() - new Date(a.fechaCreacionISO).getTime()
+        );
         lastCacheTimestamp = Date.now();
         return memoryReportsCache;
       }
     }
   } catch {}
+  memoryReportsCache = [];
+  lastCacheTimestamp = Date.now();
   return [];
 }
 
@@ -327,23 +363,25 @@ export function calculateDynamicSectorRiskStats(
   language: 'es' | 'en' = 'es'
 ): DynamicSectorRiskResult {
   const sectorReports = allApprovedReports.filter(
-    (r) => isReportApproved(r) && doesReportMatchSector(r.sector, sectorName)
+    (r) => isReportApproved(r.estado) && doesReportMatchSector(r.sector, sectorName)
   );
 
   const count = sectorReports.length;
 
-  // Optimal base state when sector has 0 approved reports
+  // Manejo explícito de sectores sin reportes (cero incidentes aprobados en Firestore)
+  // No inventa métricas ni 100% por defecto; refleja estado neutro y 0% de riesgo ("Sin alertas (0 pts)")
   if (count === 0) {
     return {
+      hasReports: false,
       riskPercentage: 0,
-      safetyPercentage: 100,
-      stabilityPercentage: 100,
+      safetyPercentage: null,
+      stabilityPercentage: null,
       weightedScore: 0,
       sectorAlertsCount: 0,
       criticalOrHighCount: 0,
-      riskLevel: 'low',
-      riskLabel: language === 'es' ? 'Óptimo / Sin Alertas' : 'Optimal / No Alerts',
-      riskColorHex: '#10b981',
+      riskLevel: 'neutral',
+      riskLabel: language === 'es' ? 'Sin alertas (0 pts)' : 'No alerts (0 pts)',
+      riskColorHex: '#94a3b8',
     };
   }
 
@@ -449,6 +487,7 @@ export function calculateDynamicSectorRiskStats(
     riskLevel === 'high' ? '#f43f5e' : riskLevel === 'moderate' ? '#f59e0b' : '#10b981';
 
   return {
+    hasReports: true,
     riskPercentage: normalizedRisk,
     safetyPercentage: normalizedSafety,
     stabilityPercentage,
@@ -1079,10 +1118,8 @@ export function subscribeToUserReports(
 }
 
 /**
- * Subscribes to all publicly accepted reports (where estado == 'aceptado') with .limit(QUERY_LIMIT).
- */
-/**
- * Subscribes to all publicly accepted reports (where estado is 'aprobado' or 'aceptado') with .limit(QUERY_LIMIT).
+ * Subscribes to all publicly accepted/approved reports with .limit(QUERY_LIMIT).
+ * Reads directly from Firestore (both onSnapshot and getDocs) and Supabase.
  */
 export function subscribeToPublicAcceptedReports(
   onUpdate: (reports: IncidentReport[]) => void,
@@ -1094,9 +1131,9 @@ export function subscribeToPublicAcceptedReports(
 
   const emitMergedAccepted = () => {
     if (!isActive) return;
-    const localAccepted = getGlobalCachedReports().filter((r) => isReportApproved(r));
+    const localAccepted = getGlobalCachedReports().filter((r) => isReportApproved(r.estado));
     const merged = mergeReportLists(firestoreAccepted, supabaseAccepted, localAccepted).filter(
-      (r) => isReportApproved(r) && isRealUserReport(r)
+      (r) => isReportApproved(r.estado) && isRealUserReport(r)
     );
     onUpdate(merged);
   };
@@ -1104,32 +1141,32 @@ export function subscribeToPublicAcceptedReports(
   // Emit cached immediately for fast initial render
   emitMergedAccepted();
 
-  // Instant direct getDocs query to guarantee immediate fresh persistence from Firestore on reload
-  const qApproved = query(
-    collection(db, REPORTS_COLLECTION),
-    where('estado', 'in', ['aprobado', 'aceptado']),
-    limit(QUERY_LIMIT)
-  );
-
-  getDocs(qApproved)
-    .then((snap) => {
-      if (!isActive) return;
-      const docs: IncidentReport[] = [];
-      snap.forEach((d) => docs.push(normalizeReport(d.id, d.data())));
-      if (docs.length > 0) {
-        firestoreAccepted = docs;
-        emitMergedAccepted();
-      }
-    })
-    .catch((err) => {
-      console.warn('[Security Urban :: Firestore] Aviso en getDocs de reportes aprobados:', err);
-    });
-
-  // 1. Firestore real-time onSnapshot query
+  // 1. Firestore real-time query filtered by estado in ['aprobado', 'aceptado'] and .limit(QUERY_LIMIT)
   let unsubFirestore: (() => void) | null = null;
   try {
+    const q = query(
+      collection(db, REPORTS_COLLECTION),
+      where('estado', 'in', ['aprobado', 'aceptado']),
+      limit(QUERY_LIMIT)
+    );
+
+    // Initial immediate fetch with getDocs to ensure instant data availability on reload
+    getDocs(q)
+      .then((snap) => {
+        if (!isActive) return;
+        const docs: IncidentReport[] = [];
+        snap.forEach((d) => docs.push(normalizeReport(d.id, d.data())));
+        if (docs.length > 0) {
+          firestoreAccepted = docs;
+          emitMergedAccepted();
+        }
+      })
+      .catch((err) => {
+        console.warn('[Security Urban :: Firestore] Aviso al consultar reportes aprobados con getDocs:', err);
+      });
+
     unsubFirestore = onSnapshot(
-      qApproved,
+      q,
       (snap) => {
         if (!isActive) return;
         const docs: IncidentReport[] = [];
@@ -1138,11 +1175,11 @@ export function subscribeToPublicAcceptedReports(
         emitMergedAccepted();
       },
       (err) => {
-        console.warn('[Security Urban :: Firestore] Aviso en onSnapshot reporte aprobado:', err);
+        console.warn('[Security Urban :: Firestore] Aviso en listener de reportes aprobados:', err);
       }
     );
   } catch (err) {
-    console.warn('[Security Urban :: Firestore] Error configurando onSnapshot reportes aprobados:', err);
+    console.warn('[Security Urban :: Firestore] Error configurando listener de reportes:', err);
   }
 
   // 2. Supabase query with .limit(QUERY_LIMIT)
@@ -1225,27 +1262,27 @@ export function subscribeToAllReportsForAdmin(
 
   emitMergedAdmin();
 
-  // Instant direct getDocs query to guarantee immediate fresh persistence from Firestore on reload
-  const qAdmin = query(collection(db, REPORTS_COLLECTION), limit(QUERY_LIMIT));
-
-  getDocs(qAdmin)
-    .then((snap) => {
-      if (!isActive) return;
-      const docs: IncidentReport[] = [];
-      snap.forEach((d) => docs.push(normalizeReport(d.id, d.data())));
-      if (docs.length > 0) {
-        firestoreAll = docs;
-        emitMergedAdmin();
-      }
-    })
-    .catch((err) => {
-      console.warn('[Security Urban :: Firestore] Aviso en getDocs admin:', err);
-    });
-
   let unsubFirestore: (() => void) | null = null;
   try {
+    const q = query(collection(db, REPORTS_COLLECTION), limit(QUERY_LIMIT));
+
+    // Immediate initial fetch with getDocs for instant data availability on reload
+    getDocs(q)
+      .then((snap) => {
+        if (!isActive) return;
+        const docs: IncidentReport[] = [];
+        snap.forEach((d) => docs.push(normalizeReport(d.id, d.data())));
+        if (docs.length > 0) {
+          firestoreAll = docs;
+          emitMergedAdmin();
+        }
+      })
+      .catch((err) => {
+        console.warn('[Security Urban :: Firestore] Aviso al consultar reportes admin con getDocs:', err);
+      });
+
     unsubFirestore = onSnapshot(
-      qAdmin,
+      q,
       (snap) => {
         if (!isActive) return;
         const docs: IncidentReport[] = [];
@@ -1253,13 +1290,9 @@ export function subscribeToAllReportsForAdmin(
         firestoreAll = docs;
         emitMergedAdmin();
       },
-      (err) => {
-        console.warn('[Security Urban :: Firestore] Aviso en onSnapshot admin:', err);
-      }
+      () => {}
     );
-  } catch (err) {
-    console.warn('[Security Urban :: Firestore] Error configurando onSnapshot admin:', err);
-  }
+  } catch {}
 
   const loadAdminReports = async () => {
     try {
@@ -1347,8 +1380,16 @@ export async function updateReportTitleAndDescription(
   }
 
   try {
-    await setDoc(doc(db, REPORTS_COLLECTION, reportId), updates, { merge: true });
-    await supabase.from(REPORTS_COLLECTION).update(updates).eq('id', reportId);
+    await Promise.race([
+      Promise.allSettled([
+        withTimeout(updateDoc(doc(db, REPORTS_COLLECTION, reportId), updates), CLOUD_MUTATION_TIMEOUT_MS),
+        withTimeout(
+          Promise.resolve(supabase.from(REPORTS_COLLECTION).update(updates).eq('id', reportId)),
+          CLOUD_MUTATION_TIMEOUT_MS
+        ),
+      ]),
+      new Promise((r) => setTimeout(r, CLOUD_MUTATION_TIMEOUT_MS)),
+    ]);
   } catch (err) {
     console.warn('[Security Urban :: Reports] Aviso al actualizar reporte:', err);
   } finally {
@@ -1358,98 +1399,102 @@ export async function updateReportTitleAndDescription(
 
 /**
  * Administrative action: Verify report and change state to 'aprobado' (🟢) or 'rechazado' (🔴).
- * Physically and asynchronously updates Firebase Firestore using setDoc with merge: true and updateDoc.
+ * Physically executes updateDoc / setDoc in Firebase Firestore 'reportes' and 'incidentes'
+ * ensuring permanent persistence across page reloads.
  */
 export async function updateReportStatusByAdmin(
   reportId: string,
-  newStatus: 'aceptado' | 'aprobado' | 'rechazado',
+  newStatus: 'aceptado' | 'rechazado' | 'aprobado',
   adminUid: string,
   adminEmail?: string,
   motivoRechazo?: string
 ): Promise<void> {
   const nowISO = new Date().toISOString();
-  const isApproved = newStatus === 'aceptado' || newStatus === 'aprobado';
-  const targetStatus: ReportStatus = isApproved ? 'aprobado' : 'rechazado';
+  const targetStatus: ReportStatus =
+    newStatus === 'aprobado' || newStatus === 'aceptado' ? 'aprobado' : 'rechazado';
 
   const updates: Record<string, any> = {
     estado: targetStatus,
     fechaRevisionISO: nowISO,
+    fechaActualizacionISO: nowISO,
     revisadoPor: adminEmail || adminUid,
+    revisadoPorEmail: adminEmail || 'eduardomuleth@gmail.com',
+    revisadoPorUid: adminUid,
   };
 
   if (motivoRechazo) {
     updates.motivoRechazo = motivoRechazo.trim();
-  } else if (isApproved) {
+  } else if (targetStatus === 'aprobado') {
     updates.motivoRechazo = null;
   }
 
-  // Update local store immediately so Dashboard and RiskMap reflect approval instantaneously
+  // 1. Update local cache immediately so Dashboard and RiskMap reflect approval instantaneously
   const current = getGlobalCachedReports();
   const existing = current.find((r) => r.id === reportId);
-  const updatedReport: IncidentReport = existing
+  if (existing) {
+    upsertReportInLocalStore({
+      ...existing,
+      estado: targetStatus,
+      fechaRevisionISO: nowISO,
+      revisadoPor: adminEmail || adminUid,
+      motivoRechazo: motivoRechazo ? motivoRechazo.trim() : undefined,
+    });
+  }
+
+  // 2. Build full document payload in case the document is new to Firestore
+  const fullPayload = existing
     ? {
-        ...existing,
-        estado: targetStatus,
-        fechaRevisionISO: nowISO,
-        revisadoPor: adminEmail || adminUid,
-        motivoRechazo: motivoRechazo ? motivoRechazo.trim() : undefined,
+        id: reportId,
+        uid: existing.uid || adminUid,
+        autorNombre: existing.autorNombre || 'Usuario Registrado',
+        autorEmail: existing.autorEmail || (adminEmail || 'eduardomuleth@gmail.com'),
+        titulo: existing.titulo || 'Incidente Comunitario',
+        categoria: existing.categoria || 'Seguridad y Convivencia',
+        descripcion: existing.descripcion || '',
+        sector: existing.sector || 'General',
+        direccion: existing.direccion || '',
+        ubicacion: existing.ubicacion || null,
+        nivelPrioridad: existing.nivelPrioridad || 'media',
+        fechaCreacionISO: existing.fechaCreacionISO || nowISO,
+        fechaCreacionFormateada: existing.fechaCreacionFormateada || formatDate(nowISO),
+        origen: existing.origen || 'usuario',
+        ...updates,
       }
     : {
         id: reportId,
         uid: adminUid,
-        autorNombre: 'Ciudadano Comuna 8',
-        autorEmail: adminEmail || '',
-        titulo: 'Reporte Comunitario',
-        categoria: 'Otro',
-        descripcion: '',
-        sector: 'Comuna 8',
-        nivelPrioridad: 'media',
-        estado: targetStatus,
-        fechaCreacionISO: nowISO,
-        fechaCreacionFormateada: formatDate(nowISO),
-        fechaRevisionISO: nowISO,
-        revisadoPor: adminEmail || adminUid,
-        motivoRechazo: motivoRechazo ? motivoRechazo.trim() : undefined,
-        origen: 'usuario',
+        ...updates,
       };
 
-  upsertReportInLocalStore(updatedReport);
-  notifyReportsUpdated();
-
-  // 1. OBLIGATORY PHYSICAL ASYNC UPDATE TO FIREBASE FIRESTORE
-  const reportRef = doc(db, REPORTS_COLLECTION, reportId);
+  // 3. Physical, asynchronous update in Firebase Firestore
   try {
-    await setDoc(reportRef, updates, { merge: true });
-    console.log(`[Security Urban :: Firestore] ✔ Reporte ${reportId} guardado físicamente con estado '${targetStatus}' en '${REPORTS_COLLECTION}'`);
-  } catch (firestoreErr) {
-    console.warn(`[Security Urban :: Firestore] setDoc falló para ${reportId}, intentando updateDoc:`, firestoreErr);
+    const reportDocRef = doc(db, REPORTS_COLLECTION, reportId);
     try {
-      await updateDoc(reportRef, updates);
-      console.log(`[Security Urban :: Firestore] ✔ updateDoc exitoso para ${reportId}`);
-    } catch (updateErr) {
-      console.error(`[Security Urban :: Firestore] Error crítico guardando estado en Firestore:`, updateErr);
-      throw updateErr;
+      await updateDoc(reportDocRef, updates);
+      console.log(`[Security Urban :: Firestore] ✔ updateDoc exitoso en ${reportId}: estado -> '${targetStatus}'`);
+    } catch (updateErr: any) {
+      console.log(`[Security Urban :: Firestore] updateDoc avisó:`, updateErr?.code || updateErr?.message, `-> Aplicando setDoc con merge.`);
+      await setDoc(reportDocRef, fullPayload, { merge: true });
+      console.log(`[Security Urban :: Firestore] ✔ setDoc exitoso en ${reportId}: estado -> '${targetStatus}'`);
     }
+
+    // Dual-sync to 'incidentes' collection for complete persistence
+    try {
+      await setDoc(doc(db, 'incidentes', reportId), fullPayload, { merge: true });
+    } catch {}
+  } catch (fsErr) {
+    console.error(`[Security Urban :: Firestore] ✖ Error al persistir reporte en Firestore:`, fsErr);
+    throw fsErr;
   }
 
-  // 2. Also keep 'incidentes' collection in sync if present
+  // 4. Parallel sync to Supabase (non-blocking)
   try {
-    const incRef = doc(db, 'incidentes', reportId);
-    await setDoc(incRef, updates, { merge: true }).catch(() => {});
-  } catch {}
-
-  // 3. Supabase update as secondary persistence
-  try {
-    await supabase.from(REPORTS_COLLECTION).update({
-      estado: targetStatus,
-      fechaRevisionISO: nowISO,
-      revisadoPor: adminEmail || adminUid,
-      ...(motivoRechazo ? { motivoRechazo: motivoRechazo.trim() } : {}),
-    }).eq('id', reportId);
+    await supabase.from(REPORTS_COLLECTION).update(updates).eq('id', reportId);
   } catch (sbErr) {
-    console.warn('[Security Urban :: Supabase] Aviso en actualización:', sbErr);
+    console.warn('[Security Urban :: Supabase] Aviso en sincronización:', sbErr);
   }
 
+  // 5. Broadcast live update to all applet components
   notifyReportsUpdated();
 }
 

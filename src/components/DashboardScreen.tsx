@@ -58,19 +58,21 @@ function getLocalDateKey(date: Date): string {
 
 // Memoized SVG Donut Chart component for Sector Risk & Security Dashboard
 interface DonutChartProps {
-  percentage: number;
+  percentage: number | null;
   colorHex: string;
   trackHex: string;
   label: string;
   sublabel: string;
+  nullDisplayText?: string;
 }
 
 const SectorDonutGauge: React.FC<DonutChartProps> = React.memo(
-  ({ percentage, colorHex, trackHex, label, sublabel }) => {
-    const clamped = Math.max(0, Math.min(100, Math.round(percentage)));
+  ({ percentage, colorHex, trackHex, label, sublabel, nullDisplayText = '—' }) => {
+    const isNull = percentage === null || percentage === undefined;
+    const clamped = isNull ? 0 : Math.max(0, Math.min(100, Math.round(percentage)));
     const radius = 36;
     const circumference = 2 * Math.PI * radius;
-    const strokeDashoffset = circumference - (clamped / 100) * circumference;
+    const strokeDashoffset = isNull ? circumference : circumference - (clamped / 100) * circumference;
 
     return (
       <div className="flex flex-col items-center p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-xs">
@@ -84,23 +86,31 @@ const SectorDonutGauge: React.FC<DonutChartProps> = React.memo(
               stroke={trackHex}
               strokeWidth="8"
             />
-            <circle
-              cx="44"
-              cy="44"
-              r={radius}
-              fill="transparent"
-              stroke={colorHex}
-              strokeWidth="8"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              className="transition-all duration-500 ease-out"
-            />
+            {!isNull && clamped > 0 && (
+              <circle
+                cx="44"
+                cy="44"
+                r={radius}
+                fill="transparent"
+                stroke={colorHex}
+                strokeWidth="8"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                className="transition-all duration-500 ease-out"
+              />
+            )}
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-lg font-black font-['Rajdhani'] tabular-nums text-slate-900 dark:text-white leading-none">
-              {clamped}%
-            </span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-1">
+            {isNull ? (
+              <span className="text-xs sm:text-sm font-bold font-['Rajdhani'] text-slate-400 dark:text-slate-500 leading-tight">
+                {nullDisplayText}
+              </span>
+            ) : (
+              <span className="text-lg font-black font-['Rajdhani'] tabular-nums text-slate-900 dark:text-white leading-none">
+                {clamped}%
+              </span>
+            )}
           </div>
         </div>
         <span className="text-xs font-bold text-center text-slate-800 dark:text-slate-100 leading-tight">
@@ -801,14 +811,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <SectorDonutGauge
                     percentage={sectorStats.safetyPercentage}
+                    nullDisplayText={language === 'es' ? 'Sin datos' : 'No data'}
                     colorHex="#10b981"
                     trackHex={isDark ? '#1e293b' : '#e2e8f0'}
                     label={language === 'es' ? 'Nivel de Seguridad' : 'Safety Level'}
                     sublabel={
-                      sectorStats.sectorAlertsCount === 0
+                      !sectorStats.hasReports
                         ? language === 'es'
-                          ? 'Nivel óptimo (Base)'
-                          : 'Optimal level (Base)'
+                          ? 'Sin actividad registrada'
+                          : 'No registered activity'
                         : language === 'es'
                         ? 'Índice normalizado'
                         : 'Normalized index'
@@ -816,17 +827,30 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   />
                   <SectorDonutGauge
                     percentage={sectorStats.riskPercentage}
-                    colorHex={sectorStats.riskColorHex}
+                    colorHex={sectorStats.hasReports ? sectorStats.riskColorHex : '#94a3b8'}
                     trackHex={isDark ? '#1e293b' : '#e2e8f0'}
                     label={language === 'es' ? 'Nivel de Riesgo' : 'Risk Level'}
-                    sublabel={`${sectorStats.riskLabel} (${sectorStats.weightedScore} pts)`}
+                    sublabel={
+                      !sectorStats.hasReports
+                        ? language === 'es'
+                          ? 'Sin alertas (0 pts)'
+                          : 'No alerts (0 pts)'
+                        : `${sectorStats.riskLabel} (${sectorStats.weightedScore} pts)`
+                    }
                   />
                   <SectorDonutGauge
                     percentage={sectorStats.stabilityPercentage}
+                    nullDisplayText={language === 'es' ? 'Neutro' : 'Neutral'}
                     colorHex="#06b6d4"
                     trackHex={isDark ? '#1e293b' : '#e2e8f0'}
                     label={language === 'es' ? 'Estabilidad Sectorial' : 'Sector Stability'}
-                    sublabel={selectedSectorData?.quadrant || 'Comuna 8'}
+                    sublabel={
+                      !sectorStats.hasReports
+                        ? language === 'es'
+                          ? 'Sin reportes activos'
+                          : 'No active reports'
+                        : selectedSectorData?.quadrant || 'Comuna 8'
+                    }
                   />
                 </div>
 
@@ -851,8 +875,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       <div className="flex items-center gap-2 font-mono font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                         <Bell className="w-3.5 h-3.5 text-amber-500" />
                         <span>
-                          {sectorStats.sectorAlertsCount}{' '}
-                          {language === 'es' ? 'incidentes' : 'incidents'}
+                          {sectorStats.sectorAlertsCount === 0
+                            ? language === 'es'
+                              ? 'Sin reportes activos'
+                              : 'No active reports'
+                            : `${sectorStats.sectorAlertsCount} ${
+                                language === 'es' ? 'incidentes aprobados' : 'approved incidents'
+                              }`}
                         </span>
                       </div>
                     </div>

@@ -16,6 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { IncidentReport, INCIDENT_CATEGORIES } from '../types/report';
 import { subscribeToPublicAcceptedReports } from '../services/reportService';
+import { subscribeToCommunalAlerts, CommunalMassAlert } from '../services/communalAlertService';
 import { CreateReportModal } from './CreateReportModal';
 
 interface AlertsScreenProps {
@@ -35,19 +36,20 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
   const isDark = theme === 'dark';
 
   const [acceptedReports, setAcceptedReports] = useState<IncidentReport[]>([]);
+  const [communalAlerts, setCommunalAlerts] = useState<CommunalMassAlert[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [feedbackNotice, setFeedbackNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Real-time onSnapshot subscription to verified/accepted reports only with timeout safeguard
+  // Real-time onSnapshot subscription to verified/accepted reports and communal mass alerts
   useEffect(() => {
     setIsLoading(true);
     const loadingTimer = setTimeout(() => {
       setIsLoading(false);
     }, 2500);
 
-    const unsubscribe = subscribeToPublicAcceptedReports(
+    const unsubAccepted = subscribeToPublicAcceptedReports(
       (reports) => {
         clearTimeout(loadingTimer);
         setAcceptedReports(reports);
@@ -60,9 +62,14 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
       }
     );
 
+    const unsubCommunal = subscribeToCommunalAlerts((alerts) => {
+      setCommunalAlerts(alerts);
+    });
+
     return () => {
       clearTimeout(loadingTimer);
-      unsubscribe();
+      unsubAccepted();
+      unsubCommunal();
     };
   }, []);
 
@@ -159,6 +166,63 @@ export const AlertsScreen: React.FC<AlertsScreenProps> = ({
           {t('verificationNotice')}
         </p>
       </div>
+
+      {/* Official Communal Mass Alerts from Administrator */}
+      {communalAlerts.length > 0 && (
+        <section aria-label="Comunicados oficiales de la administración" className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
+            <h2 className="text-sm font-bold font-['Rajdhani'] uppercase tracking-wider text-red-600 dark:text-red-400">
+              Comunicados Oficiales de la Administración ({communalAlerts.length})
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {communalAlerts.map((cAlert) => {
+              const isCritica = cAlert.nivelSeveridad === 'critica';
+              const isAlerta = cAlert.nivelSeveridad === 'alerta';
+              return (
+                <div
+                  key={cAlert.id}
+                  className={`p-4 rounded-2xl border shadow-xs transition-all relative space-y-2 ${
+                    isCritica
+                      ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                      : isAlerta
+                      ? 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800'
+                      : 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-2xs font-bold uppercase ${
+                        isCritica
+                          ? 'bg-rose-600 text-white'
+                          : isAlerta
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-emerald-600 text-white'
+                      }`}
+                    >
+                      {cAlert.nivelSeveridad}
+                    </span>
+                    <span className="text-2xs font-mono font-semibold text-slate-500">
+                      Sector: {cAlert.sectorAfectado}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {cAlert.titulo}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {cAlert.mensaje}
+                  </p>
+                  <div className="pt-1 text-2xs font-mono text-slate-500 flex items-center justify-between border-t border-slate-200/60 dark:border-slate-800">
+                    <span>{cAlert.emitidoPor}</span>
+                    <span>{cAlert.fechaEmisionFormato}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Category Filter Bar */}
       {acceptedReports.length > 0 && (
