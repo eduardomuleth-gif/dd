@@ -337,6 +337,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Administrator quick link to Approval Panel */}
+        {currentUserRole === 'administrador' && (
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => onNavigate('myReports')}
+              className="min-h-[42px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+            >
+              <Shield className="w-4 h-4 shrink-0" />
+              <span>{language === 'es' ? 'Moderar Reportes' : 'Moderate Reports'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Optional Feedback Banner */}

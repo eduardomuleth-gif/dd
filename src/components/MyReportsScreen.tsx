@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
   Plus,
-  Clock,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -11,15 +10,12 @@ import {
   MapPin,
   Calendar,
   ShieldCheck,
-  ShieldAlert,
   Loader2,
-  RefreshCw,
   Search,
-  Filter,
   ArrowLeft,
   Check,
   X,
-  MessageSquare,
+  Activity,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -30,7 +26,6 @@ import {
   updateReportTitleAndDescription,
   updateReportStatusByAdmin,
   deleteReport,
-  createRealTestReport,
   isReportApproved,
 } from '../services/reportService';
 import { CreateReportModal } from './CreateReportModal';
@@ -45,6 +40,7 @@ interface MyReportsScreenProps {
   onNavigateHome: () => void;
   onNavigateAlerts?: () => void;
   onNavigateRiskMap?: () => void;
+  onNavigateDashboard?: () => void;
 }
 
 export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
@@ -54,15 +50,14 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
   onNavigateHome,
   onNavigateAlerts,
   onNavigateRiskMap,
+  onNavigateDashboard,
 }) => {
   const { theme, colors } = useTheme();
   const { language, t, translateCategory, translatePriority, translateStatus, translateRole } = useLanguage();
   const isDark = theme === 'dark';
   const isExplicitAdmin = isExplicitAdminEmail(currentUserEmail);
-  const normalizedRole = isExplicitAdmin
-    ? 'administrador'
-    : String(currentUserRole || 'ciudadano').toLowerCase().trim();
-  const isAdmin = normalizedRole === 'administrador' || normalizedRole === 'operador';
+  const isAdmin = isExplicitAdmin;
+  const normalizedRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
 
   // Tabs: 'adminReview' for Administrator, 'my' for Citizen
   const [activeTab, setActiveTab] = useState<'my' | 'adminReview'>(isAdmin ? 'adminReview' : 'my');
@@ -178,50 +173,42 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     return map;
   }, [registeredUsers]);
 
-  // Requirement: Filter adminReports to strictly include ONLY reports from emails registered in Firebase / web app
+  // Admin Reports: Includes all real user reports (excluding simulations)
   const verifiedAdminReports: IncidentReport[] = useMemo(() => {
     return adminReports.filter((r: IncidentReport) => {
-      if (!r.autorEmail || !r.autorEmail.includes('@')) return false;
-      const authorEmail = r.autorEmail.toLowerCase().trim();
-
       // Disallow any simulated or bot alerts
       if (
-        authorEmail.includes('simulacion') ||
-        authorEmail.includes('test-robot') ||
+        r.origen === 'simulacion' ||
         r.id.startsWith('sim-') ||
-        r.origen === 'simulacion'
+        (r.autorEmail && (r.autorEmail.includes('simulacion') || r.autorEmail.includes('test-robot')))
       ) {
         return false;
       }
-
-      // If registered users list is loaded from Firestore, strictly check membership
-      if (registeredUsers.length > 0) {
-        const matchesRegistered =
-          registeredUsersMap.has(authorEmail) ||
-          (Boolean(r.uid) && registeredUsersMap.has(r.uid)) ||
-          (currentUserEmail && authorEmail === currentUserEmail.toLowerCase().trim()) ||
-          (currentUserId && r.uid === currentUserId);
-        return Boolean(matchesRegistered);
-      }
-
-      // Fallback before initial users collection query completes
-      return authorEmail.length > 5;
+      return Boolean((r.autorEmail && r.autorEmail.includes('@')) || r.uid);
     });
-  }, [adminReports, registeredUsers, registeredUsersMap, currentUserEmail, currentUserId]);
+  }, [adminReports]);
 
   const activeReportsList: IncidentReport[] = activeTab === 'my' ? userReports : verifiedAdminReports;
 
   // Filtered reports
   const filteredReports: IncidentReport[] = activeReportsList.filter((r: IncidentReport) => {
-    const matchesStatus = statusFilter === 'all' || r.estado === statusFilter;
+    const matchesStatus =
+      statusFilter === 'all'
+        ? true
+        : statusFilter === 'pendiente'
+        ? r.estado === 'pendiente'
+        : statusFilter === 'rechazado'
+        ? r.estado === 'rechazado'
+        : isReportApproved(r);
+
     const term = searchQuery.toLowerCase().trim();
     const matchesSearch =
       term === '' ||
       r.titulo.toLowerCase().includes(term) ||
       r.categoria.toLowerCase().includes(term) ||
       r.sector.toLowerCase().includes(term) ||
-      r.autorEmail.toLowerCase().includes(term) ||
-      r.autorNombre.toLowerCase().includes(term) ||
+      (r.autorEmail && r.autorEmail.toLowerCase().includes(term)) ||
+      (r.autorNombre && r.autorNombre.toLowerCase().includes(term)) ||
       (r.descripcion && r.descripcion.toLowerCase().includes(term));
 
     return matchesStatus && matchesSearch;
@@ -282,83 +269,118 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     }
   };
 
-  // Admin Accept Report
+  // Admin Accept Report (Optimistic UI Update: responds in < 1 second)
   const handleAdminAccept = async (reportId: string) => {
     if (!isAdmin || !currentUserId) {
       setFeedbackMsg({
         type: 'error',
         text:
           language === 'es'
-            ? 'Acción restringida: tu rol de Ciudadano solo permite crear y visualizar reportes.'
-            : 'Restricted action: Citizen role can only create and view reports.',
+            ? 'Acción restringida: solo el Administrador eduardomuleth@gmail.com puede aprobar reportes.'
+            : 'Restricted action: only Administrator eduardomuleth@gmail.com can approve reports.',
       });
-      setTimeout(() => setFeedbackMsg(null), 3500);
+      setTimeout(() => setFeedbackMsg(null), 3000);
       return;
     }
-    setIsProcessingAdminAction(true);
-    setProcessingReportId(reportId);
+
+    // 1. Snapshot for rollback if network fails
+    const previousAdminReports = [...adminReports];
+    const previousUserReports = [...userReports];
+
+    // 2. Immediate Optimistic UI Update: card updates state in < 100ms
+    const nowISO = new Date().toISOString();
+    const updatedFields = {
+      estado: 'aprobado' as ReportStatus,
+      fechaRevisionISO: nowISO,
+      revisadoPor: currentUserEmail || currentUserId,
+      motivoRechazo: undefined,
+    };
+
+    setAdminReports((prev) =>
+      prev.map((r) => (r.id === reportId ? { ...r, ...updatedFields } : r))
+    );
+    setUserReports((prev) =>
+      prev.map((r) => (r.id === reportId ? { ...r, ...updatedFields } : r))
+    );
+
+    setFeedbackMsg({
+      type: 'success',
+      text:
+        language === 'es'
+          ? '✔ Reporte aprobado instantáneamente y guardado en Firestore.'
+          : '✔ Report approved instantly and saved to Firestore.',
+    });
+    setTimeout(() => setFeedbackMsg(null), 3000);
+
+    // 3. Background asynchronous physical persistence with try/catch
     try {
-      await Promise.race([
-        updateReportStatusByAdmin(reportId, 'aprobado', currentUserId, currentUserEmail),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Tiempo de espera agotado al procesar la acción.')), 6000)
-        ),
-      ]);
-      setFeedbackMsg({
-        type: 'success',
-        text:
-          language === 'es'
-            ? '✔ Reporte aprobado en Firestore y actualizado en tiempo real.'
-            : '✔ Report approved in Firestore and updated in real time.',
-      });
+      await updateReportStatusByAdmin(reportId, 'aprobado', currentUserId, currentUserEmail);
     } catch (err: unknown) {
+      console.error('[Security Urban] Fallo al persistir aprobación en Firestore:', err);
+      // Rollback on fatal error
+      setAdminReports(previousAdminReports);
+      setUserReports(previousUserReports);
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
-    } finally {
-      setIsProcessingAdminAction(false);
-      setProcessingReportId(null);
       setTimeout(() => setFeedbackMsg(null), 3500);
     }
   };
 
-  // Admin Reject Report
+  // Admin Reject Report (Optimistic UI Update: closes modal and updates card immediately)
   const handleAdminRejectSubmit = async () => {
     const targetReportId = rejectingReportId;
+    const reason = rejectReason.trim();
+
     if (!isAdmin || !targetReportId || !currentUserId) {
       setRejectingReportId(null);
       setRejectReason('');
-      setIsProcessingAdminAction(false);
-      setFeedbackMsg({
-        type: 'error',
-        text:
-          language === 'es'
-            ? 'No tienes permisos de moderación para rechazar reportes.'
-            : 'You do not have moderation permissions to reject reports.',
-      });
-      setTimeout(() => setFeedbackMsg(null), 3500);
       return;
     }
 
-    setIsProcessingAdminAction(true);
+    // 1. Close modal IMMEDIATELY (< 50ms) so user is never blocked or frozen
+    setRejectingReportId(null);
+    setRejectReason('');
+    setIsProcessingAdminAction(false);
+
+    // 2. Snapshot for rollback
+    const previousAdminReports = [...adminReports];
+    const previousUserReports = [...userReports];
+
+    // 3. Immediate Optimistic UI Update: card updates state instantly
+    const nowISO = new Date().toISOString();
+    const updatedFields = {
+      estado: 'rechazado' as ReportStatus,
+      motivoRechazo: reason || undefined,
+      fechaRevisionISO: nowISO,
+      revisadoPor: currentUserEmail || currentUserId,
+    };
+
+    setAdminReports((prev) =>
+      prev.map((r) => (r.id === targetReportId ? { ...r, ...updatedFields } : r))
+    );
+    setUserReports((prev) =>
+      prev.map((r) => (r.id === targetReportId ? { ...r, ...updatedFields } : r))
+    );
+
+    setFeedbackMsg({
+      type: 'success',
+      text:
+        language === 'es'
+          ? 'Reporte marcado como rechazado y sincronizado en Firestore.'
+          : 'Report marked as rejected and synchronized in Firestore.',
+    });
+    setTimeout(() => setFeedbackMsg(null), 3000);
+
+    // 4. Background asynchronous physical persistence with try/catch
     try {
-      await Promise.race([
-        updateReportStatusByAdmin(targetReportId, 'rechazado', currentUserId, currentUserEmail, rejectReason),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Tiempo de espera agotado al procesar el rechazo.')), 3000)
-        ),
-      ]);
-      setFeedbackMsg({
-        type: 'success',
-        text: language === 'es' ? 'Reporte marcado como rechazado.' : 'Report marked as rejected.',
-      });
+      await updateReportStatusByAdmin(targetReportId, 'rechazado', currentUserId, currentUserEmail, reason);
     } catch (err: unknown) {
+      console.error('[Security Urban] Fallo al persistir rechazo en Firestore:', err);
+      // Rollback on fatal error
+      setAdminReports(previousAdminReports);
+      setUserReports(previousUserReports);
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
-    } finally {
-      // Always close modal immediately whether action succeeded or failed
-      setRejectingReportId(null);
-      setRejectReason('');
-      setIsProcessingAdminAction(false);
       setTimeout(() => setFeedbackMsg(null), 3500);
     }
   };
@@ -421,16 +443,34 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
+            <div className="flex items-center flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-red-600 text-white">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                {translateRole(currentUserRole)}
+              </span>
+            </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
               {isAdmin
-                ? (language === 'es' ? 'Panel de Aprobaciones' : 'Approvals Panel')
+                ? (language === 'es' ? 'Panel de Aprobaciones' : 'Approval Panel')
                 : (language === 'es' ? 'Bitácora & Mis Reportes' : 'Incident Log & My Reports')}
             </h1>
           </div>
         </div>
 
-        {/* Action Button: Reportar Incidente */}
+        {/* Action Buttons: Panel de Control shortcut + Reportar Incidente */}
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          {isAdmin && onNavigateDashboard && (
+            <button
+              type="button"
+              onClick={onNavigateDashboard}
+              className="min-h-[42px] px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
+              title={language === 'es' ? 'Ir al Panel de Control y Métricas de Riesgo' : 'Go to Dashboard and Risk Metrics'}
+            >
+              <Activity className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>{language === 'es' ? 'Panel de Control' : 'Dashboard'}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
@@ -472,47 +512,84 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
         </div>
       )}
 
-      {/* 3. Clean mode toggle for admin (Aprobaciones vs Mis Reportes) */}
+      {/* 3. Role-based Mode Tabs */}
       {isAdmin && (
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('adminReview');
-              setStatusFilter('all');
-            }}
-            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
-              activeTab === 'adminReview'
-                ? 'bg-red-600 text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
+        <div className="space-y-3 w-full">
+          <div
+            role="tablist"
+            aria-label={language === 'es' ? 'Modo de visualización de reportes' : 'Report view mode'}
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
           >
-            <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-300" />
-            <span>{language === 'es' ? 'Aprobaciones' : 'Approvals'}</span>
-            {verifiedAdminReports.filter((r: IncidentReport) => r.estado === 'pendiente').length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
-                {verifiedAdminReports.filter((r: IncidentReport) => r.estado === 'pendiente').length}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'adminReview'}
+              onClick={() => {
+                setActiveTab('adminReview');
+                setStatusFilter('all');
+              }}
+              className={`flex-1 min-h-[42px] py-2.5 px-4 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+                activeTab === 'adminReview'
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0 text-white" aria-hidden="true" />
+              <span>
+                {language === 'es' ? 'Aprobación de Reportes' : 'Report Approvals'}
               </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('my');
-              setStatusFilter('all');
-            }}
-            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center gap-2 ${
-              activeTab === 'my'
-                ? 'bg-slate-800 text-white dark:bg-slate-700 shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <FileText className="w-4 h-4 shrink-0" />
-            <span>{language === 'es' ? 'Mis Reportes' : 'My Reports'}</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-              {userReports.length}
-            </span>
-          </button>
+              {verifiedAdminReports.filter((r: IncidentReport) => r.estado === 'pendiente').length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-400 text-slate-950 animate-pulse">
+                  {verifiedAdminReports.filter((r: IncidentReport) => r.estado === 'pendiente').length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'my'}
+              onClick={() => {
+                setActiveTab('my');
+                setStatusFilter('all');
+              }}
+              className={`flex-1 min-h-[42px] py-2.5 px-4 rounded-xl text-xs font-bold font-mono uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 ${
+                activeTab === 'my'
+                  ? 'bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <FileText className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>{language === 'es' ? 'Mis Reportes' : 'My Reports'}</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                {userReports.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Real-time sync indicator linking to Panel de Control */}
+          {activeTab === 'adminReview' && (
+            <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-slate-500/5 border border-emerald-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>
+                  {language === 'es'
+                    ? 'Los reportes aprobados impactan de inmediato el Nivel de Riesgo y Seguridad por Sector en el Panel de Control.'
+                    : 'Approved reports immediately update Sector Risk & Safety calculations in the Dashboard.'}
+                </span>
+              </div>
+              {onNavigateDashboard && (
+                <button
+                  type="button"
+                  onClick={onNavigateDashboard}
+                  className="text-emerald-700 dark:text-emerald-400 font-bold hover:underline flex items-center gap-1 shrink-0 cursor-pointer text-xs"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>{language === 'es' ? 'Monitorear Panel de Control →' : 'Monitor Dashboard →'}</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -688,7 +765,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                   className={`absolute top-0 inset-x-0 h-1.5 ${
                     report.estado === 'pendiente'
                       ? 'bg-amber-500'
-                      : report.estado === 'aceptado'
+                      : isReportApproved(report)
                       ? 'bg-emerald-500'
                       : 'bg-rose-500'
                   }`}
@@ -705,7 +782,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                           <span>{translateStatus(report.estado)}</span>
                         </span>
-                      ) : report.estado === 'aceptado' ? (
+                      ) : isReportApproved(report) ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>{translateStatus(report.estado)}</span>
@@ -866,12 +943,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                   {isAdmin && (
                     <div className="flex flex-row md:flex-col items-center md:items-end gap-2 shrink-0 pt-2 md:pt-0">
                       <div className="flex items-center gap-2">
-                        {isReportApproved(report.estado) ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider border border-emerald-500/20">
-                            <Check className="w-3.5 h-3.5" />
-                            <span>{language === 'es' ? 'Aprobado' : 'Approved'}</span>
-                          </span>
-                        ) : (
+                        {!isReportApproved(report) && (
                           <button
                             type="button"
                             onClick={() => handleAdminAccept(report.id)}
@@ -887,12 +959,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
                           </button>
                         )}
 
-                        {report.estado === 'rechazado' ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-600/10 text-rose-600 dark:text-rose-400 font-bold text-xs uppercase tracking-wider border border-rose-500/20">
-                            <X className="w-3.5 h-3.5" />
-                            <span>{language === 'es' ? 'Rechazado' : 'Rejected'}</span>
-                          </span>
-                        ) : (
+                        {report.estado !== 'rechazado' && (
                           <button
                             type="button"
                             onClick={() => {

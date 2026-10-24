@@ -1169,7 +1169,7 @@ const MainScreen: React.FC = () => {
             onNavigate={(targetTab) => setCurrentView(targetTab)}
             onOpenTacticalMap={() => setIsTacticalMapOpen(true)}
             currentUserId={currentUser?.uid}
-            currentUserRole={currentUserRole}
+            currentUserRole={isEffectiveAdmin ? 'administrador' : 'ciudadano'}
           />
         ) : currentView === 'riskMap' ? (
           // Dedicated "Mapa de Riesgo" with real Google Maps and HeatmapLayer
@@ -1192,7 +1192,7 @@ const MainScreen: React.FC = () => {
         ) : currentView === 'userManagement' ? (
           // Dedicated "Gestión de Usuarios" with Firestore sync, RBAC, live telemetry and account suspension
           <UserManagementScreen
-            currentUserRole={currentUserRole}
+            currentUserRole={isEffectiveAdmin ? 'administrador' : 'ciudadano'}
             currentUserId={currentUser?.uid}
             onCurrentUserRoleChange={(newRole) => setCurrentUserRole(newRole)}
             onNavigateHome={() => setCurrentView('home')}
@@ -1202,10 +1202,11 @@ const MainScreen: React.FC = () => {
           <MyReportsScreen
             currentUserId={currentUser?.uid}
             currentUserEmail={currentUser?.email || undefined}
-            currentUserRole={currentUserRole}
+            currentUserRole={isEffectiveAdmin ? 'administrador' : 'ciudadano'}
             onNavigateHome={() => setCurrentView('home')}
             onNavigateAlerts={() => setCurrentView('alerts')}
             onNavigateRiskMap={() => setCurrentView('riskMap')}
+            onNavigateDashboard={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'alerts' ? (
           // Dedicated "Centro de Alertas" showing verified accepted reports
