@@ -335,15 +335,16 @@ export function calculateDynamicSectorRiskStats(
   // Optimal base state when sector has 0 approved reports
   if (count === 0) {
     return {
+      hasReports: false,
       riskPercentage: 0,
-      safetyPercentage: 100,
-      stabilityPercentage: 100,
+      safetyPercentage: null,
+      stabilityPercentage: null,
       weightedScore: 0,
       sectorAlertsCount: 0,
       criticalOrHighCount: 0,
-      riskLevel: 'low',
-      riskLabel: language === 'es' ? 'Óptimo / Sin Alertas' : 'Optimal / No Alerts',
-      riskColorHex: '#10b981',
+      riskLevel: 'neutral',
+      riskLabel: language === 'es' ? 'Sin datos' : 'No data',
+      riskColorHex: '#94a3b8',
     };
   }
 
@@ -449,6 +450,7 @@ export function calculateDynamicSectorRiskStats(
     riskLevel === 'high' ? '#f43f5e' : riskLevel === 'moderate' ? '#f59e0b' : '#10b981';
 
   return {
+    hasReports: true,
     riskPercentage: normalizedRisk,
     safetyPercentage: normalizedSafety,
     stabilityPercentage,
