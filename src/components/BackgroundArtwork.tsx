@@ -11,14 +11,14 @@ export const BackgroundArtwork: React.FC = React.memo(() => {
       {/* Base Surface Canvas */}
       <div
         className={`absolute inset-0 transition-colors duration-300 ${
-          isDark ? 'bg-[#0b0f19]' : 'bg-slate-50'
+          isDark ? 'bg-[#090d16]' : 'bg-slate-50'
         }`}
       />
 
-      {/* Subtle Architectural Grid Texture (Low-contrast, non-distracting) */}
+      {/* Subtle Architectural Grid Texture */}
       <svg
         className={`absolute inset-0 w-full h-full ${
-          isDark ? 'opacity-[0.04]' : 'opacity-[0.035]'
+          isDark ? 'opacity-[0.06]' : 'opacity-[0.045]'
         }`}
         xmlns="http://www.w3.org/2000/svg"
         width="100%"
@@ -38,19 +38,35 @@ export const BackgroundArtwork: React.FC = React.memo(() => {
               stroke={isDark ? '#ffffff' : '#0f172a'}
               strokeWidth="1"
             />
+            {/* Subtle center point for tactical coordinate mesh */}
+            <circle cx="24" cy="24" r="0.75" fill={isDark ? '#ffffff' : '#0f172a'} />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill={`url(#${patternId})`} />
       </svg>
 
-      {/* Lightweight Ambient Radial Gradients (Zero GPU filter blur overhead) */}
+      {/* Tactical Ambient Radial Gradients for visual depth */}
       <div
         className={`absolute inset-0 ${
           isDark
-            ? 'bg-[radial-gradient(circle_at_90%_10%,rgba(127,29,29,0.14),transparent_45%),radial-gradient(circle_at_10%_90%,rgba(30,41,59,0.32),transparent_45%)]'
-            : 'bg-[radial-gradient(circle_at_90%_10%,rgba(239,68,68,0.05),transparent_45%),radial-gradient(circle_at_10%_90%,rgba(203,213,225,0.35),transparent_45%)]'
+            ? 'bg-[radial-gradient(ellipse_at_80%_15%,rgba(220,38,38,0.16),transparent_50%),radial-gradient(ellipse_at_15%_85%,rgba(15,23,42,0.6),transparent_55%),radial-gradient(circle_at_50%_40%,rgba(30,41,59,0.25),transparent_60%)]'
+            : 'bg-[radial-gradient(ellipse_at_80%_15%,rgba(239,68,68,0.08),transparent_50%),radial-gradient(ellipse_at_15%_85%,rgba(203,213,225,0.45),transparent_55%)]'
         }`}
       />
+
+      {/* Subtle Corner Tactical HUD Crosshairs */}
+      <div className={`absolute top-4 left-4 text-xs font-mono font-bold ${isDark ? 'text-red-500/20' : 'text-slate-400/30'}`}>
+        +
+      </div>
+      <div className={`absolute top-4 right-4 text-xs font-mono font-bold ${isDark ? 'text-red-500/20' : 'text-slate-400/30'}`}>
+        +
+      </div>
+      <div className={`absolute bottom-4 left-4 text-xs font-mono font-bold ${isDark ? 'text-red-500/20' : 'text-slate-400/30'}`}>
+        +
+      </div>
+      <div className={`absolute bottom-4 right-4 text-xs font-mono font-bold ${isDark ? 'text-red-500/20' : 'text-slate-400/30'}`}>
+        +
+      </div>
     </div>
   );
 });
