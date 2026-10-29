@@ -28,6 +28,7 @@ import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { EmailVerificationView } from './components/EmailVerificationView';
 import { AuthActionHandlerView } from './components/AuthActionHandlerView';
 import { HomeScreen } from './components/HomeScreen';
+import { LoginQuickAccessQR } from './components/LoginQuickAccessQR';
 import { ModulePlaceholderView, NavTabId } from './components/ModulePlaceholderView';
 import { UserProfileMenu } from './components/UserProfileMenu';
 
@@ -594,10 +595,10 @@ const MainScreen: React.FC = () => {
         <main className="relative z-10 w-full max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-8 flex flex-col items-center justify-center grow">
           <div
             id="auth-main-card-container"
-            className="w-full max-w-xl sm:max-w-2xl transition-all duration-300"
+            className="w-full max-w-xl sm:max-w-2xl lg:max-w-5xl transition-all duration-300 space-y-4"
           >
             {/* Clean Security Badge Ribbon */}
-            <div className="mb-3.5 sm:mb-4 px-1">
+            <div className="px-1">
               <SecurityBadges />
             </div>
 
@@ -619,100 +620,107 @@ const MainScreen: React.FC = () => {
                 }}
               />
             ) : (
-              /* Clean, balanced Authentication Card with subtle elevation */
-              <div
-                id="auth-card"
-                className={`rounded-3xl p-5 min-[380px]:p-6 sm:p-10 md:p-11 shadow-xl backdrop-blur-md relative overflow-hidden border transition-all ${colors.cardBg} ${colors.cardBorder}`}
-              >
-                {/* Subtle 3px top accent line */}
-                <div className="absolute top-0 inset-x-0 h-[3px] bg-red-600" />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
+                {/* Left Column (8 cols on lg): Clean, balanced Authentication Card with subtle elevation */}
+                <div
+                  id="auth-card"
+                  className={`lg:col-span-8 rounded-3xl p-5 min-[380px]:p-6 sm:p-10 md:p-11 shadow-xl backdrop-blur-md relative overflow-hidden border transition-all ${colors.cardBg} ${colors.cardBorder}`}
+                >
+                  {/* Subtle 3px top accent line */}
+                  <div className="absolute top-0 inset-x-0 h-[3px] bg-red-600" />
 
-                {/* Return banner when coming back from Firebase hosted action page */}
-                {authReturnNotice && (
+                  {/* Return banner when coming back from Firebase hosted action page */}
+                  {authReturnNotice && (
+                    <div
+                      role="status"
+                      className="mb-6 p-4 rounded-2xl bg-emerald-100 border border-emerald-500 text-emerald-950 dark:bg-emerald-950/70 dark:border-emerald-600 dark:text-emerald-200 text-sm font-bold flex items-center justify-between gap-3 shadow-xs"
+                    >
+                      <span>{authReturnNotice}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAuthReturnNotice(null)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-mono underline shrink-0 cursor-pointer"
+                      >
+                        OK
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Title Header */}
+                  <div className="text-center space-y-2 mb-6 sm:mb-7">
+                    <h1 className={`text-[26px] sm:text-3xl md:text-4xl font-extrabold tracking-wide font-['Rajdhani'] uppercase ${colors.cardTitle}`}>
+                      {activeTab === 'login' ? t('loginTitle') : t('registerTitle')}
+                    </h1>
+                    <p className={`text-sm sm:text-base font-medium ${colors.cardSubtitle}`}>
+                      {activeTab === 'login' ? t('loginSubtitle') : t('registerSubtitle')}
+                    </p>
+                  </div>
+
+                  {/* Pill Segmented Tab Switcher */}
                   <div
-                    role="status"
-                    className="mb-6 p-4 rounded-2xl bg-emerald-100 border border-emerald-500 text-emerald-950 dark:bg-emerald-950/70 dark:border-emerald-600 dark:text-emerald-200 text-sm font-bold flex items-center justify-between gap-3 shadow-xs"
+                    role="tablist"
+                    aria-label={language === 'es' ? 'Opciones de acceso' : 'Authentication options'}
+                    className={`grid grid-cols-2 p-1.5 rounded-2xl border ${colors.tabTrackBg} ${colors.tabTrackBorder}`}
                   >
-                    <span>{authReturnNotice}</span>
                     <button
                       type="button"
-                      onClick={() => setAuthReturnNotice(null)}
-                      className="px-2.5 py-1 rounded-lg text-xs font-mono underline shrink-0 cursor-pointer"
+                      role="tab"
+                      aria-selected={activeTab === 'login'}
+                      onClick={() => setActiveTab('login')}
+                      className={`py-2.5 sm:py-3 px-3 text-sm sm:text-base font-bold rounded-xl transition-all cursor-pointer min-h-[44px] ${
+                        activeTab === 'login'
+                          ? 'bg-red-600 text-white shadow-sm'
+                          : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
+                      }`}
                     >
-                      OK
+                      {t('loginTab')}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === 'register'}
+                      onClick={() => setActiveTab('register')}
+                      className={`py-2.5 sm:py-3 px-3 text-sm sm:text-base font-bold rounded-xl transition-all cursor-pointer min-h-[44px] ${
+                        activeTab === 'register'
+                          ? 'bg-red-600 text-white shadow-sm'
+                          : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
+                      }`}
+                    >
+                      {t('registerTab')}
                     </button>
                   </div>
-                )}
 
-                {/* Title Header */}
-                <div className="text-center space-y-2 mb-6 sm:mb-7">
-                  <h1 className={`text-[26px] sm:text-3xl md:text-4xl font-extrabold tracking-wide font-['Rajdhani'] uppercase ${colors.cardTitle}`}>
-                    {activeTab === 'login' ? t('loginTitle') : t('registerTitle')}
-                  </h1>
-                  <p className={`text-sm sm:text-base font-medium ${colors.cardSubtitle}`}>
-                    {activeTab === 'login' ? t('loginSubtitle') : t('registerSubtitle')}
-                  </p>
+                  {/* Clean subtle divider */}
+                  <div className="my-6 h-px bg-slate-200 dark:bg-slate-800" />
+
+                  {/* Active Tab Form */}
+                  {activeTab === 'login' ? (
+                    <LoginForm
+                      onSuccess={() => {
+                        setCurrentView('home');
+                      }}
+                      onOpenForgotPassword={handleOpenForgotPassword}
+                      onSwitchToRegister={() => setActiveTab('register')}
+                    />
+                  ) : (
+                    <RegisterForm
+                      onSuccess={() => {
+                        setCurrentView('home');
+                      }}
+                      onSwitchToLogin={() => setActiveTab('login')}
+                    />
+                  )}
                 </div>
 
-                {/* Pill Segmented Tab Switcher */}
-                <div
-                  role="tablist"
-                  aria-label={language === 'es' ? 'Opciones de acceso' : 'Authentication options'}
-                  className={`grid grid-cols-2 p-1.5 rounded-2xl border ${colors.tabTrackBg} ${colors.tabTrackBorder}`}
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === 'login'}
-                    onClick={() => setActiveTab('login')}
-                    className={`py-2.5 sm:py-3 px-3 text-sm sm:text-base font-bold rounded-xl transition-all cursor-pointer min-h-[44px] ${
-                      activeTab === 'login'
-                        ? 'bg-red-600 text-white shadow-sm'
-                        : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
-                    }`}
-                  >
-                    {t('loginTab')}
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === 'register'}
-                    onClick={() => setActiveTab('register')}
-                    className={`py-2.5 sm:py-3 px-3 text-sm sm:text-base font-bold rounded-xl transition-all cursor-pointer min-h-[44px] ${
-                      activeTab === 'register'
-                        ? 'bg-red-600 text-white shadow-sm'
-                        : `${colors.tabInactiveText} ${colors.tabInactiveHover}`
-                    }`}
-                  >
-                    {t('registerTab')}
-                  </button>
+                {/* Right Column (4 cols on lg, stacked on mobile): Dynamic Quick Access QR Card */}
+                <div className="lg:col-span-4 w-full">
+                  <LoginQuickAccessQR url="https://securityurban.vercel.app/" />
                 </div>
-
-                {/* Clean subtle divider */}
-                <div className="my-6 h-px bg-slate-200 dark:bg-slate-800" />
-
-                {/* Active Tab Form */}
-                {activeTab === 'login' ? (
-                  <LoginForm
-                    onSuccess={() => {
-                      setCurrentView('home');
-                    }}
-                    onOpenForgotPassword={handleOpenForgotPassword}
-                    onSwitchToRegister={() => setActiveTab('register')}
-                  />
-                ) : (
-                  <RegisterForm
-                    onSuccess={() => {
-                      setCurrentView('home');
-                    }}
-                    onSwitchToLogin={() => setActiveTab('login')}
-                  />
-                )}
               </div>
             )}
 
             {/* Footer Project Tag */}
-            <div className={`mt-4 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 px-2 ${colors.mutedText}`}>
+            <div className={`pt-2 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 px-2 ${colors.mutedText}`}>
               <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
               <span>Iniciativa de Seguridad Comunitaria • Medellín 2026</span>
             </div>
