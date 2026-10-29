@@ -14,6 +14,7 @@ import {
   Filter,
   BarChart2,
   AlertTriangle,
+  Activity,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -31,6 +32,7 @@ interface AdminControlCenterScreenProps {
   currentUserId?: string;
   onNavigateRiskMap?: () => void;
   onNavigateUsers?: () => void;
+  onNavigateDashboard?: () => void;
 }
 
 const COMUNA_8_SECTORS = [
@@ -53,15 +55,18 @@ const COMUNA_8_SECTORS = [
 export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> = ({
   currentUserEmail,
   currentUserId = 'admin-eduardo-uid',
+  onNavigateRiskMap,
+  onNavigateDashboard,
 }) => {
   const { theme, colors } = useTheme();
-  const { language } = useLanguage();
+  const { language, t, translatePriority, translateStatus, translateCategory } = useLanguage();
   const isDark = theme === 'dark';
+  const isEs = language === 'es';
 
   // Strict Security Access Verification
   const isAdmin = isExplicitAdminEmail(currentUserEmail);
 
-  // Reports State from Firestore
+  // Reports State from Firestore with immediate local sync
   const [reports, setReports] = useState<IncidentReport[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pendiente' | 'aprobado' | 'rechazado'>('all');
@@ -116,9 +121,26 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
     return { total, pending, approved, rejected };
   }, [reports]);
 
-  // Physical updateDoc in Firestore to 'aprobado'
+  // 1. Instant Optimistic UI Approval + background Firestore sync (<1s response)
   const handleApprove = async (reportId: string) => {
-    setProcessingReportId(reportId);
+    const target = reports.find((r) => r.id === reportId);
+    if (!target) return;
+    const nowISO = new Date().toISOString();
+
+    // Instant optimistic update: 0ms
+    setReports((prev) =>
+      prev.map((r) =>
+        r.id === reportId
+          ? {
+              ...r,
+              estado: 'aprobado',
+              fechaRevisionISO: nowISO,
+              revisadoPor: currentUserEmail || 'eduardomuleth@gmail.com',
+            }
+          : r
+      )
+    );
+
     try {
       await updateReportStatusByAdmin(
         reportId,
@@ -128,28 +150,49 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
       );
     } catch (err) {
       console.error('Error aprobando reporte:', err);
-    } finally {
-      setProcessingReportId(null);
+      // Rollback on failure
+      setReports((prev) => prev.map((r) => (r.id === reportId ? target : r)));
     }
   };
 
-  // Physical updateDoc in Firestore to 'rechazado'
+  // 2. Instant Optimistic UI Rejection + background Firestore sync (<1s response)
   const handleRejectConfirm = async (reportId: string) => {
-    setProcessingReportId(reportId);
+    const target = reports.find((r) => r.id === reportId);
+    if (!target) return;
+    const nowISO = new Date().toISOString();
+    const reason = rejectReason.trim() || undefined;
+
+    // Close the drawer immediately
+    setRejectingReportId(null);
+    setRejectReason('');
+
+    // Instant optimistic update: 0ms
+    setReports((prev) =>
+      prev.map((r) =>
+        r.id === reportId
+          ? {
+              ...r,
+              estado: 'rechazado',
+              fechaRevisionISO: nowISO,
+              revisadoPor: currentUserEmail || 'eduardomuleth@gmail.com',
+              motivoRechazo: reason,
+            }
+          : r
+      )
+    );
+
     try {
       await updateReportStatusByAdmin(
         reportId,
         'rechazado',
         currentUserId,
         currentUserEmail || 'eduardomuleth@gmail.com',
-        rejectReason.trim() || undefined
+        reason
       );
-      setRejectingReportId(null);
-      setRejectReason('');
     } catch (err) {
       console.error('Error rechazando reporte:', err);
-    } finally {
-      setProcessingReportId(null);
+      // Rollback on failure
+      setReports((prev) => prev.map((r) => (r.id === reportId ? target : r)));
     }
   };
 
@@ -161,10 +204,12 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
           <ShieldAlert className="w-8 h-8" />
         </div>
         <h2 className="text-xl font-bold font-['Rajdhani'] uppercase tracking-wider text-slate-900 dark:text-slate-100">
-          Acceso Restringido
+          {isEs ? 'Acceso Restringido' : 'Restricted Access'}
         </h2>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Esta vista es de uso exclusivo para la administración oficial (eduardomuleth@gmail.com).
+          {isEs
+            ? 'Esta vista es de uso exclusivo para la administración oficial (eduardomuleth@gmail.com).'
+            : 'This view is strictly reserved for official administration (eduardomuleth@gmail.com).'}
         </p>
       </div>
     );
@@ -172,32 +217,48 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
-      {/* Clean Institutional Header */}
+      {/* Clean Institutional Header with bilingual support */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">
-              Administración Comunal • Comuna 8 Medellín
+              {isEs ? 'Administración Comunal • Comuna 8 Medellín' : 'Community Administration • Comuna 8 Medellín'}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold font-['Rajdhani'] uppercase tracking-wide text-slate-900 dark:text-slate-100">
-            Panel de Aprobación en Tiempo Real
+            {isEs ? 'Panel de Aprobación en Tiempo Real' : 'Real-Time Approval Panel'}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Supervisión, validación y auditoría de reportes comunitarios con actualización dinámica de riesgo.
+            {isEs
+              ? 'Supervisión, validación y auditoría de reportes comunitarios con actualización dinámica de riesgo.'
+              : 'Supervision, validation, and audit of community reports with dynamic risk updates.'}
           </p>
         </div>
 
-        {/* Administrator Account Badge */}
-        <div className="flex items-center gap-2.5 self-start sm:self-auto px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              {currentUserEmail}
-            </div>
-            <div className="text-2xs font-medium text-emerald-600 dark:text-emerald-400">
-              Administrador General
+        {/* Action Controls & Admin Badge */}
+        <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
+          {onNavigateDashboard && (
+            <button
+              type="button"
+              onClick={onNavigateDashboard}
+              className="px-3.5 py-2 rounded-xl bg-red-600/10 hover:bg-red-600 hover:text-white text-red-600 dark:text-red-400 border border-red-500/20 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Activity className="w-4 h-4" />
+              <span>{isEs ? 'Ver Panel de Control' : 'Open Dashboard'}</span>
+            </button>
+          )}
+
+          {/* Administrator Account Badge */}
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <div className="text-left">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                {currentUserEmail}
+              </div>
+              <div className="text-2xs font-medium text-emerald-600 dark:text-emerald-400">
+                {isEs ? 'Administrador General' : 'General Administrator'}
+              </div>
             </div>
           </div>
         </div>
@@ -208,53 +269,61 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
-              Pendientes de Validación
+              {isEs ? 'Pendientes de Validación' : 'Pending Validation'}
             </span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <div className="mt-2 text-2xl font-black font-['Rajdhani'] text-amber-500">
             {stats.pending}
           </div>
-          <p className="mt-0.5 text-2xs text-slate-500">Requieren dictamen</p>
+          <p className="mt-0.5 text-2xs text-slate-500">
+            {isEs ? 'Requieren dictamen' : 'Action required'}
+          </p>
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
-              Reportes Aprobados
+              {isEs ? 'Reportes Aprobados' : 'Approved Reports'}
             </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           </div>
           <div className="mt-2 text-2xl font-black font-['Rajdhani'] text-emerald-500">
             {stats.approved}
           </div>
-          <p className="mt-0.5 text-2xs text-slate-500">Activos en mapa de riesgo</p>
+          <p className="mt-0.5 text-2xs text-slate-500">
+            {isEs ? 'Activos en mapa de riesgo' : 'Active on risk map'}
+          </p>
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
-              Reportes Rechazados
+              {isEs ? 'Reportes Rechazados' : 'Rejected Reports'}
             </span>
             <XCircle className="w-4 h-4 text-rose-500" />
           </div>
           <div className="mt-2 text-2xl font-black font-['Rajdhani'] text-rose-500">
             {stats.rejected}
           </div>
-          <p className="mt-0.5 text-2xs text-slate-500">Descartados con justificación</p>
+          <p className="mt-0.5 text-2xs text-slate-500">
+            {isEs ? 'Descartados con justificación' : 'Discarded with note'}
+          </p>
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
-              Total Gestionados
+              {isEs ? 'Total Gestionados' : 'Total Managed'}
             </span>
             <BarChart2 className="w-4 h-4 text-slate-500" />
           </div>
           <div className="mt-2 text-2xl font-black font-['Rajdhani'] text-slate-800 dark:text-slate-200">
             {stats.total}
           </div>
-          <p className="mt-0.5 text-2xs text-slate-500">Registros en Firestore</p>
+          <p className="mt-0.5 text-2xs text-slate-500">
+            {isEs ? 'Registros en Firestore' : 'Firestore records'}
+          </p>
         </div>
       </div>
 
@@ -272,7 +341,11 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar por ciudadano, sector o palabra clave..."
+                  placeholder={
+                    isEs
+                      ? 'Buscar por ciudadano, sector o palabra clave...'
+                      : 'Search by citizen, sector, or keyword...'
+                  }
                   className="w-full pl-9 pr-3 py-2 rounded-xl text-xs sm:text-sm border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
@@ -284,7 +357,7 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                   onChange={(e) => setSelectedSectorFilter(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl text-xs sm:text-sm border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100"
                 >
-                  <option value="all">Todos los sectores</option>
+                  <option value="all">{isEs ? 'Todos los sectores' : 'All sectors'}</option>
                   {COMUNA_8_SECTORS.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -298,10 +371,10 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
             <div className="flex items-center gap-1.5 overflow-x-auto pt-1 border-t border-slate-100 dark:border-slate-800">
               {(
                 [
-                  { id: 'all', label: 'Todos' },
-                  { id: 'pendiente', label: `Pendientes (${stats.pending})` },
-                  { id: 'aprobado', label: `Aprobados (${stats.approved})` },
-                  { id: 'rechazado', label: `Rechazados (${stats.rejected})` },
+                  { id: 'all', label: isEs ? 'Todos' : 'All' },
+                  { id: 'pendiente', label: `${isEs ? 'Pendientes' : 'Pending'} (${stats.pending})` },
+                  { id: 'aprobado', label: `${isEs ? 'Aprobados' : 'Approved'} (${stats.approved})` },
+                  { id: 'rechazado', label: `${isEs ? 'Rechazados' : 'Rejected'} (${stats.rejected})` },
                 ] as const
               ).map((tab) => (
                 <button
@@ -310,7 +383,7 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                   onClick={() => setStatusFilter(tab.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                     statusFilter === tab.id
-                      ? 'bg-red-600 text-white'
+                      ? 'bg-red-600 text-white shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
@@ -324,7 +397,7 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                   onClick={() => setSelectedSectorFilter('all')}
                   className="ml-auto text-2xs text-red-600 dark:text-red-400 font-bold hover:underline cursor-pointer"
                 >
-                  Quitar filtro de sector
+                  {isEs ? 'Quitar filtro de sector' : 'Clear sector filter'}
                 </button>
               )}
             </div>
@@ -335,7 +408,9 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
             <div className="py-16 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-red-500 animate-spin" />
               <p className="text-xs font-mono uppercase text-slate-400">
-                Consultando reportes en Firebase Firestore...
+                {isEs
+                  ? 'Consultando reportes en Firebase Firestore...'
+                  : 'Fetching reports from Firebase Firestore...'}
               </p>
             </div>
           ) : filteredReports.length === 0 ? (
@@ -343,13 +418,21 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-80" />
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
                 {statusFilter === 'pendiente'
-                  ? 'No hay reportes pendientes de revisión'
-                  : 'No hay reportes registrados'}
+                  ? isEs
+                    ? 'No hay reportes pendientes de revisión'
+                    : 'No pending reports for review'
+                  : isEs
+                  ? 'No hay reportes registrados'
+                  : 'No registered reports'}
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
                 {statusFilter === 'pendiente'
-                  ? 'No se registran incidentes manuales pendientes de dictamen en este momento.'
-                  : 'No se encontraron reportes creados por usuarios en la base de datos de Firebase Firestore.'}
+                  ? isEs
+                    ? 'No se registran incidentes manuales pendientes de dictamen en este momento.'
+                    : 'No manual incidents pending review at this time.'
+                  : isEs
+                  ? 'No se encontraron reportes creados por usuarios en la base de datos de Firebase Firestore.'
+                  : 'No user-created reports found in Firebase Firestore.'}
               </p>
             </div>
           ) : (
@@ -386,11 +469,12 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                               {report.autorNombre}
                             </span>
                             <span className="px-1.5 py-0.2 rounded text-2xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                              Usuario Registrado
+                              {isEs ? 'Usuario Registrado' : 'Registered User'}
                             </span>
                           </div>
                           <div className="text-2xs text-slate-500 dark:text-slate-400">
-                            {report.autorEmail || 'Sin correo especificado'} • {report.fechaCreacionFormateada || 'Reciente'}
+                            {report.autorEmail || (isEs ? 'Sin correo especificado' : 'No email provided')} •{' '}
+                            {report.fechaCreacionFormateada || (isEs ? 'Reciente' : 'Recent')}
                           </div>
                         </div>
                       </div>
@@ -400,7 +484,7 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                         <span
                           className={`px-2 py-0.5 rounded-full text-2xs font-bold uppercase border ${priorityColor}`}
                         >
-                          {report.nivelPrioridad}
+                          {translatePriority(report.nivelPrioridad)}
                         </span>
 
                         <span
@@ -412,7 +496,17 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                               : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
                           }`}
                         >
-                          {isApproved ? 'Aprobado' : isPending ? 'Pendiente' : 'Rechazado'}
+                          {isApproved
+                            ? isEs
+                              ? 'Aprobado'
+                              : 'Approved'
+                            : isPending
+                            ? isEs
+                              ? 'Pendiente'
+                              : 'Pending'
+                            : isEs
+                            ? 'Rechazado'
+                            : 'Rejected'}
                         </span>
                       </div>
                     </div>
@@ -433,20 +527,23 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                         <MapPin className="w-3.5 h-3.5 text-red-500" />
                         <span>{report.sector}</span>
                       </span>
-                      {report.direccion && (
-                        <span>• {report.direccion}</span>
-                      )}
-                      <span>• Categoría: {report.categoria}</span>
+                      {report.direccion && <span>• {report.direccion}</span>}
+                      <span>
+                        • {isEs ? 'Categoría' : 'Category'}: {translateCategory(report.categoria)}
+                      </span>
                     </div>
 
                     {/* Optional Rejection Reason */}
                     {report.motivoRechazo && (
                       <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-800 dark:text-rose-300">
-                        <span className="font-bold">Motivo de rechazo:</span> {report.motivoRechazo}
+                        <span className="font-bold">
+                          {isEs ? 'Motivo de rechazo:' : 'Rejection reason:'}
+                        </span>{' '}
+                        {report.motivoRechazo}
                       </div>
                     )}
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons with instantaneous optimistic response */}
                     <div className="flex items-center justify-end gap-2 pt-2">
                       {isPending ? (
                         <>
@@ -460,7 +557,7 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                             className="px-3.5 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
                           >
                             <X className="w-3.5 h-3.5" />
-                            <span>Rechazar</span>
+                            <span>{isEs ? 'Rechazar' : 'Reject'}</span>
                           </button>
 
                           <button
@@ -474,14 +571,18 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                             ) : (
                               <Check className="w-3.5 h-3.5" />
                             )}
-                            <span>Aprobar Reporte</span>
+                            <span>{isEs ? 'Aprobar Reporte' : 'Approve Report'}</span>
                           </button>
                         </>
                       ) : isApproved ? (
                         <div className="flex items-center gap-2">
                           <span className="text-2xs text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Aprobado • Activo en mapa y cálculo de riesgo</span>
+                            <span>
+                              {isEs
+                                ? 'Aprobado • Activo en mapa y cálculo de riesgo'
+                                : 'Approved • Active on map & risk calculation'}
+                            </span>
                           </span>
                           <button
                             type="button"
@@ -492,14 +593,14 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                             }}
                             className="px-2.5 py-1 text-2xs font-bold text-slate-500 hover:text-rose-600 transition underline cursor-pointer"
                           >
-                            Revertir a rechazado
+                            {isEs ? 'Revertir a rechazado' : 'Revert to rejected'}
                           </button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="text-2xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
                             <XCircle className="w-3.5 h-3.5" />
-                            <span>Reporte descartado</span>
+                            <span>{isEs ? 'Reporte descartado' : 'Report discarded'}</span>
                           </span>
                           <button
                             type="button"
@@ -507,7 +608,7 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                             onClick={() => handleApprove(report.id)}
                             className="px-3 py-1 rounded-lg bg-emerald-600/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600 hover:text-white text-2xs font-bold transition cursor-pointer"
                           >
-                            Reconsiderar y aprobar
+                            {isEs ? 'Reconsiderar y aprobar' : 'Reconsider & approve'}
                           </button>
                         </div>
                       )}
@@ -517,13 +618,19 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                     {rejectingReportId === report.id && (
                       <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2">
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                          Motivo del rechazo para notificación al usuario:
+                          {isEs
+                            ? 'Motivo del rechazo para notificación al usuario:'
+                            : 'Rejection reason for user notification:'}
                         </label>
                         <input
                           type="text"
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder="Ej. Información insuficiente o evento fuera de jurisdicción de la Comuna 8"
+                          placeholder={
+                            isEs
+                              ? 'Ej. Información insuficiente o evento fuera de jurisdicción de la Comuna 8'
+                              : 'E.g., Insufficient info or incident outside Comuna 8 jurisdiction'
+                          }
                           className="w-full px-3 py-1.5 rounded-lg text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                         />
                         <div className="flex justify-end gap-2">
@@ -532,14 +639,14 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                             onClick={() => setRejectingReportId(null)}
                             className="px-3 py-1 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
                           >
-                            Cancelar
+                            {isEs ? 'Cancelar' : 'Cancel'}
                           </button>
                           <button
                             type="button"
                             onClick={() => handleRejectConfirm(report.id)}
                             className="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold shadow-xs hover:bg-rose-700 cursor-pointer"
                           >
-                            Confirmar Rechazo
+                            {isEs ? 'Confirmar Rechazo' : 'Confirm Rejection'}
                           </button>
                         </div>
                       </div>
@@ -551,14 +658,16 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
           )}
         </div>
 
-        {/* Right Column: Nivel de Riesgo y Seguridad por Sector (Live Mathematical Dynamic Calculation) */}
+        {/* Right Column: Nivel de Riesgo y Seguridad por Sector (Live Dynamic Telemetry) */}
         <div className="lg:col-span-4 space-y-4">
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
             <h3 className="text-base font-bold font-['Rajdhani'] uppercase text-slate-900 dark:text-slate-100">
-              Nivel de Riesgo por Sector
+              {isEs ? 'Nivel de Riesgo por Sector' : 'Sector Risk Level'}
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Cálculo matemático en tiempo real basado exclusivamente en los reportes aprobados. Los sectores sin reportes aprobados se muestran en ceros sin métricas inventadas.
+              {isEs
+                ? 'Cálculo matemático en tiempo real basado exclusivamente en los reportes aprobados. Los sectores sin reportes aprobados se muestran en ceros sin métricas inventadas.'
+                : 'Real-time calculation based exclusively on approved reports. Sectors without approved reports display zero recorded activity.'}
             </p>
           </div>
 
@@ -582,8 +691,18 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                       </h4>
                       <div className="text-2xs text-slate-500">
                         {approvedInSector.length === 0
-                          ? 'Sin reportes aprobados'
-                          : `${approvedInSector.length} ${approvedInSector.length === 1 ? 'reporte aprobado' : 'reportes aprobados'}`}
+                          ? isEs
+                            ? 'Sin reportes aprobados'
+                            : 'No approved reports'
+                          : `${approvedInSector.length} ${
+                              approvedInSector.length === 1
+                                ? isEs
+                                  ? 'reporte aprobado'
+                                  : 'approved report'
+                                : isEs
+                                ? 'reportes aprobados'
+                                : 'approved reports'
+                            }`}
                       </div>
                     </div>
 
@@ -598,7 +717,7 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                   {riskStats.hasReports ? (
                     <div className="space-y-1">
                       <div className="flex justify-between text-2xs font-semibold text-slate-600 dark:text-slate-400">
-                        <span>Riesgo Calculado</span>
+                        <span>{isEs ? 'Riesgo Calculado' : 'Calculated Risk'}</span>
                         <span>{riskStats.riskPercentage}%</span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
@@ -611,14 +730,18 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                         />
                       </div>
                       <div className="flex justify-between text-2xs text-slate-500 pt-0.5">
-                        <span>Puntaje: {riskStats.weightedScore} pts</span>
-                        <span>Críticos: {riskStats.criticalOrHighCount}</span>
+                        <span>
+                          {isEs ? 'Puntaje' : 'Score'}: {riskStats.weightedScore} pts
+                        </span>
+                        <span>
+                          {isEs ? 'Críticos' : 'Critical'}: {riskStats.criticalOrHighCount}
+                        </span>
                       </div>
                     </div>
                   ) : (
                     <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-center">
                       <span className="text-2xs font-medium text-slate-500">
-                        Sin actividad registrada (0 pts)
+                        {isEs ? 'Sin actividad registrada (0 pts)' : 'No recorded activity (0 pts)'}
                       </span>
                     </div>
                   )}
@@ -630,7 +753,9 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
                     }}
                     className="w-full py-1 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-2xs font-bold text-slate-700 dark:text-slate-300 transition cursor-pointer flex items-center justify-center gap-1"
                   >
-                    <span>Filtrar reportes de este sector</span>
+                    <span>
+                      {isEs ? 'Filtrar reportes de este sector' : 'Filter reports for this sector'}
+                    </span>
                     <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>

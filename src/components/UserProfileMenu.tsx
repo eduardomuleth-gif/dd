@@ -44,17 +44,17 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({
   const effectiveRole: UserRole = isExplicitAdmin ? 'administrador' : 'ciudadano';
 
   // Compute initials and clean display name
-  const rawName = user?.displayName?.trim() || (user?.email ? user.email.split('@')[0] : 'Ciudadano');
+  const rawName = user?.displayName?.trim() || (user?.email ? user.email.split('@')[0] : (language === 'es' ? 'Ciudadano' : 'Citizen'));
   // Preserve full display name (e.g. "Luis (Administrador)" or "Victor Manuel") if displayName is present
   const displayName = isExplicitAdmin
-    ? (user?.displayName && user.displayName !== 'Ciudadano' && user.displayName !== 'eduardomuleth'
+    ? (user?.displayName && user.displayName !== 'Ciudadano' && user.displayName !== 'Citizen' && user.displayName !== 'eduardomuleth'
         ? user.displayName.trim()
-        : 'Luis (Administrador)')
+        : (language === 'es' ? 'Luis (Administrador)' : 'Luis (Administrator)'))
     : user?.displayName?.trim()
     ? user.displayName.trim()
     : rawName.split(/[._-]/)[0]
     ? rawName.split(/[._-]/)[0].charAt(0).toUpperCase() + rawName.split(/[._-]/)[0].slice(1)
-    : 'Ciudadano';
+    : (language === 'es' ? 'Ciudadano' : 'Citizen');
 
   const userEmail = user?.email || 'usuario@seguridadcomuna8.gov.co';
   const initial = displayName.charAt(0).toUpperCase();

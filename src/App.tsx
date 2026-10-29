@@ -445,6 +445,11 @@ const MainScreen: React.FC = () => {
           icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />,
         },
         {
+          id: 'dashboard',
+          label: language === 'es' ? 'Panel de Control' : 'Dashboard',
+          icon: <Activity className="w-4 h-4 text-red-500" />,
+        },
+        {
           id: 'riskMap',
           label: language === 'es' ? 'Mapa de Riesgo' : 'Risk Map',
           icon: <Map className="w-4 h-4 text-amber-500" />,
@@ -1154,6 +1159,7 @@ const MainScreen: React.FC = () => {
             currentUserId={currentUser?.uid}
             onNavigateRiskMap={() => setCurrentView('riskMap')}
             onNavigateUsers={() => setCurrentView('userManagement')}
+            onNavigateDashboard={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'home' ? (
           // Requested "Inicio" (Home) Authenticated Welcome Screen
@@ -1244,7 +1250,8 @@ const MainScreen: React.FC = () => {
         <div className={`max-w-xl mx-auto px-1.5 py-1 grid ${isEffectiveAdmin ? 'grid-cols-4' : 'grid-cols-6'} gap-0.5`}>
           {(isEffectiveAdmin
             ? [
-                { id: 'adminControlCenter' as NavTabId, shortLabel: 'Aprobaciones', icon: <ShieldCheck className="w-4 h-4" /> },
+                { id: 'adminControlCenter' as NavTabId, shortLabel: language === 'es' ? 'Aprobaciones' : 'Approvals', icon: <ShieldCheck className="w-4 h-4" /> },
+                { id: 'dashboard' as NavTabId, shortLabel: language === 'es' ? 'Panel' : 'Dashboard', icon: <Activity className="w-4 h-4" /> },
                 { id: 'riskMap' as NavTabId, shortLabel: language === 'es' ? 'Mapa' : 'Map', icon: <Map className="w-4 h-4" /> },
                 { id: 'settings' as NavTabId, shortLabel: language === 'es' ? 'Ajustes' : 'Settings', icon: <Settings className="w-4 h-4" /> },
               ]
