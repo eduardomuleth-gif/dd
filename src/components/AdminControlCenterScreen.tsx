@@ -127,6 +127,8 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
     if (!target) return;
     const nowISO = new Date().toISOString();
 
+    setProcessingReportId(reportId);
+
     // Instant optimistic update: 0ms
     setReports((prev) =>
       prev.map((r) =>
@@ -152,6 +154,8 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
       console.error('Error aprobando reporte:', err);
       // Rollback on failure
       setReports((prev) => prev.map((r) => (r.id === reportId ? target : r)));
+    } finally {
+      setProcessingReportId(null);
     }
   };
 
@@ -162,9 +166,10 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
     const nowISO = new Date().toISOString();
     const reason = rejectReason.trim() || undefined;
 
-    // Close the drawer immediately
+    // Close the drawer immediately (< 50ms)
     setRejectingReportId(null);
     setRejectReason('');
+    setProcessingReportId(reportId);
 
     // Instant optimistic update: 0ms
     setReports((prev) =>
@@ -193,6 +198,8 @@ export const AdminControlCenterScreen: React.FC<AdminControlCenterScreenProps> =
       console.error('Error rechazando reporte:', err);
       // Rollback on failure
       setReports((prev) => prev.map((r) => (r.id === reportId ? target : r)));
+    } finally {
+      setProcessingReportId(null);
     }
   };
 

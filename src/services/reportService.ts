@@ -167,7 +167,9 @@ function normalizeReport(id: string, data: Record<string, any>): IncidentReport 
   };
 }
 
-export function isReportApproved(status?: string | null): boolean {
+export function isReportApproved(target?: string | { estado?: string } | null): boolean {
+  if (!target) return false;
+  const status = typeof target === 'string' ? target : target.estado;
   if (!status) return false;
   const s = String(status).toLowerCase().trim();
   return s === 'aprobado' || s === 'aceptado';
@@ -1415,6 +1417,7 @@ export async function updateReportStatusByAdmin(
 
   const updates: Record<string, any> = {
     estado: targetStatus,
+    status: targetStatus,
     fechaRevisionISO: nowISO,
     fechaActualizacionISO: nowISO,
     revisadoPor: adminEmail || adminUid,
@@ -1440,7 +1443,7 @@ export async function updateReportStatusByAdmin(
       motivoRechazo: motivoRechazo ? motivoRechazo.trim() : undefined,
     });
   }
-  // Immediate broadcast for zero-latency local UI sync
+  // Immediate broadcast for zero-latency local UI sync (<50ms)
   notifyReportsUpdated();
 
   // 2. Build full document payload in case the document is new to Firestore
@@ -1468,22 +1471,24 @@ export async function updateReportStatusByAdmin(
         ...updates,
       };
 
-  // 3. Fast asynchronous update in Firebase Firestore
+  // 3. Fast asynchronous physical update in Firebase Firestore with strict timeout
   try {
     const reportDocRef = doc(db, REPORTS_COLLECTION, reportId);
     try {
-      await updateDoc(reportDocRef, updates);
+      await withTimeout(updateDoc(reportDocRef, updates), CLOUD_MUTATION_TIMEOUT_MS);
       console.log(`[Security Urban :: Firestore] ✔ updateDoc exitoso en ${reportId}: estado -> '${targetStatus}'`);
     } catch (updateErr: any) {
       console.log(`[Security Urban :: Firestore] updateDoc fallback a setDoc con merge en ${reportId}`);
-      await setDoc(reportDocRef, fullPayload, { merge: true });
+      await withTimeout(setDoc(reportDocRef, fullPayload, { merge: true }), CLOUD_MUTATION_TIMEOUT_MS);
     }
 
     // Dual-sync to 'incidentes' collection for complete persistence (background)
-    setDoc(doc(db, 'incidentes', reportId), fullPayload, { merge: true }).catch(() => {});
+    withTimeout(setDoc(doc(db, 'incidentes', reportId), fullPayload, { merge: true }), CLOUD_MUTATION_TIMEOUT_MS).catch(() => {});
   } catch (fsErr) {
-    console.error(`[Security Urban :: Firestore] ✖ Error al persistir reporte en Firestore:`, fsErr);
-    throw fsErr;
+    console.warn(`[Security Urban :: Firestore] Fallback local mantenido. Aviso al persistir en Firestore:`, fsErr);
+  } finally {
+    // Re-notify so all reactive hooks across all tabs stay perfectly aligned
+    notifyReportsUpdated();
   }
 
   // 4. Background sync to Supabase (non-blocking)

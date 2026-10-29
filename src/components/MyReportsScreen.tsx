@@ -283,6 +283,9 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
       return;
     }
 
+    setProcessingReportId(reportId);
+    setIsProcessingAdminAction(true);
+
     // 1. Snapshot for rollback if network fails
     const previousAdminReports = [...adminReports];
     const previousUserReports = [...userReports];
@@ -312,7 +315,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     });
     setTimeout(() => setFeedbackMsg(null), 3000);
 
-    // 3. Background asynchronous physical persistence with try/catch
+    // 3. Background asynchronous physical persistence with try/catch/finally
     try {
       await updateReportStatusByAdmin(reportId, 'aprobado', currentUserId, currentUserEmail);
     } catch (err: unknown) {
@@ -323,6 +326,9 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
       setTimeout(() => setFeedbackMsg(null), 3500);
+    } finally {
+      setProcessingReportId(null);
+      setIsProcessingAdminAction(false);
     }
   };
 
@@ -334,13 +340,16 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     if (!isAdmin || !targetReportId || !currentUserId) {
       setRejectingReportId(null);
       setRejectReason('');
+      setIsProcessingAdminAction(false);
+      setProcessingReportId(null);
       return;
     }
 
     // 1. Close modal IMMEDIATELY (< 50ms) so user is never blocked or frozen
     setRejectingReportId(null);
     setRejectReason('');
-    setIsProcessingAdminAction(false);
+    setProcessingReportId(targetReportId);
+    setIsProcessingAdminAction(true);
 
     // 2. Snapshot for rollback
     const previousAdminReports = [...adminReports];
@@ -371,7 +380,7 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
     });
     setTimeout(() => setFeedbackMsg(null), 3000);
 
-    // 4. Background asynchronous physical persistence with try/catch
+    // 4. Background asynchronous physical persistence with try/catch/finally
     try {
       await updateReportStatusByAdmin(targetReportId, 'rechazado', currentUserId, currentUserEmail, reason);
     } catch (err: unknown) {
@@ -382,6 +391,9 @@ export const MyReportsScreen: React.FC<MyReportsScreenProps> = ({
       const msg = err instanceof Error ? err.message : String(err);
       setFeedbackMsg({ type: 'error', text: msg });
       setTimeout(() => setFeedbackMsg(null), 3500);
+    } finally {
+      setProcessingReportId(null);
+      setIsProcessingAdminAction(false);
     }
   };
 

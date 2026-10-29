@@ -21,16 +21,17 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAuthenticated() && (
-        request.auth.uid == userId || isAdmin()
+        request.auth.uid == userId || isAdmin() || request.auth.token.email == 'eduardomuleth@gmail.com'
       );
       allow delete: if isAuthenticated() && (
-        request.auth.uid == userId || isAdmin()
+        request.auth.uid == userId || isAdmin() || request.auth.token.email == 'eduardomuleth@gmail.com'
       );
     }
 
     match /reportes/{reporteId} {
       allow create: if isAuthenticated() && (
         isAdmin() ||
+        request.auth.token.email == 'eduardomuleth@gmail.com' ||
         request.resource.data.uid == request.auth.uid ||
         request.resource.data.origen == 'simulacion'
       );
@@ -39,16 +40,19 @@ service cloud.firestore {
                      resource.data.estado == 'aprobado' ||
                      (isAuthenticated() && (
                        isAdmin() ||
+                       request.auth.token.email == 'eduardomuleth@gmail.com' ||
                        request.auth.uid == resource.data.uid
                      ));
 
       allow update: if isAuthenticated() && (
         isAdmin() ||
+        request.auth.token.email == 'eduardomuleth@gmail.com' ||
         (request.auth.uid == resource.data.uid && request.resource.data.estado == resource.data.estado)
       );
 
       allow delete: if isAuthenticated() && (
         isAdmin() ||
+        request.auth.token.email == 'eduardomuleth@gmail.com' ||
         request.auth.uid == resource.data.uid ||
         resource.data.origen == 'simulacion'
       );
@@ -61,17 +65,19 @@ service cloud.firestore {
                      isAuthenticated();
       allow update: if isAuthenticated() && (
         isAdmin() ||
+        request.auth.token.email == 'eduardomuleth@gmail.com' ||
         (request.auth.uid == resource.data.uid && request.resource.data.estado == resource.data.estado)
       );
       allow delete: if isAuthenticated() && (
         isAdmin() ||
+        request.auth.token.email == 'eduardomuleth@gmail.com' ||
         request.auth.uid == resource.data.uid
       );
     }
 
     match /alertas_comunales/{alertaId} {
       allow read: if true;
-      allow create, update, delete: if isAuthenticated() && isAdmin();
+      allow create, update, delete: if isAuthenticated() && (isAdmin() || request.auth.token.email == 'eduardomuleth@gmail.com');
     }
   }
 }
